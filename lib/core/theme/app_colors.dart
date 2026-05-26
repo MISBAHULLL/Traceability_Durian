@@ -11,7 +11,7 @@ class AppColors {
   static const Color primary = Color(0xFF296C11);
 
   /// Lighter brand green used for the agricultural canvas panel.
-  static const Color primaryContainer = Color(0xFF5CA142);
+  static const Color primaryContainer = Color(0XFF58A835);
 
   /// Soft accent green used for input focus rings.
   static const Color primaryFixedDim = Color(0xFF90D972);

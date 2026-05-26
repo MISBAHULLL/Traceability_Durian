@@ -93,42 +93,51 @@ class _WelcomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 30, 24, 47),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 55),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Durian illustration sourced from local assets.
-          Image.asset(
-            'assets/images/durian.png',
-            width: 170,
-            height: 170,
-            fit: BoxFit.contain,
-            // If the asset is missing for any reason, fall back to a glyph
-            // so the layout never breaks during development.
-            errorBuilder: (context, error, stackTrace) => const Text(
-              'Icon Durian',
-              style: TextStyle(fontSize: 64),
+          Transform.translate(
+            offset: const Offset(0, 27), // positif = turun, negatif = naik
+            child: Image.asset(
+              'assets/images/durian.png',
+              width: 170,
+              height: 170,
+              fit: BoxFit.contain,
+              // If the asset is missing for any reason, fall back to a glyph
+              // so the layout never breaks during development.
+              errorBuilder: (context, error, stackTrace) => const Text(
+                'Icon Durian',
+                style: TextStyle(fontSize: 64),
+              ),
             ),
           ),
           const SizedBox(height: 7),
-          const Text(
+            Transform.translate(
+            offset: const Offset(0, 25), // positif = turun, negatif = naik
+            child: const Text(
             'Selamat Datang',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: FontWeight.w400,
               letterSpacing: 0.4,
-              color: AppColors.subtitle,
+              color: Color.fromARGB(255, 2, 2, 3),
             ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'System Traceability Durian\nJawa Timur',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              height: 1.3,
-              color: AppColors.black,
+          ),
+          const SizedBox(height: 10),
+          Transform.translate(
+            offset: const Offset(0, 27), // positif = turun, negatif = naik
+            child: const Text(
+              'System Traceability Durian\nJawa Timur',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                height: 1.3,
+                color: AppColors.black,
+              ),
             ),
           ),
         ],
@@ -167,15 +176,11 @@ class _LoginPanel extends StatelessWidget {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
         child: Stack(
           children: [
-            // Decorative low-opacity field grid that mirrors the HTML mockup.
-            const Positioned.fill(
-              child: IgnorePointer(child: _FieldPatternBackdrop()),
-            ),
             // Form content.
             SafeArea(
               top: false,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
+                padding: const EdgeInsets.fromLTRB(24, 55, 24, 24),
                 child: Column(
                   children: [
                     _RoundedTextField(
@@ -187,7 +192,7 @@ class _LoginPanel extends StatelessWidget {
                       onSubmitted: (_) =>
                           FocusScope.of(context).requestFocus(passwordFocus),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                     _RoundedTextField(
                       controller: passwordController,
                       focusNode: passwordFocus,
@@ -196,9 +201,9 @@ class _LoginPanel extends StatelessWidget {
                       textInputAction: TextInputAction.done,
                       onSubmitted: (_) => onLogin(),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 55),
                     _PrimaryActionButton(onPressed: onLogin),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 35),
                     GestureDetector(
                       onTap: onRegisterTap,
                       behavior: HitTestBehavior.opaque,
@@ -213,7 +218,7 @@ class _LoginPanel extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 135),
+                    const SizedBox(height: 86),
                     const Text(
                       'PEMERINTAH PROVINSI JAWA TIMUR',
                       textAlign: TextAlign.center,
@@ -229,38 +234,6 @@ class _LoginPanel extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Decorative agricultural field pattern rendered behind the form.
-class _FieldPatternBackdrop extends StatelessWidget {
-  const _FieldPatternBackdrop();
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: 0.05,
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: GridView.count(
-          crossAxisCount: 4,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          physics: const NeverScrollableScrollPhysics(),
-          shrinkWrap: true,
-          children: List.generate(
-            4,
-            (_) => Container(
-              height: 80,
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.white),
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
         ),
       ),
     );
@@ -321,7 +294,7 @@ class _RoundedTextField extends StatelessWidget {
         focusedBorder: const OutlineInputBorder(
           borderRadius: BorderRadius.all(Radius.circular(999)),
           borderSide: BorderSide(
-            color: AppColors.primaryFixedDim,
+            color: Color.fromRGBO(144, 217, 114, 1),
             width: 2,
           ),
         ),
@@ -347,15 +320,34 @@ class _PrimaryActionButton extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 37, vertical: 14),
       ),
-      child: const Text(
-        'MASUK',
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 2,
-        ),
+      child: Stack(
+        children: [
+          // Layer bawah: stroke/outline
+          Text(
+            'MASUK',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2,
+              foreground: Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1
+                ..color = AppColors.black,
+            ),
+          ),
+          // Layer atas: fill normal
+          const Text(
+            'MASUK',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 2,
+              color: AppColors.black,
+            ),
+          ),
+        ],
       ),
     );
   }

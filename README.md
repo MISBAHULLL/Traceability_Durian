@@ -26,17 +26,6 @@ produk tidak mudah dimanipulasi tanpa jejak.
 - Hash-chain ledger (MVP), opsi upgrade ke smart contract atau permissioned
   blockchain
 
-## Dokumentasi Lengkap
-
-Lihat folder `DurianTrace_AI_Development_Blueprint/`:
-
-- `01_PROJECT_OVERVIEW.md`
-- `02_PRD_MASTER.md`
-- `03_TECHNICAL_SPEC.md`
-- `04_DATABASE_SCHEMA.md`
-- `13_IMPLEMENTATION_TASKS.md`
-- dan lainnya.
-
 ## Menjalankan Aplikasi
 
 ```bash

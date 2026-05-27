@@ -358,7 +358,7 @@ class _LoginPanel extends StatelessWidget {
 }
 
 /// White pill-shaped text field used by the login panel.
-class _RoundedTextField extends StatelessWidget {
+class _RoundedTextField extends StatefulWidget {
   const _RoundedTextField({
     required this.controller,
     required this.focusNode,
@@ -378,6 +378,19 @@ class _RoundedTextField extends StatelessWidget {
   final ValueChanged<String>? onSubmitted;
 
   @override
+  State<_RoundedTextField> createState() => _RoundedTextFieldState();
+}
+
+class _RoundedTextFieldState extends State<_RoundedTextField> {
+  late bool _obscure;
+
+  @override
+  void initState() {
+    super.initState();
+    _obscure = widget.obscureText;
+  }
+
+  @override
   Widget build(BuildContext context) {
     const border = OutlineInputBorder(
       borderRadius: BorderRadius.all(Radius.circular(999)),
@@ -385,19 +398,19 @@ class _RoundedTextField extends StatelessWidget {
     );
 
     return TextField(
-      controller: controller,
-      focusNode: focusNode,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      onSubmitted: onSubmitted,
+      controller: widget.controller,
+      focusNode: widget.focusNode,
+      obscureText: _obscure,
+      keyboardType: widget.keyboardType,
+      textInputAction: widget.textInputAction,
+      onSubmitted: widget.onSubmitted,
       textAlign: TextAlign.center,
       style: const TextStyle(
         fontSize: 14,
         color: AppColors.black,
       ),
       decoration: InputDecoration(
-        hintText: hintText,
+        hintText: widget.hintText,
         hintStyle: const TextStyle(
           fontSize: 14,
           color: AppColors.placeholder,
@@ -405,7 +418,7 @@ class _RoundedTextField extends StatelessWidget {
         filled: true,
         fillColor: AppColors.white,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
         border: border,
         enabledBorder: border,
         focusedBorder: const OutlineInputBorder(
@@ -415,6 +428,20 @@ class _RoundedTextField extends StatelessWidget {
             width: 2,
           ),
         ),
+        // Tampilkan toggle hanya jika field ini adalah password
+        suffixIcon: widget.obscureText
+            ? IconButton(
+                onPressed: () => setState(() => _obscure = !_obscure),
+                icon: Icon(
+                  _obscure
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: AppColors.placeholder,
+                  size: 20,
+                ),
+                splashRadius: 20,
+              )
+            : null,
       ),
     );
   }

@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/auth/screens/home_screen.dart';
+import 'features/auth/screens/splash_screen.dart';
 
 void main() {
   runApp(
@@ -27,7 +27,7 @@ class DurianTraceApp extends StatelessWidget {
       locale: DevicePreview.locale(context),
       builder: DevicePreview.appBuilder,
       theme: AppTheme.light(),
-      home: const HomeScreen(),
+      home: const SplashScreen(),
     );
   }
 }

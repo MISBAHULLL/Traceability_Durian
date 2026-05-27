@@ -17,15 +17,42 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _identifierController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   final FocusNode _identifierFocus = FocusNode();
   final FocusNode _passwordFocus = FocusNode();
 
+  late final AnimationController _animController;
+  late final Animation<double> _fadeAnim;
+  late final Animation<Offset> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _fadeAnim = CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.0, 0.8, curve: Curves.easeInOutCubic),
+    );
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.05),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
+    ));
+    _animController.forward();
+  }
+
   @override
   void dispose() {
+    _animController.dispose();
     _identifierController.dispose();
     _passwordController.dispose();
     _identifierFocus.dispose();
@@ -66,20 +93,26 @@ class _HomeScreenState extends State<HomeScreen> {
       // visible when the keyboard appears.
       body: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            const _WelcomeHeader(),
-            Expanded(
-              child: _LoginPanel(
-                identifierController: _identifierController,
-                passwordController: _passwordController,
-                identifierFocus: _identifierFocus,
-                passwordFocus: _passwordFocus,
-                onLogin: _handleLogin,
-                onRegisterTap: _handleRegisterTap,
-              ),
+        child: FadeTransition(
+          opacity: _fadeAnim,
+          child: SlideTransition(
+            position: _slideAnim,
+            child: Column(
+              children: [
+                const _WelcomeHeader(),
+                Expanded(
+                  child: _LoginPanel(
+                    identifierController: _identifierController,
+                    passwordController: _passwordController,
+                    identifierFocus: _identifierFocus,
+                    passwordFocus: _passwordFocus,
+                    onLogin: _handleLogin,
+                    onRegisterTap: _handleRegisterTap,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

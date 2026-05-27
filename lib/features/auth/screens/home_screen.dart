@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'register_role_screen.dart';
 
 /// Landing + login screen for DurianTrace.
 ///
@@ -195,7 +196,20 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _handleRegisterTap() {
-    _showTopNotification('Halaman daftar belum tersedia.', isError: false);
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (_, __, ___) => const RegisterRoleScreen(),
+        transitionsBuilder: (_, animation, __, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOutCubic,
+          );
+          return FadeTransition(opacity: curved, child: child);
+        },
+      ),
+    );
   }
 
 

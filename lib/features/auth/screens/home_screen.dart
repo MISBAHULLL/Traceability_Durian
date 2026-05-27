@@ -31,6 +31,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool _isLoading = false;
 
+  OverlayEntry? _overlayEntry;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +56,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
     _animController.dispose();
     _identifierController.dispose();
     _passwordController.dispose();
@@ -62,13 +66,73 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  void _showTopNotification(String message, {bool isError = false}) {
+    // Hapus overlay sebelumnya jika masih tampil
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (_) => _TopNotificationBanner(
+        message: message,
+        isError: isError,
+        onDismiss: () {
+          entry.remove();
+          if (_overlayEntry == entry) _overlayEntry = null;
+        },
+      ),
+    );
+
+    _overlayEntry = entry;
+    overlay.insert(entry);
+  }
+
   void _handleLogin() async {
     FocusScope.of(context).unfocus();
     final identifier = _identifierController.text.trim();
     final password = _passwordController.text;
 
-    if (identifier.isEmpty || password.isEmpty) {
-      _showSnack('Email/Username dan password wajib diisi.');
+    // Validasi field kosong — spesifik per field
+    if (identifier.isEmpty && password.isEmpty) {
+      _showTopNotification('Email/Username dan password wajib diisi.', isError: true);
+      return;
+    }
+    if (identifier.isEmpty) {
+      _showTopNotification('Email/Username wajib diisi.', isError: true);
+      return;
+    }
+    if (password.isEmpty) {
+      _showTopNotification('Password wajib diisi.', isError: true);
+      return;
+    }
+
+    // Validasi format email jika input mengandung '@'
+    final isEmail = identifier.contains('@');
+    if (isEmail) {
+      final emailRegex = RegExp(r'^[\w\.\+\-]+@[\w\-]+\.[a-zA-Z]{2,}$');
+      if (!emailRegex.hasMatch(identifier)) {
+        _showTopNotification('Format email tidak valid.', isError: true);
+        return;
+      }
+    }
+
+    // Deteksi input yang seperti email tapi tidak ada '@'
+    // contoh: sionalop.com, user.name, test.id
+    final looksLikeEmail = !identifier.contains('@') &&
+        RegExp(r'\.[a-zA-Z]{2,}$').hasMatch(identifier);
+    if (looksLikeEmail) {
+      _showTopNotification(
+        'Email atau kata sandi yang kamu masukkan salah.',
+        isError: true,
+      );
+      return;
+    }
+
+    // Validasi panjang password minimal
+    if (password.length < 6) {
+      _showTopNotification('Password minimal 6 karakter.', isError: true);
       return;
     }
 
@@ -80,18 +144,24 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    _showSnack('Form siap dikirim ke backend.');
+    // TODO: Ganti blok di bawah dengan response handler dari BE
+    // Contoh penanganan response BE:
+    // if (response.statusCode == 404) {
+    //   _showTopNotification('Email tidak terdaftar. Periksa kembali atau daftar akun baru.', isError: true);
+    //   return;
+    // }
+    // if (response.statusCode == 401) {
+    //   _showTopNotification('Password salah. Coba lagi.', isError: true);
+    //   return;
+    // }
+
+    _showTopNotification('Form siap dikirim ke backend.', isError: false);
   }
 
   void _handleRegisterTap() {
-    _showSnack('Halaman daftar belum tersedia.');
+    _showTopNotification('Halaman daftar belum tersedia.', isError: false);
   }
 
-  void _showSnack(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -410,6 +480,141 @@ class _PrimaryActionButton extends StatelessWidget {
                 ),
               ],
             ),
+    );
+  }
+}
+
+/// Overlay banner yang muncul dari atas layar dengan animasi slide-down + fade.
+/// Auto-dismiss setelah 3 detik atau bisa di-tap untuk menutup.
+class _TopNotificationBanner extends StatefulWidget {
+  const _TopNotificationBanner({
+    required this.message,
+    required this.isError,
+    required this.onDismiss,
+  });
+
+  final String message;
+  final bool isError;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_TopNotificationBanner> createState() =>
+      _TopNotificationBannerState();
+}
+
+class _TopNotificationBannerState extends State<_TopNotificationBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+
+    _slide = Tween<Offset>(
+      begin: const Offset(0, -1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
+
+    // Slide in
+    _ctrl.forward();
+
+    // Auto dismiss setelah 3 detik
+    Future.delayed(const Duration(seconds: 3), _dismiss);
+  }
+
+  void _dismiss() async {
+    if (!mounted) return;
+    await _ctrl.reverse();
+    widget.onDismiss();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
+    final bgColor = widget.isError
+        ? const Color(0xFFFFDAD6)
+        : const Color(0xFFDCF5DC);
+    final textColor = widget.isError
+        ? const Color(0xFF7F1D1D)
+        : const Color(0xFF14532D);
+    final iconColor = widget.isError
+        ? const Color(0xFFB91C1C)
+        : const Color(0xFF16A34A);
+
+    return Positioned(
+      top: topPadding + 12,
+      left: 24,
+      right: 24,
+      child: SlideTransition(
+        position: _slide,
+        child: FadeTransition(
+          opacity: _fade,
+          child: GestureDetector(
+            onTap: _dismiss,
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.10),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      widget.isError
+                          ? Icons.error_outline_rounded
+                          : Icons.check_circle_outline_rounded,
+                      color: iconColor,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.message,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.close_rounded,
+                      color: textColor.withOpacity(0.6),
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

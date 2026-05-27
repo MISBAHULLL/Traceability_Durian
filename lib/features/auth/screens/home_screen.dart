@@ -29,6 +29,8 @@ class _HomeScreenState extends State<HomeScreen>
   late final Animation<double> _fadeAnim;
   late final Animation<Offset> _slideAnim;
 
+  bool _isLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -60,9 +62,7 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  void _handleLogin() {
-    // Frontend-only stub. Authentication wiring happens in a later task
-    // (see TASK MOB-02 in the blueprint).
+  void _handleLogin() async {
     FocusScope.of(context).unfocus();
     final identifier = _identifierController.text.trim();
     final password = _passwordController.text;
@@ -71,6 +71,14 @@ class _HomeScreenState extends State<HomeScreen>
       _showSnack('Email/Username dan password wajib diisi.');
       return;
     }
+
+    setState(() => _isLoading = true);
+
+    // Simulasi network delay — ganti dengan API call saat BE siap
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
 
     _showSnack('Form siap dikirim ke backend.');
   }
@@ -108,6 +116,7 @@ class _HomeScreenState extends State<HomeScreen>
                     passwordFocus: _passwordFocus,
                     onLogin: _handleLogin,
                     onRegisterTap: _handleRegisterTap,
+                    isLoading: _isLoading,
                   ),
                 ),
               ],
@@ -188,6 +197,7 @@ class _LoginPanel extends StatelessWidget {
     required this.passwordFocus,
     required this.onLogin,
     required this.onRegisterTap,
+    required this.isLoading,
   });
 
   final TextEditingController identifierController;
@@ -196,6 +206,7 @@ class _LoginPanel extends StatelessWidget {
   final FocusNode passwordFocus;
   final VoidCallback onLogin;
   final VoidCallback onRegisterTap;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +246,10 @@ class _LoginPanel extends StatelessWidget {
                       onSubmitted: (_) => onLogin(),
                     ),
                     const SizedBox(height: 55),
-                    _PrimaryActionButton(onPressed: onLogin),
+                    _PrimaryActionButton(
+                      onPressed: onLogin,
+                      isLoading: isLoading,
+                    ),
                     const SizedBox(height: 35),
                     GestureDetector(
                       onTap: onRegisterTap,
@@ -338,50 +352,64 @@ class _RoundedTextField extends StatelessWidget {
 
 /// White rounded "MASUK" button.
 class _PrimaryActionButton extends StatelessWidget {
-  const _PrimaryActionButton({required this.onPressed});
+  const _PrimaryActionButton({
+    required this.onPressed,
+    required this.isLoading,
+  });
 
   final VoidCallback onPressed;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
     return ElevatedButton(
-      onPressed: onPressed,
+      onPressed: isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.white,
         foregroundColor: AppColors.black,
+        disabledBackgroundColor: AppColors.white.withOpacity(0.6),
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 37, vertical: 14),
       ),
-      child: Stack(
-        children: [
-          // Layer bawah: stroke/outline
-          Text(
-            'MASUK',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2,
-              foreground: Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1
-                ..color = AppColors.black,
+      child: isLoading
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.black),
+              ),
+            )
+          : Stack(
+              children: [
+                // Layer bawah: stroke/outline
+                Text(
+                  'MASUK',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 2,
+                    foreground: Paint()
+                      ..style = PaintingStyle.stroke
+                      ..strokeWidth = 1
+                      ..color = AppColors.black,
+                  ),
+                ),
+                // Layer atas: fill normal
+                const Text(
+                  'MASUK',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2,
+                    color: AppColors.black,
+                  ),
+                ),
+              ],
             ),
-          ),
-          // Layer atas: fill normal
-          const Text(
-            'MASUK',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 2,
-              color: AppColors.black,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

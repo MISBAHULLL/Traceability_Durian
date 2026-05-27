@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../core/theme/app_colors.dart';
 
@@ -138,24 +140,58 @@ class _HomeScreenState extends State<HomeScreen>
 
     setState(() => _isLoading = true);
 
-    // Simulasi network delay — ganti dengan API call saat BE siap
-    await Future.delayed(const Duration(seconds: 2));
+    // Cek koneksi dan timeout hanya aktif di release mode
+    // Di debug/development dilewati agar tidak menghambat pengembangan
+    if (!kDebugMode) {
+      final connectivity = await Connectivity().checkConnectivity();
+      if (!mounted) return;
+      if (connectivity.contains(ConnectivityResult.none) ||
+          connectivity.isEmpty) {
+        setState(() => _isLoading = false);
+        _showTopNotification(
+          'Tidak ada koneksi internet. Periksa jaringan Anda.',
+          isError: true,
+        );
+        return;
+      }
+    }
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+    try {
+      // Simulasi delay hanya di debug — di release diganti API call BE
+      if (kDebugMode) {
+        await Future.delayed(const Duration(milliseconds: 300));
+      } else {
+        await Future.delayed(const Duration(seconds: 2)).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () => throw Exception('timeout'),
+        );
+      }
 
-    // TODO: Ganti blok di bawah dengan response handler dari BE
-    // Contoh penanganan response BE:
-    // if (response.statusCode == 404) {
-    //   _showTopNotification('Email tidak terdaftar. Periksa kembali atau daftar akun baru.', isError: true);
-    //   return;
-    // }
-    // if (response.statusCode == 401) {
-    //   _showTopNotification('Password salah. Coba lagi.', isError: true);
-    //   return;
-    // }
+      // TODO: Ganti dengan API call saat BE siap
+      // Contoh penanganan response BE:
+      // if (response.statusCode == 404) {
+      //   _showTopNotification('Email tidak terdaftar. Periksa kembali atau daftar akun baru.', isError: true);
+      //   return;
+      // }
+      // if (response.statusCode == 401) {
+      //   _showTopNotification('Password salah. Coba lagi.', isError: true);
+      //   return;
+      // }
 
-    _showTopNotification('Form siap dikirim ke backend.', isError: false);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showTopNotification('Form siap dikirim ke backend.', isError: false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      final isTimeout = e.toString().contains('timeout');
+      _showTopNotification(
+        isTimeout
+            ? 'Koneksi lambat, coba lagi.'
+            : 'Terjadi kesalahan. Coba lagi.',
+        isError: true,
+      );
+    }
   }
 
   void _handleRegisterTap() {

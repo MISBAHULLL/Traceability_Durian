@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 
+// [FE - Component Rendering] Widget ini adalah tombol aksi utama yang
+// dipakai di seluruh layar petani — memusatkan gaya pill agar konsisten
+// dan mendukung state loading/disabled tanpa duplikasi kode.
 /// Tombol aksi utama berbentuk pill yang dipakai di seluruh layar petani.
 ///
 /// Mengekstrak pola `ElevatedButton` + `StadiumBorder` yang berulang di

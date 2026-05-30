@@ -132,9 +132,9 @@ class _RegisterRoleScreenState extends State<RegisterRoleScreen>
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 400),
-        pageBuilder: (_, __, ___) =>
+        pageBuilder: (_, _, _) =>
             RegisterFormScreen(role: _selectedRole!),
-        transitionsBuilder: (_, animation, __, child) => FadeTransition(
+        transitionsBuilder: (_, animation, _, child) => FadeTransition(
           opacity: CurvedAnimation(
             parent: animation,
             curve: Curves.easeInOutCubic,
@@ -339,7 +339,7 @@ class _RoleCard extends StatelessWidget {
                   width: 120,
                   height: 120,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const SizedBox(
+                  errorBuilder: (_, _, _) => const SizedBox(
                     width: 120,
                     height: 120,
                     child: Icon(

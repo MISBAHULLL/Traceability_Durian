@@ -1,3 +1,6 @@
+// [CONFIG - Environment] Kelas ini menyimpan konstanta master data dropdown
+// yang saat ini hardcoded — dirancang agar mudah diganti dengan pemanggilan
+// API master data di masa depan.
 /// Daftar opsi master data untuk dropdown pada form Tambah Batch Panen.
 ///
 /// Konstanta ini mudah diganti dengan data dari API di masa depan (Req 2.2).

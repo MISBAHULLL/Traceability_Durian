@@ -13,6 +13,8 @@ import '../models/master_data.dart';
 import 'batch_qr_screen.dart';
 import 'create_farm_screen.dart';
 
+// [FE - Component Rendering] Screen ini adalah form pencatatan batch baru —
+// menggabungkan validasi, state loading, dan navigasi ke QR setelah sukses.
 /// Layar form untuk mencatat batch panen baru.
 ///
 /// Menampilkan lima dropdown (kebun, varietas, pupuk, metode panen, grade),
@@ -107,6 +109,8 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 
+  // [FE - Event Handler] _submit menangani aksi KIRIM: validasi → error banner
+  // atau loading + addBatch + sukses banner + navigasi ke QR screen.
   Future<void> _submit() async {
     // Validasi semua field
     final error = FarmerValidator.validateAddBatch(

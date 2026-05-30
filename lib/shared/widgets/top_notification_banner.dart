@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+// [FE - Component Rendering] Widget ini menampilkan banner notifikasi
+// dari atas layar — dipakai sebagai pengganti SnackBar di seluruh
+// layar petani agar gaya notifikasi konsisten (Req 8.3).
 /// Banner notifikasi yang muncul dari atas layar dengan animasi
 /// slide-down + fade. Auto-dismiss setelah 3 detik atau tap untuk menutup.
 ///
@@ -131,6 +134,9 @@ class _TopNotificationBannerState extends State<TopNotificationBanner>
   }
 }
 
+// [FE - State Management] TopNotification adalah controller yang mengelola
+// siklus hidup OverlayEntry banner — memastikan hanya satu banner aktif
+// dan membersihkan resource saat State pemanggil di-dispose.
 /// Helper untuk menampilkan [TopNotificationBanner] lewat [Overlay].
 ///
 /// Memastikan hanya ada satu banner aktif pada satu waktu per pemanggil.

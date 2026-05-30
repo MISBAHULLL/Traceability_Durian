@@ -7,6 +7,9 @@ import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../data/farmer_repository.dart';
 
+// [FE - Component Rendering] Screen ini adalah form pembuatan kebun baru —
+// field wajib divalidasi sebelum disimpan ke FarmerRepository, dan kebun
+// baru langsung tersedia di dropdown AddBatchScreen via notifyListeners.
 /// Layar form untuk membuat kebun durian baru (Req 5.3–5.6).
 ///
 /// Field wajib: nama kebun, provinsi, kota/kabupaten, kecamatan, desa, alamat.
@@ -56,6 +59,8 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 
+  // [FE - Event Handler] _submit menangani aksi simpan kebun: validasi →
+  // error banner atau addFarm + sukses banner + pop kembali ke pemanggil.
   Future<void> _submit() async {
     // Validasi semua field
     final error = FarmerValidator.validateCreateFarm(

@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/widgets/top_notification_banner.dart';
 import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
 import '../models/harvest_batch.dart';
 import 'add_batch_screen.dart';
 import 'batch_detail_screen.dart';
 import 'batch_qr_screen.dart';
+import 'farm_management_screen.dart';
 import 'farmer_profile_screen.dart';
 
+// [FE - Component Rendering] Screen ini adalah layar root petani setelah
+// login — menampilkan ringkasan statistik, daftar batch, dan navigasi
+// ke semua fitur utama petani.
 /// Beranda untuk role Petani (Farmer).
 ///
 /// Mengikuti gaya visual prototype "Beranda" (header, greeting, CTA hijau,
@@ -31,7 +34,6 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
     with SingleTickerProviderStateMixin {
   final _repo = FarmerRepository.instance;
   final TextEditingController _searchController = TextEditingController();
-  final TopNotification _notification = TopNotification();
 
   BatchFilter _activeFilter = BatchFilter.semua;
   String _query = '';
@@ -72,16 +74,20 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
   @override
   void dispose() {
     _repo.removeListener(_onRepoChanged);
-    _notification.dispose();
     _animController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
+  // [FE - State Management] _onRepoChanged adalah listener reaktif yang
+  // memicu rebuild saat FarmerRepository berubah (batch/kebun baru ditambah).
   void _onRepoChanged() {
     if (mounted) setState(() {});
   }
 
+  // [UTIL - Helper Function] _filteredBatches menggabungkan filter chip
+  // dan query pencarian menjadi satu daftar — menggunakan pure function
+  // searchAndFilterBatches agar logika filter dapat diuji secara independen.
   /// Daftar batch setelah difilter chip + query pencarian (Req 1.4, 1.5, 1.6).
   ///
   /// Menggunakan helper murni [searchAndFilterBatches] dari FarmerRepository.
@@ -112,12 +118,10 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
     await FarmerRoutes.push(context, const FarmerProfileScreen());
   }
 
-  void _comingSoon(String feature) {
-    _notification.show(
-      context,
-      '$feature akan tersedia setelah layar terkait dibuat.',
-      isError: false,
-    );
+  /// Buka Layar Kelola Kebun dari menu Beranda (Req 5.1, 5.2).
+  Future<void> _openFarmManagement() async {
+    await FarmerRoutes.push(context, const FarmManagementScreen());
+    // Repo listener (_onRepoChanged) sudah menangani refresh otomatis.
   }
 
   @override
@@ -136,7 +140,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
               children: [
                 _TopBar(
                   onProfile: _openProfile,
-                  onMenu: () => _comingSoon('Menu'),
+                  onMenu: _openFarmManagement,
                 ),
                 Expanded(
                   child: CustomScrollView(
@@ -207,6 +211,8 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
 // Top bar
 // ─────────────────────────────────────────────────────────────────────────────
 
+// [FE - Component Rendering] _TopBar adalah top bar khusus Beranda —
+// tidak memiliki tombol back karena ini adalah layar root setelah login.
 /// Top bar: judul "Beranda" di tengah + ikon profil & menu di kanan.
 ///
 /// Tidak ada tombol back karena beranda adalah root setelah login.
@@ -320,6 +326,9 @@ class _GreetingBlock extends StatelessWidget {
 // Statistik ringkas
 // ─────────────────────────────────────────────────────────────────────────────
 
+// [FE - Component Rendering] _StatRow menampilkan tiga kartu ringkasan
+// yang nilainya dibaca langsung dari FarmerRepository — ter-refresh
+// otomatis saat repo berubah via listener di FarmerHomeScreen.
 class _StatRow extends StatelessWidget {
   const _StatRow({required this.repo});
 
@@ -530,6 +539,9 @@ class _SearchField extends StatelessWidget {
 // Filter chips
 // ─────────────────────────────────────────────────────────────────────────────
 
+// [FE - Component Rendering] _FilterChips menampilkan chip filter status
+// dan memanggil onChanged saat chip dipilih — state filter disimpan
+// di FarmerHomeScreen dan dipakai oleh _filteredBatches.
 class _FilterChips extends StatelessWidget {
   const _FilterChips({required this.active, required this.onChanged});
 
@@ -619,6 +631,9 @@ class _SectionHeader extends StatelessWidget {
 // Card batch
 // ─────────────────────────────────────────────────────────────────────────────
 
+// [FE - Component Rendering] _BatchCard adalah kartu daftar batch yang
+// menampilkan info ringkas dan menyediakan dua aksi: tap kartu → detail,
+// tap tombol QR → layar QR.
 class _BatchCard extends StatelessWidget {
   const _BatchCard({
     required this.batch,

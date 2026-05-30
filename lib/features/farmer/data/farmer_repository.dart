@@ -8,6 +8,9 @@ import '../models/harvest_batch.dart';
 // FarmerRepository
 // ─────────────────────────────────────────────────────────────────────────────
 
+// [FE - State Management] Repository ini adalah satu-satunya sumber data
+// (single source of truth) untuk seluruh layar petani pada fase FE-only.
+// Menggunakan ChangeNotifier agar widget dapat rebuild secara reaktif.
 /// Repository in-memory untuk data petani (mock store, fase FE-only).
 ///
 /// Mengimplementasikan [ChangeNotifier] agar widget yang bergantung padanya
@@ -27,6 +30,8 @@ class FarmerRepository extends ChangeNotifier {
     _batchCounter = _batches.length;
   }
 
+  // [FE - State Management] Seed data dipindahkan dari FarmerMockData ke sini
+  // (task 13.3) agar repository menjadi satu-satunya sumber data mock.
   // ── Konstanta seed (dipindahkan dari FarmerMockData — task 13.3) ───────────
 
   static const String _kSeedFarmerId = 'farmer-001';
@@ -198,6 +203,8 @@ class FarmerRepository extends ChangeNotifier {
 
   // ── Pembuatan kode batch (Req 2.7) ─────────────────────────────────────────
 
+  // [UTIL - Helper Function] generateBatchCode menghasilkan kode unik
+  // berformat DRN-YYYY-NNNNNN dengan counter monotetik agar tidak ada duplikat.
   /// Menghasilkan kode batch unik berformat `DRN-YYYY-NNNNNN`.
   ///
   /// Kode bersifat monotetik: counter bertambah setiap pemanggilan sehingga
@@ -209,6 +216,9 @@ class FarmerRepository extends ChangeNotifier {
     return 'DRN-$year-$seq';
   }
 
+  // [UTIL - Helper Function] publicTraceUrl membangun URL publik yang
+  // di-encode ke dalam QR Code — menjadi titik integrasi dengan sistem
+  // telusur publik DurianTrace.
   /// Mengembalikan URL publik untuk menelusuri batch berdasarkan [code].
   ///
   /// Contoh: `https://duriantrace.id/trace/DRN-2026-000129`
@@ -216,6 +226,9 @@ class FarmerRepository extends ChangeNotifier {
 
   // ── Tambah batch (Req 2.7, 5.5, 5.6) ──────────────────────────────────────
 
+  // [FE - State Management] addBatch adalah mutasi utama repository —
+  // membuat batch baru, menyimpannya ke mock store, lalu notifikasi
+  // semua listener agar UI ter-refresh secara reaktif.
   /// Membuat [HarvestBatch] baru berstatus [BatchStatus.created] dengan kode
   /// unik, terikat pada [currentFarmerId] dan [farm.id].
   ///
@@ -254,6 +267,9 @@ class FarmerRepository extends ChangeNotifier {
 
   // ── Tambah kebun (Req 5.5, 5.6) ────────────────────────────────────────────
 
+  // [FE - State Management] addFarm menyimpan kebun baru ke mock store
+  // dan notifikasi listener — dropdown lokasi kebun di AddBatchScreen
+  // akan otomatis ter-refresh tanpa perlu setState manual.
   /// Menambahkan [Farm] baru milik [currentFarmerId] ke mock store.
   ///
   /// Memanggil [notifyListeners] agar dropdown lokasi kebun ter-refresh.
@@ -287,6 +303,8 @@ class FarmerRepository extends ChangeNotifier {
 
   // ── Guard edit batch (Req 3.8, 3.9, 7.3, 7.4) ─────────────────────────────
 
+  // [FE - State Management] canEditBatch dan updateBatch menegakkan
+  // aturan state machine di sisi klien — hanya batch DRAFT yang boleh diubah.
   /// Mengembalikan `true` jika dan hanya jika batch dengan [code] berstatus
   /// [BatchStatus.draft] — satu-satunya status yang boleh diedit petani.
   bool canEditBatch(String code) {
@@ -346,6 +364,9 @@ class FarmerRepository extends ChangeNotifier {
 
   // ── Timeline (Req 3.6) ─────────────────────────────────────────────────────
 
+  // [FE - State Management] eventsFor membangkitkan timeline dari status
+  // batch saat ini — pada fase FE-only ini bersifat deterministik;
+  // di masa depan akan diganti dengan event nyata dari backend.
   /// Mengembalikan daftar [BatchEvent] untuk batch dengan [code], diurutkan
   /// kronologis (terlama di atas).
   ///
@@ -483,6 +504,8 @@ class FarmerRepository extends ChangeNotifier {
 
   // ── Sesi (Req 6.4) ─────────────────────────────────────────────────────────
 
+  // [FE - State Management] logout mereset seluruh state mock ke kondisi
+  // awal seed — memastikan tidak ada data sesi yang bocor ke sesi berikutnya.
   /// Mereset seluruh state sesi mock dan menyemai ulang data awal.
   ///
   /// Dipanggil saat petani menekan "Keluar" di Layar Profil.
@@ -500,6 +523,9 @@ class FarmerRepository extends ChangeNotifier {
 // searchAndFilterBatches — helper murni (Req 1.4, 1.5, 1.6)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// [UTIL - Helper Function] searchAndFilterBatches adalah fungsi murni yang
+// memisahkan logika filter dari UI — mudah diuji secara independen (PBT P2)
+// dan dipakai ulang di mana pun daftar batch perlu difilter.
 /// Menyaring [batches] berdasarkan [filter] chip dan [query] pencarian.
 ///
 /// Fungsi ini **murni** (pure function): tidak mengubah state apapun dan
@@ -529,6 +555,9 @@ List<HarvestBatch> searchAndFilterBatches(
 // FarmerValidator — validator form murni (Req 2.4, 2.5, 2.6, 5.4)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// [ERROR - Exception Handling] FarmerValidator memusatkan semua aturan
+// validasi form sebagai fungsi murni — memisahkan logika validasi dari UI
+// agar dapat diuji secara independen (PBT P4, P5, P6).
 /// Kumpulan validator murni untuk form Tambah Batch Panen dan Buat Kebun.
 ///
 /// Setiap method mengembalikan pesan error berbahasa Indonesia, atau `null`
@@ -538,6 +567,9 @@ class FarmerValidator {
 
   // ── Tambah Batch Panen ─────────────────────────────────────────────────────
 
+  // [ERROR - Exception Handling] validateAddBatch adalah entry point validasi
+  // form Tambah Batch — mengembalikan pesan error pertama yang ditemukan
+  // agar UI dapat langsung menampilkannya via TopNotification.
   /// Memvalidasi seluruh field form Tambah Batch Panen.
   ///
   /// Mengembalikan pesan error pertama yang ditemukan, atau `null` bila valid.
@@ -594,6 +626,9 @@ class FarmerValidator {
 
   // ── Buat Kebun ─────────────────────────────────────────────────────────────
 
+  // [ERROR - Exception Handling] validateCreateFarm adalah entry point
+  // validasi form Buat Kebun — field wajib dicek berurutan, koordinat
+  // opsional hanya divalidasi bila diisi.
   /// Memvalidasi seluruh field form Buat Kebun.
   ///
   /// Mengembalikan pesan error pertama yang ditemukan, atau `null` bila valid.

@@ -1,3 +1,5 @@
+// [DB - Model/Entity] Model ini merepresentasikan kebun durian milik petani
+// sebagai entitas lokasi yang direlasikan ke HarvestBatch.
 /// Model kebun durian milik petani.
 ///
 /// Dipakai sebagai sumber opsi dropdown "Pilih Lokasi Kebun" pada

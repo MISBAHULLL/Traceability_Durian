@@ -9,6 +9,9 @@ import '../farmer_routes.dart';
 import '../models/harvest_batch.dart';
 import '../../auth/screens/home_screen.dart';
 
+// [FE - Component Rendering] Screen ini menampilkan profil petani dan
+// menyediakan aksi logout yang membersihkan seluruh stack navigasi
+// sehingga tidak ada layar petani yang tersisa setelah keluar.
 /// Layar Profil Petani — menampilkan data profil dan aksi keluar (logout).
 ///
 /// Menampilkan nama, label peran, lokasi, dan kontak petani dari
@@ -61,6 +64,8 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
     super.dispose();
   }
 
+  // [FE - Event Handler] _handleLogout menangani aksi keluar: reset mock
+  // repository lalu ganti seluruh stack navigasi ke HomeScreen (login).
   /// Menangani aksi keluar: reset sesi mock lalu bersihkan stack ke login.
   Future<void> _handleLogout() async {
     setState(() => _isLoggingOut = true);
@@ -339,6 +344,9 @@ class _InfoRow extends StatelessWidget {
 // Tombol Keluar
 // ─────────────────────────────────────────────────────────────────────────────
 
+// [FE - Component Rendering] _LogoutButton menggunakan warna merah untuk
+// memberi sinyal visual bahwa ini adalah aksi destruktif (logout),
+// berbeda dari tombol aksi utama hijau di layar lain.
 /// Tombol logout dengan gaya pill merah agar berbeda dari aksi utama hijau.
 ///
 /// Menggunakan [PrimaryPillButton] sebagai referensi pola, namun dengan

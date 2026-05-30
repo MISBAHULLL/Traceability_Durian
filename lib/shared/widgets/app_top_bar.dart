@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 
+// [FE - Component Rendering] Widget ini adalah top bar reusable yang
+// memusatkan pola back+judul+aksi agar konsisten di seluruh layar petani
+// tanpa duplikasi kode AppBar.
 /// Top bar reusable dengan tombol back kiri, judul tengah, dan slot aksi kanan.
 ///
 /// Mengekstrak pola `_TopAppBar` yang berulang di layar auth agar konsisten

@@ -10,6 +10,9 @@ import '../models/harvest_batch.dart';
 import 'add_batch_screen.dart';
 import 'batch_qr_screen.dart';
 
+// [FE - Component Rendering] Screen ini menampilkan detail lengkap satu
+// batch — mengambil data dari FarmerRepository dan menegakkan aturan
+// role (aksi ubah hanya DRAFT, aksi role lain disembunyikan).
 /// Layar detail satu batch panen milik petani.
 ///
 /// Menampilkan profil petani, placeholder peta, kode batch, informasi produk,
@@ -157,6 +160,9 @@ class _BatchNotFound extends StatelessWidget {
 // Konten detail batch
 // ─────────────────────────────────────────────────────────────────────────────
 
+// [FE - Component Rendering] _BatchDetailContent merakit semua sub-widget
+// detail batch dan menentukan visibilitas aksi berdasarkan canEditBatch —
+// menegakkan aturan state machine di lapisan UI.
 class _BatchDetailContent extends StatelessWidget {
   const _BatchDetailContent({
     required this.batch,
@@ -669,6 +675,9 @@ class _StatusBadge extends StatelessWidget {
 // Timeline Batch (Req 3.6)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// [FE - Component Rendering] _BatchTimeline merender daftar BatchEvent
+// sebagai timeline vertikal kronologis — warna dot mengikuti status
+// batch pada tiap kejadian.
 class _BatchTimeline extends StatelessWidget {
   const _BatchTimeline({required this.events});
 

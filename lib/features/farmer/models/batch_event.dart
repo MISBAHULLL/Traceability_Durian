@@ -1,5 +1,8 @@
 import 'harvest_batch.dart';
 
+// [DB - Model/Entity] Model ini merepresentasikan satu kejadian pada
+// timeline riwayat batch — dipakai BatchDetailScreen untuk menampilkan
+// kronologi perjalanan batch di rantai pasok.
 /// Satu kejadian pada timeline riwayat sebuah batch panen.
 ///
 /// Dipakai oleh [BatchDetailScreen] untuk menampilkan timeline kronologis

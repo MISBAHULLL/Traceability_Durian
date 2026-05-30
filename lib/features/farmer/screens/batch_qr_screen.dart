@@ -8,6 +8,9 @@ import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
 import 'farmer_home_screen.dart';
 
+// [FE - Component Rendering] Screen ini menampilkan QR Code yang dapat
+// dipindai untuk menelusuri batch secara publik, dengan perilaku back
+// khusus bila dibuka setelah create (kembali ke Beranda, bukan ke form).
 /// Layar QR Code untuk satu batch panen.
 ///
 /// Menampilkan QR code yang dapat dipindai untuk menelusuri batch secara
@@ -68,6 +71,9 @@ class _BatchQrScreenState extends State<BatchQrScreen>
     super.dispose();
   }
 
+  // [FE - Event Handler] _handleBack menangani logika back yang berbeda
+  // tergantung konteks: bila dibuka setelah create, ganti stack ke Beranda;
+  // bila dibuka dari detail/beranda, pop biasa.
   void _handleBack() {
     if (widget.openedAfterCreate) {
       FarmerRoutes.replaceAll(context, const FarmerHomeScreen());

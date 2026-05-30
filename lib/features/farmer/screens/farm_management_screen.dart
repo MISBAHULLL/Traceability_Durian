@@ -8,6 +8,9 @@ import '../farmer_routes.dart';
 import '../models/farm.dart';
 import 'create_farm_screen.dart';
 
+// [FE - Component Rendering] Screen ini menampilkan daftar kebun petani
+// dan mendukung dua mode: manajemen biasa dan selectMode untuk memilih
+// kebun dari form Tambah Batch.
 /// Layar daftar kebun milik petani (Req 5.1, 5.2).
 ///
 /// Parameter [selectMode] bernilai `true` bila layar ini dibuka dari
@@ -147,6 +150,9 @@ class _FarmList extends StatelessWidget {
 // Kartu kebun
 // ─────────────────────────────────────────────────────────────────────────────
 
+// [FE - Component Rendering] _FarmCard menampilkan info satu kebun dan
+// mendukung selectMode — bila aktif, tap kartu akan pop dan mengembalikan
+// Farm yang dipilih ke pemanggil (AddBatchScreen).
 class _FarmCard extends StatelessWidget {
   const _FarmCard({required this.farm, required this.selectMode});
 

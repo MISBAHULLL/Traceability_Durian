@@ -66,8 +66,8 @@ class _SplashScreenState extends State<SplashScreen>
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 900),
         reverseTransitionDuration: const Duration(milliseconds: 900),
-        pageBuilder: (_, __, ___) => const HomeScreen(),
-        transitionsBuilder: (_, animation, __, child) {
+        pageBuilder: (_, _, _) => const HomeScreen(),
+        transitionsBuilder: (_, animation, _, child) {
           final curved = CurvedAnimation(
             parent: animation,
             curve: Curves.easeInOutCubic,
@@ -113,7 +113,7 @@ class _SplashScreenState extends State<SplashScreen>
                 width: 130,
                 height: 130,
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Text(
+                errorBuilder: (_, _, _) => const Text(
                   '🌵',
                   style: TextStyle(fontSize: 80),
                 ),

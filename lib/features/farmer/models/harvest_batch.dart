@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+// [DB - Model/Entity] Enum ini merepresentasikan state machine status batch
+// pada rantai pasok durian — dipakai di seluruh lapisan UI dan repository.
 /// Status batch panen mengikuti state machine DurianTrace.
 ///
 /// Lihat blueprint 07_USER_FLOW_AND_STATE_MACHINE:
@@ -16,6 +18,8 @@ enum BatchStatus {
   rejected,
 }
 
+// [FE - Component Rendering] Extension ini menyediakan label, warna teks,
+// dan warna background badge untuk tiap status — dikonsumsi langsung oleh widget badge.
 /// Label, warna teks, dan warna background badge untuk tiap status.
 extension BatchStatusX on BatchStatus {
   String get label {
@@ -81,6 +85,9 @@ extension BatchStatusX on BatchStatus {
   }
 }
 
+// [FE - State Management] Extension ini menyediakan logika filter chip
+// yang menentukan batch mana yang lolos berdasarkan status — dipakai oleh
+// helper searchAndFilterBatches di FarmerRepository.
 /// Filter cepat yang ditampilkan sebagai chips di Beranda Petani.
 enum BatchFilter { semua, menunggu, terverifikasi, distribusi }
 
@@ -114,6 +121,8 @@ extension BatchFilterX on BatchFilter {
   }
 }
 
+// [DB - Model/Entity] Model ini merepresentasikan satu batch panen durian
+// sebagai unit data utama yang mengalir di seluruh rantai pasok.
 /// Model satu batch panen durian milik petani.
 class HarvestBatch {
   const HarvestBatch({
@@ -205,6 +214,8 @@ class HarvestBatch {
   }
 }
 
+// [DB - Model/Entity] Model ini merepresentasikan profil petani yang login —
+// dipakai oleh FarmerRepository sebagai data sesi mock.
 /// Data profil petani yang login (mock untuk tahap FE).
 class FarmerProfile {
   const FarmerProfile({

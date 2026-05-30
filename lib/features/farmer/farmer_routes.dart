@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+// [FE - Navigation Helper] Helper ini memusatkan logika navigasi seluruh
+// layar petani agar transisi fade konsisten dan semantik khusus (logout,
+// back-to-home setelah create) tidak tersebar di tiap call-site.
 /// Helper navigasi tipis untuk seluruh layar petani.
 ///
 /// Membungkus [PageRouteBuilder] dengan transisi fade yang identik dengan
@@ -18,6 +21,8 @@ class FarmerRoutes {
   static const Duration _duration = Duration(milliseconds: 400);
   static const Curve _curve = Curves.easeInOutCubic;
 
+  // [FE - Navigation Helper] Buat route dengan transisi fade standar —
+  // dipanggil oleh push() dan replaceAll() agar kurva/durasi selalu sama.
   /// Buat [PageRouteBuilder] dengan transisi fade standar.
   static PageRouteBuilder<T> _fadeRoute<T>(Widget page) {
     return PageRouteBuilder<T>(
@@ -33,6 +38,8 @@ class FarmerRoutes {
     );
   }
 
+  // [FE - Navigation Helper] Navigasi push biasa — dipakai untuk membuka
+  // layar detail, form, QR, dan profil dari Beranda.
   /// Push [page] ke atas stack navigasi saat ini.
   ///
   /// Mengembalikan [Future] yang selesai saat halaman di-pop, sama seperti
@@ -42,6 +49,8 @@ class FarmerRoutes {
     return Navigator.push<T>(context, _fadeRoute<T>(page));
   }
 
+  // [FE - Navigation Helper] Ganti seluruh stack — dipakai untuk logout
+  // dan alur create→QR→Beranda agar tombol back tidak kembali ke form.
   /// Ganti seluruh stack navigasi dengan [page].
   ///
   /// Dipakai untuk:

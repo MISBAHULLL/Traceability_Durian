@@ -200,8 +200,8 @@ class _HomeScreenState extends State<HomeScreen>
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 400),
-        pageBuilder: (_, __, ___) => const RegisterRoleScreen(),
-        transitionsBuilder: (_, animation, __, child) {
+        pageBuilder: (_, _, _) => const RegisterRoleScreen(),
+        transitionsBuilder: (_, animation, _, child) {
           final curved = CurvedAnimation(
             parent: animation,
             curve: Curves.easeInOutCubic,
@@ -514,7 +514,7 @@ class _PrimaryActionButton extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.white,
         foregroundColor: AppColors.black,
-        disabledBackgroundColor: AppColors.white.withOpacity(0.6),
+        disabledBackgroundColor: AppColors.white.withValues(alpha: 0.6),
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -652,7 +652,7 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.10),
+                      color: Colors.black.withValues(alpha: 0.10),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
@@ -682,7 +682,7 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
                     const SizedBox(width: 8),
                     Icon(
                       Icons.close_rounded,
-                      color: textColor.withOpacity(0.6),
+                      color: textColor.withValues(alpha: 0.6),
                       size: 18,
                     ),
                   ],

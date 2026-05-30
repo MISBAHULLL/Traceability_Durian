@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 
+// [FE - Component Rendering] Widget generik ini memusatkan gaya dropdown
+// bergaya prototype agar semua form petani memiliki tampilan konsisten,
+// termasuk dukungan empty-state untuk kasus kebun belum ada.
 /// Dropdown berlabel bergaya prototype: border tipis, chevron, placeholder abu.
 ///
 /// Widget generik `<T>` yang dipakai di form Tambah Batch (Req 2.2) dan

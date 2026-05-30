@@ -303,19 +303,58 @@ class FarmerRepository extends ChangeNotifier {
 
   // ── Guard edit batch (Req 3.8, 3.9, 7.3, 7.4) ─────────────────────────────
 
-  // [FE - State Management] canEditBatch dan updateBatch menegakkan
-  // aturan state machine di sisi klien — hanya batch DRAFT yang boleh diubah.
-  /// Mengembalikan `true` jika dan hanya jika batch dengan [code] berstatus
-  /// [BatchStatus.draft] — satu-satunya status yang boleh diedit petani.
+  /// Lama jendela koreksi setelah batch dibuat (status CREATED).
+  ///
+  /// Dalam rentang ini petani masih boleh memperbaiki data batch (mis. salah
+  /// ketik jumlah). Ubah nilai ini untuk menyesuaikan kebijakan koreksi.
+  static const Duration kEditWindow = Duration(minutes: 15);
+
+  // [FE - State Management] canEditBatch & updateBatch menegakkan aturan
+  // koreksi di sisi klien. Edit diizinkan bila:
+  //   - status DRAFT (tanpa batas waktu), ATAU
+  //   - status CREATED dan masih dalam jendela [kEditWindow] sejak dibuat.
+  // Setelah batch diverifikasi pengepul (status naik dari CREATED), atau
+  // jendela waktu habis, data terkunci demi integritas telusur.
+  /// Mengembalikan `true` bila batch dengan [code] masih boleh diubah petani.
   bool canEditBatch(String code) {
     final batch = findBatch(code);
-    return batch?.status == BatchStatus.draft;
+    if (batch == null) return false;
+
+    // DRAFT selalu dapat diubah (alur masa depan).
+    if (batch.status == BatchStatus.draft) return true;
+
+    // CREATED dapat diubah hanya dalam jendela koreksi sejak dibuat.
+    if (batch.status == BatchStatus.created) {
+      return remainingEditTime(code) > Duration.zero;
+    }
+
+    // Status lain (sudah diverifikasi/distribusi/dst) terkunci.
+    return false;
+  }
+
+  /// Sisa waktu jendela koreksi untuk batch CREATED dengan [code].
+  ///
+  /// Mengembalikan [Duration.zero] bila jendela sudah habis, batch tidak
+  /// ditemukan, atau batch bukan berstatus CREATED. Untuk DRAFT mengembalikan
+  /// [Duration.zero] juga (DRAFT tidak dibatasi waktu — gunakan [canEditBatch]).
+  Duration remainingEditTime(String code) {
+    final batch = findBatch(code);
+    if (batch == null || batch.status != BatchStatus.created) {
+      return Duration.zero;
+    }
+    final createdAt = batch.createdAt;
+    if (createdAt == null) return Duration.zero;
+
+    final elapsed = DateTime.now().difference(createdAt);
+    final remaining = kEditWindow - elapsed;
+    return remaining.isNegative ? Duration.zero : remaining;
   }
 
   /// Memperbarui data batch dengan [code] bila [canEditBatch] bernilai `true`.
   ///
-  /// Bila status bukan DRAFT, operasi ini adalah **no-op** dan mengembalikan
-  /// `false` sebagai tanda penolakan (Req 7.4).
+  /// Bila batch tidak lagi dapat diubah (status terkunci atau jendela waktu
+  /// habis), operasi ini adalah **no-op** dan mengembalikan `false` sebagai
+  /// tanda penolakan (Req 7.4).
   bool updateBatch(
     String code, {
     Farm? farm,

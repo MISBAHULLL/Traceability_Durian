@@ -10,6 +10,13 @@ import '../models/harvest_batch.dart';
 import 'add_batch_screen.dart';
 import 'batch_qr_screen.dart';
 
+/// Memformat sisa durasi jendela koreksi menjadi teks ringkas berbahasa
+/// Indonesia, mis. "14 menit" atau "45 detik".
+String _formatRemaining(Duration d) {
+  if (d.inMinutes >= 1) return '${d.inMinutes} menit';
+  return '${d.inSeconds} detik';
+}
+
 // [FE - Component Rendering] Screen ini menampilkan detail lengkap satu
 // batch — mengambil data dari FarmerRepository dan menegakkan aturan
 // role (aksi ubah hanya DRAFT, aksi role lain disembunyikan).
@@ -66,7 +73,11 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
   }
 
   Future<void> _openEdit() async {
-    await FarmerRoutes.push(context, const AddBatchScreen());
+    // Buka form dalam mode ubah dengan kode batch ini (prefill + updateBatch).
+    await FarmerRoutes.push(
+      context,
+      AddBatchScreen(editBatchCode: widget.batchCode),
+    );
     // Repo listener sudah menangani refresh via _onRepoChanged
   }
 
@@ -217,10 +228,40 @@ class _BatchDetailContent extends StatelessWidget {
             onPressed: onOpenQr,
           ),
 
-          // ── Aksi Ubah Data — hanya DRAFT (Req 3.8, 3.9) ──────────────────
+          // ── Aksi Ubah Data — selama jendela koreksi terbuka (Req 3.8) ────
+          // Tampil bila batch masih dapat diubah (DRAFT, atau CREATED dalam
+          // jendela waktu). Untuk CREATED, sertakan sisa waktu agar user paham
+          // tombol akan hilang setelah jendela habis.
           if (canEdit) ...[
             const SizedBox(height: 12),
             _EditButton(onTap: onOpenEdit),
+            Builder(
+              builder: (_) {
+                final remaining = repo.remainingEditTime(batch.code);
+                if (remaining <= Duration.zero) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.schedule_rounded,
+                        size: 14,
+                        color: AppColors.placeholder,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Masih dapat diubah ${_formatRemaining(remaining)} lagi',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ],
         ],
       ),

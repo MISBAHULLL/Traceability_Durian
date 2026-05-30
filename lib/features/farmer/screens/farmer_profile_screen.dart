@@ -8,7 +8,6 @@ import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
 import '../models/harvest_batch.dart';
 import '../../auth/screens/home_screen.dart';
-import 'farm_management_screen.dart';
 
 /// Penanda nilai profil yang belum dilengkapi petani.
 const String _kNotSet = 'Belum dilengkapi';
@@ -68,12 +67,6 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
     super.dispose();
   }
 
-  // [FE - Event Handler] _openFarmManagement membuka layar Kelola Kebun
-  // dari hub Profil — menggantikan akses lama via hamburger Beranda.
-  Future<void> _openFarmManagement() async {
-    await FarmerRoutes.push(context, const FarmManagementScreen());
-  }
-
   // [FE - Event Handler] _handleLogout menangani aksi keluar: reset mock
   // repository lalu ganti seluruh stack navigasi ke HomeScreen (login).
   /// Menangani aksi keluar: reset sesi mock lalu bersihkan stack ke login.
@@ -130,19 +123,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
                         // ── Detail info ──────────────────────────────────
                         _ProfileInfoSection(profile: profile),
 
-                        const SizedBox(height: 28),
-
-                        // ── Menu akun ────────────────────────────────────
-                        // Kelola Kebun dipindah ke sini (dari hamburger Beranda)
-                        // karena kebun adalah aset milik akun petani.
-                        _ProfileMenuTile(
-                          icon: Icons.grass_rounded,
-                          label: 'Kelola Kebun',
-                          subtitle: 'Lihat & tambah kebun durian Anda',
-                          onTap: _openFarmManagement,
-                        ),
-
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 40),
 
                         // ── Tombol Keluar (Req 6.3) ──────────────────────
                         _LogoutButton(
@@ -371,90 +352,6 @@ class _InfoRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Menu tile akun (mis. Kelola Kebun)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// [FE - Component Rendering] _ProfileMenuTile adalah baris menu yang dapat
-// ditekan di hub Profil — pola reusable bila nanti ada menu akun lain
-// (mis. Edit Profil, Pengaturan).
-class _ProfileMenuTile extends StatelessWidget {
-  const _ProfileMenuTile({
-    required this.icon,
-    required this.label,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Row(
-          children: [
-            // Ikon
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.primaryContainer.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              alignment: Alignment.center,
-              child: Icon(icon, size: 20, color: AppColors.primaryContainer),
-            ),
-            const SizedBox(width: 12),
-
-            // Label + subtitle
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.placeholder,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.placeholder,
-              size: 22,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

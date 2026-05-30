@@ -15,22 +15,32 @@ import 'create_farm_screen.dart';
 
 // [FE - Component Rendering] Screen ini adalah form pencatatan batch baru —
 // menggabungkan validasi, state loading, dan navigasi ke QR setelah sukses.
-/// Layar form untuk mencatat batch panen baru.
+// Mendukung dua mode: tambah (default) dan ubah (bila [editBatchCode] diisi).
+/// Layar form untuk mencatat batch panen baru, atau mengubah batch DRAFT.
 ///
 /// Menampilkan lima dropdown (kebun, varietas, pupuk, metode panen, grade),
 /// date picker tanggal panen, dan input numerik jumlah, diakhiri tombol KIRIM.
 ///
+/// Mode TAMBAH (default): membuat batch baru → buka QR.
+/// Mode UBAH (bila [editBatchCode] diisi): field di-prefill dari batch yang
+/// ada; simpan memanggil [FarmerRepository.updateBatch] lalu pop ke Detail.
+///
 /// Alur submit (Req 2.4–2.9):
 /// 1. Validasi via [FarmerValidator.validateAddBatch].
 /// 2. Bila gagal → tampilkan [TopNotification] error.
-/// 3. Bila valid → set loading, panggil [FarmerRepository.addBatch],
-///    tampilkan banner sukses, lalu buka [BatchQrScreen] dengan
-///    `openedAfterCreate: true`.
+/// 3. Bila valid → set loading, simpan, tampilkan banner sukses, lalu navigasi.
 ///
 /// Empty-state kebun (Req 2.3): bila [FarmerRepository.farms] kosong,
 /// dropdown lokasi menampilkan ajakan + tombol menuju [CreateFarmScreen].
 class AddBatchScreen extends StatefulWidget {
-  const AddBatchScreen({super.key});
+  const AddBatchScreen({super.key, this.editBatchCode});
+
+  /// Bila diisi, layar berjalan dalam mode UBAH untuk batch dengan kode ini.
+  /// Bila `null`, layar berjalan dalam mode TAMBAH (batch baru).
+  final String? editBatchCode;
+
+  /// `true` bila layar sedang dalam mode ubah.
+  bool get isEditMode => editBatchCode != null;
 
   @override
   State<AddBatchScreen> createState() => _AddBatchScreenState();
@@ -52,9 +62,38 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
   @override
   void initState() {
     super.initState();
+    // Prefill field bila dalam mode ubah (sebelum memasang listener).
+    if (widget.isEditMode) {
+      _prefillFromExistingBatch();
+    }
     // Dengarkan perubahan repo agar dropdown kebun ter-refresh bila
     // pengguna baru saja membuat kebun dari CreateFarmScreen.
     _repo.addListener(_onRepoChanged);
+  }
+
+  // [FE - State Management] Mengisi field form dari batch yang akan diubah,
+  // mencocokkan Farm berdasarkan id agar nilai dropdown valid.
+  void _prefillFromExistingBatch() {
+    final batch = _repo.findBatch(widget.editBatchCode!);
+    if (batch == null) return;
+
+    // Cari instance Farm dari repo agar identik dengan item dropdown.
+    Farm? farm;
+    for (final f in _repo.farms) {
+      if (f.id == batch.farmId) {
+        farm = f;
+        break;
+      }
+    }
+
+    _selectedFarm = farm;
+    _variety = batch.variety;
+    _fertilizer = (batch.fertilizer?.isEmpty ?? true) ? null : batch.fertilizer;
+    _harvestMethod =
+        (batch.harvestMethod?.isEmpty ?? true) ? null : batch.harvestMethod;
+    _grade = batch.grade;
+    _harvestDate = batch.harvestDate;
+    _quantityController.text = batch.quantity.toStringAsFixed(0);
   }
 
   @override
@@ -109,8 +148,9 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 
-  // [FE - Event Handler] _submit menangani aksi KIRIM: validasi → error banner
-  // atau loading + addBatch + sukses banner + navigasi ke QR screen.
+  // [FE - Event Handler] _submit menangani aksi simpan. Pada mode tambah:
+  // validasi → addBatch → buka QR. Pada mode ubah: validasi → updateBatch
+  // (guard DRAFT di repository) → pop kembali ke Detail.
   Future<void> _submit() async {
     // Validasi semua field
     final error = FarmerValidator.validateAddBatch(
@@ -135,6 +175,15 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
 
     if (!mounted) return;
 
+    if (widget.isEditMode) {
+      await _saveEdit();
+    } else {
+      await _saveNew();
+    }
+  }
+
+  // [FE - Event Handler] Menyimpan batch baru lalu membuka layar QR.
+  Future<void> _saveNew() async {
     final batch = _repo.addBatch(
       farm: _selectedFarm!,
       variety: _variety!,
@@ -163,6 +212,43 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     }
   }
 
+  // [FE - Event Handler] Menyimpan perubahan batch DRAFT. Repository menolak
+  // (no-op) bila status bukan DRAFT — kasus itu ditangani sebagai error.
+  Future<void> _saveEdit() async {
+    final ok = _repo.updateBatch(
+      widget.editBatchCode!,
+      farm: _selectedFarm,
+      variety: _variety,
+      fertilizer: _fertilizer ?? '',
+      harvestMethod: _harvestMethod ?? '',
+      grade: _grade,
+      quantity: double.parse(_quantityController.text.trim()),
+      harvestDate: _harvestDate,
+    );
+
+    setState(() => _isSubmitting = false);
+
+    if (!ok) {
+      // Guard state-machine menolak (Req 7.4).
+      _notification.show(
+        context,
+        'Batch yang sudah dikirim tidak dapat diubah.',
+        isError: true,
+      );
+      return;
+    }
+
+    _notification.show(
+      context,
+      'Perubahan batch berhasil disimpan.',
+      isError: false,
+    );
+
+    // Beri jeda agar banner sukses sempat terlihat sebelum kembali ke Detail.
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) Navigator.maybePop(context);
+  }
+
   // ── Navigasi ke buat kebun ─────────────────────────────────────────────────
 
   Future<void> _goToCreateFarm() async {
@@ -183,7 +269,9 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
         child: Column(
           children: [
             // Top bar dengan tombol back (Req 2.1)
-            const AppTopBar(title: 'Tambah Batch Panen'),
+            AppTopBar(
+              title: widget.isEditMode ? 'Ubah Batch Panen' : 'Tambah Batch Panen',
+            ),
 
             // Form scrollable
             Expanded(
@@ -265,9 +353,9 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                     _QuantityField(controller: _quantityController),
                     const SizedBox(height: 32),
 
-                    // ── Tombol KIRIM (Req 2.9) ─────────────────────────────
+                    // ── Tombol KIRIM / SIMPAN (Req 2.9) ────────────────────
                     PrimaryPillButton(
-                      label: 'KIRIM',
+                      label: widget.isEditMode ? 'SIMPAN PERUBAHAN' : 'KIRIM',
                       onPressed: _isSubmitting ? null : _submit,
                       isLoading: _isSubmitting,
                     ),

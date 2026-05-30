@@ -30,6 +30,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
+  # Lokalisasi Material/Cupertino — diperlukan agar showDatePicker dapat
+  # dirender dalam locale Indonesia (id_ID) tanpa crash.
+  flutter_localizations:
+    sdk: flutter
+
   device_preview: ^1.1.0
   connectivity_plus: ^6.1.4
 

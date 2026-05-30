@@ -1,6 +1,7 @@
 import 'package:device_preview/device_preview.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/auth/screens/splash_screen.dart';
@@ -26,6 +27,17 @@ class DurianTraceApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       locale: DevicePreview.locale(context),
       builder: DevicePreview.appBuilder,
+      // [CONFIG - Localization] Delegate & locale ini memungkinkan widget
+      // bawaan Flutter (mis. showDatePicker) dirender dalam bahasa Indonesia.
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('id', 'ID'),
+        Locale('en', 'US'),
+      ],
       theme: AppTheme.light(),
       home: const SplashScreen(),
     );

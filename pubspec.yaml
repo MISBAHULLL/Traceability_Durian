@@ -37,6 +37,13 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # QR Code generation for Batch QR screen (Req 4.1)
+  qr_flutter: ^4.1.0
+
+  # Date/number formatting in Indonesian locale (Req 8.4)
+  # Pinned to ^0.20.2 to match flutter_localizations constraint from device_preview
+  intl: ^0.20.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -47,6 +54,9 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+  # Property-based testing for farmer logic layer (P1–P11)
+  glados: ^1.1.5
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -1,0 +1,838 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/top_notification_banner.dart';
+import '../data/farmer_mock_data.dart';
+import '../models/harvest_batch.dart';
+
+/// Beranda untuk role Petani (Farmer).
+///
+/// Mengikuti gaya visual prototype "Beranda" (header, greeting, CTA hijau,
+/// search pill, filter chips, card list) namun struktur informasinya
+/// disesuaikan dengan peran petani sesuai blueprint:
+/// - Petani hanya membuat & melihat batch panen miliknya + QR (role matrix).
+/// - Status batch mengikuti state machine (badge per status).
+///
+/// Catatan: semua data masih mock (lihat [FarmerMockData]). Aksi (tambah
+/// batch, lihat QR, detail) baru menampilkan notifikasi placeholder sampai
+/// layar tujuan & backend tersedia.
+class FarmerHomeScreen extends StatefulWidget {
+  const FarmerHomeScreen({super.key});
+
+  @override
+  State<FarmerHomeScreen> createState() => _FarmerHomeScreenState();
+}
+
+class _FarmerHomeScreenState extends State<FarmerHomeScreen>
+    with SingleTickerProviderStateMixin {
+  final TextEditingController _searchController = TextEditingController();
+  final TopNotification _notification = TopNotification();
+
+  BatchFilter _activeFilter = BatchFilter.semua;
+  String _query = '';
+
+  late final AnimationController _animController;
+  late final Animation<double> _fadeAnim;
+  late final Animation<Offset> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnim = CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.0, 0.8, curve: Curves.easeInOutCubic),
+    );
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.04),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
+    ));
+    _animController.forward();
+
+    _searchController.addListener(() {
+      setState(() => _query = _searchController.text.trim().toLowerCase());
+    });
+  }
+
+  @override
+  void dispose() {
+    _notification.dispose();
+    _animController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Daftar batch setelah difilter chip + query pencarian.
+  List<HarvestBatch> get _filteredBatches {
+    return FarmerMockData.batches.where((b) {
+      final matchFilter = _activeFilter.matches(b.status);
+      final matchQuery = _query.isEmpty ||
+          b.code.toLowerCase().contains(_query) ||
+          b.variety.toLowerCase().contains(_query);
+      return matchFilter && matchQuery;
+    }).toList();
+  }
+
+  void _comingSoon(String feature) {
+    _notification.show(
+      context,
+      '$feature akan tersedia setelah layar terkait dibuat.',
+      isError: false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final batches = _filteredBatches;
+
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: _fadeAnim,
+          child: SlideTransition(
+            position: _slideAnim,
+            child: Column(
+              children: [
+                _TopBar(
+                  onProfile: () => _comingSoon('Profil'),
+                  onMenu: () => _comingSoon('Menu'),
+                ),
+                Expanded(
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate([
+                            const _GreetingBlock(),
+                            const SizedBox(height: 16),
+                            const _StatRow(),
+                            const SizedBox(height: 16),
+                            _AddBatchCard(
+                              onTap: () => _comingSoon('Tambah Batch Panen'),
+                            ),
+                            const SizedBox(height: 16),
+                            _SearchField(controller: _searchController),
+                            const SizedBox(height: 14),
+                            _FilterChips(
+                              active: _activeFilter,
+                              onChanged: (f) =>
+                                  setState(() => _activeFilter = f),
+                            ),
+                            const SizedBox(height: 16),
+                            _SectionHeader(count: batches.length),
+                            const SizedBox(height: 12),
+                          ]),
+                        ),
+                      ),
+                      if (batches.isEmpty)
+                        const SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: _EmptyState(),
+                        )
+                      else
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final batch = batches[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _BatchCard(
+                                    batch: batch,
+                                    onTap: () => _comingSoon('Detail Batch'),
+                                    onShowQr: () => _comingSoon('QR Batch'),
+                                  ),
+                                );
+                              },
+                              childCount: batches.length,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Top bar
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Top bar: judul "Beranda" di tengah + ikon profil & menu di kanan.
+///
+/// Tidak ada tombol back karena beranda adalah root setelah login.
+class _TopBar extends StatelessWidget {
+  const _TopBar({required this.onProfile, required this.onMenu});
+
+  final VoidCallback onProfile;
+  final VoidCallback onMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
+      child: Row(
+        children: [
+          const Text(
+            'Beranda',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.black,
+            ),
+          ),
+          const Spacer(),
+          _IconButton(icon: Icons.person_outline_rounded, onTap: onProfile),
+          const SizedBox(width: 4),
+          _IconButton(icon: Icons.menu_rounded, onTap: onMenu),
+        ],
+      ),
+    );
+  }
+}
+
+class _IconButton extends StatelessWidget {
+  const _IconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onTap,
+      icon: Icon(icon, color: AppColors.black, size: 24),
+      splashRadius: 22,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Greeting
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _GreetingBlock extends StatelessWidget {
+  const _GreetingBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    const profile = FarmerMockData.profile;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Halo, ${profile.fullName}',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: AppColors.black,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Row(
+          children: [
+            const Icon(
+              Icons.agriculture_rounded,
+              size: 15,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              profile.roleLabel,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.primary,
+              ),
+            ),
+            const Text(
+              '  •  ',
+              style: TextStyle(fontSize: 13, color: AppColors.placeholder),
+            ),
+            Flexible(
+              child: Text(
+                profile.location,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.placeholder,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Statistik ringkas
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _StatRow extends StatelessWidget {
+  const _StatRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _StatCard(
+            value: '${FarmerMockData.totalBatch}',
+            label: 'Total Batch',
+            icon: Icons.inventory_2_outlined,
+            color: AppColors.primary,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatCard(
+            value: '${FarmerMockData.activeBatch}',
+            label: 'Batch Aktif',
+            icon: Icons.local_shipping_outlined,
+            color: const Color(0xFF1D6FA4),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatCard(
+            value: '${FarmerMockData.verifiedBatch}',
+            label: 'Terverifikasi',
+            icon: Icons.verified_outlined,
+            color: const Color(0xFF3F8F27),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.value,
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  final String value;
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: color,
+              height: 1.0,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.placeholder,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CTA Tambah Batch (versi petani dari "Tambah Transaksi" prototype)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AddBatchCard extends StatelessWidget {
+  const _AddBatchCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.primaryContainer,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tambah Batch Panen',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.white,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Catat hasil panen baru & buat QR Code batch',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFFEAF7E5),
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF3B23C),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.add_rounded,
+                color: AppColors.white,
+                size: 26,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Search
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      style: const TextStyle(fontSize: 14, color: AppColors.black),
+      decoration: InputDecoration(
+        hintText: 'Cari kode batch / varietas',
+        hintStyle: const TextStyle(
+          fontSize: 14,
+          color: AppColors.placeholder,
+        ),
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          color: AppColors.placeholder,
+          size: 22,
+        ),
+        filled: true,
+        fillColor: AppColors.surface,
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(999),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(999),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(999),
+          borderSide: const BorderSide(
+            color: AppColors.primaryContainer,
+            width: 2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Filter chips
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FilterChips extends StatelessWidget {
+  const _FilterChips({required this.active, required this.onChanged});
+
+  final BatchFilter active;
+  final ValueChanged<BatchFilter> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 34,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: BatchFilter.values.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final filter = BatchFilter.values[index];
+          final isActive = filter == active;
+          return GestureDetector(
+            onTap: () => onChanged(filter),
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isActive
+                    ? AppColors.primaryContainer
+                    : AppColors.surface,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: isActive
+                      ? AppColors.primaryContainer
+                      : const Color(0xFFE5E7EB),
+                ),
+              ),
+              child: Text(
+                filter.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isActive ? AppColors.white : AppColors.subtitle,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section header daftar batch
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text(
+          'Batch Panen Saya',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: AppColors.black,
+          ),
+        ),
+        Text(
+          '$count batch',
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.placeholder,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Card batch
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BatchCard extends StatelessWidget {
+  const _BatchCard({
+    required this.batch,
+    required this.onTap,
+    required this.onShowQr,
+  });
+
+  final HarvestBatch batch;
+  final VoidCallback onTap;
+  final VoidCallback onShowQr;
+
+  String _formatDate(DateTime d) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+    ];
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Thumbnail durian
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Image.asset(
+                      'assets/images/durian.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => const Icon(
+                        Icons.eco_outlined,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Info utama
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Durian ${batch.variety}',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.black,
+                                ),
+                              ),
+                            ),
+                            _StatusBadge(status: batch.status),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          batch.code,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 2,
+                          children: [
+                            _MetaItem(
+                              icon: Icons.scale_outlined,
+                              text: '${batch.quantity.toStringAsFixed(0)} '
+                                  '${batch.unit}',
+                            ),
+                            _MetaItem(
+                              icon: Icons.star_border_rounded,
+                              text: 'Grade ${batch.grade}',
+                            ),
+                            _MetaItem(
+                              icon: Icons.calendar_today_outlined,
+                              text: _formatDate(batch.harvestDate),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: Color(0xFFF0F0F0)),
+            // Footer: kebun + tombol QR & detail
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.place_outlined,
+                    size: 14,
+                    color: AppColors.placeholder,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      batch.farmName,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.placeholder,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: onShowQr,
+                    icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                    label: const Text('QR'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      minimumSize: const Size(0, 36),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaItem extends StatelessWidget {
+  const _MetaItem({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: AppColors.placeholder),
+        const SizedBox(width: 3),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.subtitle,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.status});
+
+  final BatchStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: status.background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        status.label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: status.color,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Empty state
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 48),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.inventory_2_outlined,
+            size: 56,
+            color: Color(0xFFCBD5E1),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Belum ada batch yang cocok',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.subtitle,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Coba ubah filter atau kata kunci pencarian,\n'
+            'atau tambah batch panen baru.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.placeholder,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

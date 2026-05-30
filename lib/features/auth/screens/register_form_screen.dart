@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../farmer/screens/farmer_home_screen.dart';
 
 /// Label tampilan per nilai role.
 const Map<String, String> _roleLabels = {
@@ -198,8 +199,28 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     setState(() => _isLoading = false);
 
     // TODO: Ganti dengan API call saat BE siap
-    // Navigasi ke beranda sesuai role setelah sukses
     _showTopNotification('Pendaftaran berhasil! Selamat datang.', isError: false);
+
+    // Navigasi ke beranda sesuai role setelah sukses.
+    // Saat ini baru role petani yang memiliki beranda. Role lain menyusul.
+    if (widget.role == 'petani') {
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 500),
+          pageBuilder: (_, _, _) => const FarmerHomeScreen(),
+          transitionsBuilder: (_, animation, _, child) => FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeInOutCubic,
+            ),
+            child: child,
+          ),
+        ),
+        (route) => false,
+      );
+    }
   }
 
   @override

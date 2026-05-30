@@ -47,3 +47,5 @@ app.*.map.json
 
 DurianTrace_AI_Development_Blueprint/
 flutter_*.log
+
+.kiro/

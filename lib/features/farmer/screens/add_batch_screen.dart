@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/batch_photo.dart';
 import '../../../shared/widgets/labeled_dropdown_field.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
@@ -57,6 +59,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
   String? _harvestMethod;
   String? _grade;
   DateTime? _harvestDate;
+  String? _photoPath;
   bool _isSubmitting = false;
 
   @override
@@ -94,6 +97,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     _grade = batch.grade;
     _harvestDate = batch.harvestDate;
     _quantityController.text = batch.quantity.toStringAsFixed(0);
+    _photoPath = batch.photoPath;
   }
 
   @override
@@ -134,6 +138,69 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     if (picked != null) {
       setState(() => _harvestDate = picked);
     }
+  }
+
+  // ── Foto durian ──────────────────────────────────────────────────────────
+
+  // [FE - Event Handler] _pickPhoto membuka pilihan sumber (kamera/galeri)
+  // lalu menyimpan path foto terpilih ke state untuk dipakai saat simpan.
+  Future<void> _pickPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined,
+                    color: AppColors.primary),
+                title: const Text('Ambil dari Kamera'),
+                onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined,
+                    color: AppColors.primary),
+                title: const Text('Pilih dari Galeri'),
+                onTap: () => Navigator.pop(sheetCtx, ImageSource.gallery),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || source == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final XFile? file = await picker.pickImage(
+        source: source,
+        maxWidth: 1280,
+        imageQuality: 80,
+      );
+      if (file != null && mounted) {
+        setState(() => _photoPath = file.path);
+      }
+    } catch (e) {
+      if (mounted) {
+        _notification.show(
+          context,
+          'Gagal mengambil foto. Coba lagi.',
+          isError: true,
+        );
+      }
+    }
+  }
+
+  void _removePhoto() {
+    setState(() => _photoPath = null);
   }
 
   // ── Format tanggal ─────────────────────────────────────────────────────────
@@ -192,6 +259,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       grade: _grade!,
       quantity: double.parse(_quantityController.text.trim()),
       harvestDate: _harvestDate!,
+      photoPath: _photoPath,
     );
 
     setState(() => _isSubmitting = false);
@@ -224,6 +292,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       grade: _grade,
       quantity: double.parse(_quantityController.text.trim()),
       harvestDate: _harvestDate,
+      photoPath: _photoPath,
     );
 
     setState(() => _isSubmitting = false);
@@ -280,6 +349,14 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ── 0. Foto Durian (opsional) ─────────────────────────
+                    _PhotoPickerField(
+                      photoPath: _photoPath,
+                      onPick: _pickPhoto,
+                      onRemove: _removePhoto,
+                    ),
+                    const SizedBox(height: 16),
+
                     // ── 1. Lokasi Kebun (Req 2.2, 2.3, 2.10) ──────────────
                     LabeledDropdownField<Farm>(
                       label: 'Pilih Lokasi Kebun Durian',
@@ -429,6 +506,143 @@ class _FarmEmptyState extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Foto picker field
+// ─────────────────────────────────────────────────────────────────────────────
+
+// [FE - Component Rendering] _PhotoPickerField menampilkan preview foto durian
+// (atau placeholder dashed bila kosong) dan tombol untuk ambil/ganti/hapus foto.
+class _PhotoPickerField extends StatelessWidget {
+  const _PhotoPickerField({
+    required this.photoPath,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final String? photoPath;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPhoto = photoPath != null && photoPath!.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Foto Durian (opsional)',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.subtitle,
+          ),
+        ),
+        const SizedBox(height: 6),
+        if (hasPhoto)
+          // Preview foto + tombol ganti/hapus
+          Stack(
+            children: [
+              BatchPhoto(
+                path: photoPath,
+                width: double.infinity,
+                height: 180,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Row(
+                  children: [
+                    _CircleAction(
+                      icon: Icons.edit_outlined,
+                      onTap: onPick,
+                    ),
+                    const SizedBox(width: 8),
+                    _CircleAction(
+                      icon: Icons.close_rounded,
+                      onTap: onRemove,
+                      color: const Color(0xFFDC2626),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          )
+        else
+          // Placeholder dashed-style yang dapat ditekan
+          GestureDetector(
+            onTap: onPick,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              width: double.infinity,
+              height: 140,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFD1D5DB)),
+              ),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add_a_photo_outlined,
+                    size: 32,
+                    color: AppColors.placeholder,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Tambahkan foto durian',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Tombol bulat kecil untuk aksi di atas preview foto (ganti/hapus).
+class _CircleAction extends StatelessWidget {
+  const _CircleAction({
+    required this.icon,
+    required this.onTap,
+    this.color,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: AppColors.white.withValues(alpha: 0.92),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(icon, size: 18, color: color ?? AppColors.subtitle),
       ),
     );
   }

@@ -46,6 +46,9 @@ dependencies:
   # QR Code generation for Batch QR screen (Req 4.1)
   qr_flutter: ^4.1.0
 
+  # Ambil/pilih foto durian per batch (kamera & galeri)
+  image_picker: ^1.2.0
+
   # Date/number formatting in Indonesian locale (Req 8.4)
   # Pinned to ^0.20.2 to match flutter_localizations constraint from device_preview
   intl: ^0.20.2

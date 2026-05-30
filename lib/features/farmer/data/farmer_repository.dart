@@ -242,6 +242,7 @@ class FarmerRepository extends ChangeNotifier {
     required double quantity,
     required DateTime harvestDate,
     String unit = 'kg',
+    String? photoPath,
   }) {
     final code = generateBatchCode();
     final now = DateTime.now();
@@ -259,6 +260,7 @@ class FarmerRepository extends ChangeNotifier {
       harvestDate: harvestDate,
       status: BatchStatus.created,
       createdAt: now,
+      photoPath: photoPath,
     );
     _batches.add(batch);
     notifyListeners();
@@ -365,6 +367,7 @@ class FarmerRepository extends ChangeNotifier {
     double? quantity,
     String? unit,
     DateTime? harvestDate,
+    String? photoPath,
   }) {
     if (!canEditBatch(code)) return false;
 
@@ -384,6 +387,7 @@ class FarmerRepository extends ChangeNotifier {
       quantity: quantity,
       unit: unit,
       harvestDate: harvestDate,
+      photoPath: photoPath,
     );
     notifyListeners();
     return true;

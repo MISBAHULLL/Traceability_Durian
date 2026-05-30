@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/batch_photo.dart';
 import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
 import '../models/harvest_batch.dart';
@@ -683,7 +684,7 @@ class _BatchCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Thumbnail durian
+                  // Thumbnail durian — foto batch bila ada, selain itu fallback.
                   Container(
                     width: 56,
                     height: 56,
@@ -692,14 +693,22 @@ class _BatchCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: Image.asset(
-                      'assets/images/durian.png',
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const Icon(
-                        Icons.eco_outlined,
-                        color: AppColors.primary,
-                      ),
-                    ),
+                    child: (batch.photoPath != null &&
+                            batch.photoPath!.isNotEmpty)
+                        ? BatchPhoto(
+                            path: batch.photoPath,
+                            width: 56,
+                            height: 56,
+                            borderRadius: BorderRadius.circular(10),
+                          )
+                        : Image.asset(
+                            'assets/images/durian.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => const Icon(
+                              Icons.eco_outlined,
+                              color: AppColors.primary,
+                            ),
+                          ),
                   ),
                   const SizedBox(width: 12),
                   // Info utama

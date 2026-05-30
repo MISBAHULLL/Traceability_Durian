@@ -139,6 +139,7 @@ class HarvestBatch {
     this.fertilizer,
     this.harvestMethod,
     this.createdAt,
+    this.photoPath,
   });
 
   /// Kode unik batch, contoh: DRN-2026-000128.
@@ -180,6 +181,13 @@ class HarvestBatch {
   /// Waktu batch dibuat — dipakai untuk urutan daftar dan timeline.
   final DateTime? createdAt;
 
+  /// Path/URI foto durian untuk batch ini (opsional).
+  ///
+  /// Pada fase FE-only, ini berisi path file lokal (mobile/desktop) atau
+  /// blob URL (web) hasil dari image_picker. Di masa depan diganti URL
+  /// gambar dari server.
+  final String? photoPath;
+
   /// Membuat salinan batch dengan field yang diubah.
   HarvestBatch copyWith({
     String? code,
@@ -195,6 +203,7 @@ class HarvestBatch {
     String? fertilizer,
     String? harvestMethod,
     DateTime? createdAt,
+    String? photoPath,
   }) {
     return HarvestBatch(
       code: code ?? this.code,
@@ -210,6 +219,7 @@ class HarvestBatch {
       fertilizer: fertilizer ?? this.fertilizer,
       harvestMethod: harvestMethod ?? this.harvestMethod,
       createdAt: createdAt ?? this.createdAt,
+      photoPath: photoPath ?? this.photoPath,
     );
   }
 }

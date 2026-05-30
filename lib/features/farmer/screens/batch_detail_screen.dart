@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/batch_photo.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
@@ -198,6 +199,17 @@ class _BatchDetailContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Foto Durian (bila ada) ─────────────────────────────────────────
+          if (batch.photoPath != null && batch.photoPath!.isNotEmpty) ...[
+            BatchPhoto(
+              path: batch.photoPath,
+              width: double.infinity,
+              height: 200,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // ── Profil Petani (Req 3.2) ────────────────────────────────────────
           _FarmerProfileSection(profile: profile),
           const SizedBox(height: 16),

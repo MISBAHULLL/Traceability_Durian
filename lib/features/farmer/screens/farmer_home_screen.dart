@@ -301,20 +301,23 @@ class _GreetingBlock extends StatelessWidget {
                 color: AppColors.primary,
               ),
             ),
-            const Text(
-              '  •  ',
-              style: TextStyle(fontSize: 13, color: AppColors.placeholder),
-            ),
-            Flexible(
-              child: Text(
-                profile.location,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.placeholder,
-                ),
-                overflow: TextOverflow.ellipsis,
+            // Tampilkan lokasi hanya bila sudah dilengkapi (petani baru kosong).
+            if (profile.location.isNotEmpty) ...[
+              const Text(
+                '  •  ',
+                style: TextStyle(fontSize: 13, color: AppColors.placeholder),
               ),
-            ),
+              Flexible(
+                child: Text(
+                  profile.location,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.placeholder,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ],
         ),
       ],

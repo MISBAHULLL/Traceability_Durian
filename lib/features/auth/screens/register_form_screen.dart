@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/screens/farmer_home_screen.dart';
 
 /// Label tampilan per nilai role.
@@ -204,6 +205,15 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     // Navigasi ke beranda sesuai role setelah sukses.
     // Saat ini baru role petani yang memiliki beranda. Role lain menyusul.
     if (widget.role == 'petani') {
+      // [FE - Event Handler] Aktifkan akun petani baru di repository dengan
+      // data registrasi sebelum membuka Beranda, agar profil yang tampil
+      // adalah identitas user (bukan data seed contoh).
+      FarmerRepository.instance.registerFarmer(
+        firstName: firstName,
+        lastName: lastName,
+        phone: phone,
+      );
+
       await Future.delayed(const Duration(milliseconds: 600));
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(

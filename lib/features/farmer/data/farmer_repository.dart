@@ -504,6 +504,44 @@ class FarmerRepository extends ChangeNotifier {
 
   // ── Sesi (Req 6.4) ─────────────────────────────────────────────────────────
 
+  // [FE - State Management] registerFarmer menjadikan akun yang baru
+  // didaftarkan sebagai petani aktif — mengganti profil seed dengan data
+  // input registrasi sehingga Beranda/Profil menampilkan identitas user
+  // yang sebenarnya, bukan data contoh.
+  //
+  // Petani baru dimulai dengan keadaan bersih (tanpa batch/kebun). Data seed
+  // contoh tetap ada di store namun otomatis tersembunyi karena terikat
+  // farmerId yang berbeda (lihat getter [farms]/[batches]).
+  /// Mendaftarkan dan mengaktifkan petani baru dari data form registrasi.
+  ///
+  /// Field alamat (desa/kecamatan/kabupaten/lokasi) sengaja dikosongkan
+  /// karena belum dikumpulkan saat registrasi; UI menampilkan penanda
+  /// "Belum dilengkapi" hingga petani melengkapinya.
+  FarmerProfile registerFarmer({
+    required String firstName,
+    required String lastName,
+    required String phone,
+    String roleLabel = 'Petani Durian',
+  }) {
+    final id = 'farmer-${DateTime.now().millisecondsSinceEpoch}';
+    final fullName = '$firstName $lastName'.trim();
+    final profile = FarmerProfile(
+      farmerId: id,
+      fullName: fullName.isEmpty ? 'Petani' : fullName,
+      roleLabel: roleLabel,
+      location: '', // dilengkapi kemudian
+      village: '',
+      district: '',
+      city: '',
+      contact: phone.isEmpty ? '' : '+62 $phone',
+    );
+
+    _currentFarmerId = id;
+    _profile = profile;
+    notifyListeners();
+    return profile;
+  }
+
   // [FE - State Management] logout mereset seluruh state mock ke kondisi
   // awal seed — memastikan tidak ada data sesi yang bocor ke sesi berikutnya.
   /// Mereset seluruh state sesi mock dan menyemai ulang data awal.

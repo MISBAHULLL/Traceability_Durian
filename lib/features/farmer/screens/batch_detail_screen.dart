@@ -239,9 +239,14 @@ class _FarmerProfileSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Susun alamat: desa, kecamatan, kabupaten
+    // Susun alamat dari komponen non-kosong: desa, kecamatan, kabupaten.
+    final addressParts = <String>[
+      if (profile.village.isNotEmpty) profile.village,
+      if (profile.district.isNotEmpty) 'Kec. ${profile.district}',
+      if (profile.city.isNotEmpty) profile.city,
+    ];
     final address =
-        '${profile.village}, Kec. ${profile.district}, ${profile.city}';
+        addressParts.isNotEmpty ? addressParts.join(', ') : 'Alamat belum dilengkapi';
 
     return Container(
       padding: const EdgeInsets.all(14),

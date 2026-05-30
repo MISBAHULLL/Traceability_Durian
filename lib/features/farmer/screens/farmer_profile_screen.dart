@@ -9,6 +9,9 @@ import '../farmer_routes.dart';
 import '../models/harvest_batch.dart';
 import '../../auth/screens/home_screen.dart';
 
+/// Penanda nilai profil yang belum dilengkapi petani.
+const String _kNotSet = 'Belum dilengkapi';
+
 // [FE - Component Rendering] Screen ini menampilkan profil petani dan
 // menyediakan aksi logout yang membersihkan seluruh stack navigasi
 // sehingga tidak ada layar petani yang tersisa setelah keluar.
@@ -232,7 +235,6 @@ class _ProfileInfoSection extends StatelessWidget {
   const _ProfileInfoSection({required this.profile});
 
   final FarmerProfile profile;
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -249,21 +251,14 @@ class _ProfileInfoSection extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // Lokasi lengkap (Req 6.1)
+        // [UTIL - Helper Function] Alamat dirakit hanya dari komponen yang
+        // terisi; bila kosong (petani baru) ditampilkan penanda yang jelas.
+        // Lokasi (Req 6.1)
         _InfoRow(
           icon: Icons.place_outlined,
           label: 'Lokasi',
-          value: profile.location,
-        ),
-
-        const SizedBox(height: 14),
-
-        // Desa / kecamatan / kabupaten
-        _InfoRow(
-          icon: Icons.map_outlined,
-          label: 'Alamat',
-          value:
-              'Desa ${profile.village}, Kec. ${profile.district}, ${profile.city}',
+          value: _composeAddress(profile),
+          isEmpty: _composeAddress(profile) == _kNotSet,
         ),
 
         const SizedBox(height: 14),
@@ -272,10 +267,26 @@ class _ProfileInfoSection extends StatelessWidget {
         _InfoRow(
           icon: Icons.phone_outlined,
           label: 'Kontak',
-          value: profile.contact,
+          value: profile.contact.isEmpty ? _kNotSet : profile.contact,
+          isEmpty: profile.contact.isEmpty,
         ),
       ],
     );
+  }
+
+  /// Merakit alamat dari komponen non-kosong (desa, kecamatan, kabupaten).
+  ///
+  /// Mengembalikan [_kNotSet] bila seluruh komponen kosong — terjadi pada
+  /// petani yang baru mendaftar dan belum melengkapi profil.
+  static String _composeAddress(FarmerProfile p) {
+    final parts = <String>[
+      if (p.village.isNotEmpty) 'Desa ${p.village}',
+      if (p.district.isNotEmpty) 'Kec. ${p.district}',
+      if (p.city.isNotEmpty) p.city,
+    ];
+    if (parts.isNotEmpty) return parts.join(', ');
+    // Fallback ke ringkasan lokasi bila ada, selain itu penanda kosong.
+    return p.location.isNotEmpty ? p.location : _kNotSet;
   }
 }
 
@@ -284,11 +295,15 @@ class _InfoRow extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.isEmpty = false,
   });
 
   final IconData icon;
   final String label;
   final String value;
+
+  /// Bila `true`, nilai ditampilkan sebagai placeholder abu (belum dilengkapi).
+  final bool isEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -325,10 +340,11 @@ class _InfoRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.black,
+                  color: isEmpty ? AppColors.placeholder : AppColors.black,
+                  fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
                   height: 1.3,
                 ),
               ),

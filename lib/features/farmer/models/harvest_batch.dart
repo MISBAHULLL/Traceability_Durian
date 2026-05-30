@@ -249,4 +249,27 @@ class FarmerProfile {
 
   /// Nomor HP atau email — ditampilkan di Profil (Req 6.1).
   final String contact;
+
+  /// Membuat salinan profil dengan field tertentu diubah.
+  FarmerProfile copyWith({
+    String? farmerId,
+    String? fullName,
+    String? roleLabel,
+    String? location,
+    String? village,
+    String? district,
+    String? city,
+    String? contact,
+  }) {
+    return FarmerProfile(
+      farmerId: farmerId ?? this.farmerId,
+      fullName: fullName ?? this.fullName,
+      roleLabel: roleLabel ?? this.roleLabel,
+      location: location ?? this.location,
+      village: village ?? this.village,
+      district: district ?? this.district,
+      city: city ?? this.city,
+      contact: contact ?? this.contact,
+    );
+  }
 }

@@ -581,6 +581,37 @@ class FarmerRepository extends ChangeNotifier {
     return profile;
   }
 
+  // [FE - State Management] updateProfile memperbarui data profil petani
+  // yang sedang login (mis. melengkapi alamat/kontak yang belum diisi saat
+  // registrasi). Komponen lokasi ringkas (`location`) diturunkan otomatis
+  // dari desa/kabupaten agar konsisten di Beranda & Detail Batch.
+  /// Memperbarui profil petani yang sedang login dan menyimpannya ke store.
+  FarmerProfile updateProfile({
+    required String fullName,
+    required String contact,
+    required String village,
+    required String district,
+    required String city,
+  }) {
+    // Susun ringkasan lokasi dari komponen non-kosong (desa + kabupaten).
+    final locationParts = <String>[
+      if (village.trim().isNotEmpty) 'Desa ${village.trim()}',
+      if (city.trim().isNotEmpty) city.trim(),
+    ];
+    final location = locationParts.join(', ');
+
+    _profile = _profile.copyWith(
+      fullName: fullName.trim(),
+      contact: contact.trim(),
+      village: village.trim(),
+      district: district.trim(),
+      city: city.trim(),
+      location: location,
+    );
+    notifyListeners();
+    return _profile;
+  }
+
   // [FE - State Management] logout mereset seluruh state mock ke kondisi
   // awal seed — memastikan tidak ada data sesi yang bocor ke sesi berikutnya.
   /// Mereset seluruh state sesi mock dan menyemai ulang data awal.

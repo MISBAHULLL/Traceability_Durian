@@ -8,6 +8,7 @@ import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
 import '../models/harvest_batch.dart';
 import '../../auth/screens/home_screen.dart';
+import 'edit_profile_screen.dart';
 
 /// Penanda nilai profil yang belum dilengkapi petani.
 const String _kNotSet = 'Belum dilengkapi';
@@ -58,13 +59,26 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
       curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
     ));
     _animController.forward();
+    // Dengarkan perubahan repo agar profil ter-refresh setelah diedit.
+    _repo.addListener(_onRepoChanged);
   }
 
   @override
   void dispose() {
+    _repo.removeListener(_onRepoChanged);
     _notification.dispose();
     _animController.dispose();
     super.dispose();
+  }
+
+  void _onRepoChanged() {
+    if (mounted) setState(() {});
+  }
+
+  // [FE - Event Handler] _openEditProfile membuka form ubah profil; saat
+  // kembali, listener repo otomatis me-refresh tampilan.
+  Future<void> _openEditProfile() async {
+    await FarmerRoutes.push(context, const EditProfileScreen());
   }
 
   // [FE - Event Handler] _handleLogout menangani aksi keluar: reset mock
@@ -98,8 +112,21 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
             position: _slideAnim,
             child: Column(
               children: [
-                // Top bar dengan tombol back (Req 6.2)
-                AppTopBar(title: 'Profil'),
+                // Top bar dengan tombol back + aksi ubah profil (Req 6.2)
+                AppTopBar(
+                  title: 'Profil',
+                  actions: [
+                    IconButton(
+                      onPressed: _openEditProfile,
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        color: AppColors.black,
+                        size: 22,
+                      ),
+                      tooltip: 'Ubah Profil',
+                    ),
+                  ],
+                ),
 
                 // Konten utama
                 Expanded(

@@ -12,10 +12,12 @@ import '../data/farmer_repository.dart';
 /// Field wajib: nama kebun, provinsi, kota/kabupaten, kecamatan, desa, alamat.
 /// Field opsional: latitude, longitude.
 ///
-/// Setelah simpan berhasil, kebun baru langsung tersedia di dropdown
-/// Tambah Batch karena [FarmerRepository] memanggil [notifyListeners].
-///
-/// Implementasi penuh akan diselesaikan pada Task 10.
+/// Alur submit (Req 5.4, 5.5):
+/// 1. Validasi via [FarmerValidator.validateCreateFarm].
+/// 2. Bila gagal → tampilkan [TopNotification] error berbahasa Indonesia.
+/// 3. Bila valid → panggil [FarmerRepository.addFarm], tampilkan banner sukses,
+///    lalu pop. Kebun baru langsung tersedia di dropdown Tambah Batch (Req 5.6)
+///    karena repo memanggil [notifyListeners].
 class CreateFarmScreen extends StatefulWidget {
   const CreateFarmScreen({super.key});
 
@@ -52,7 +54,10 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
     super.dispose();
   }
 
+  // ── Submit ─────────────────────────────────────────────────────────────────
+
   Future<void> _submit() async {
+    // Validasi semua field
     final error = FarmerValidator.validateCreateFarm(
       name: _nameCtrl.text,
       province: _provinceCtrl.text,
@@ -69,9 +74,21 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
       return;
     }
 
+    // Semua valid — mulai proses simpan
     setState(() => _isSubmitting = true);
+
+    // Simulasi async singkat agar indikator loading terlihat
     await Future.delayed(const Duration(milliseconds: 400));
+
     if (!mounted) return;
+
+    // Parse koordinat opsional
+    final lat = _latCtrl.text.trim().isEmpty
+        ? null
+        : double.tryParse(_latCtrl.text.trim());
+    final lng = _lngCtrl.text.trim().isEmpty
+        ? null
+        : double.tryParse(_lngCtrl.text.trim());
 
     _repo.addFarm(
       name: _nameCtrl.text.trim(),
@@ -80,25 +97,26 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
       district: _districtCtrl.text.trim(),
       village: _villageCtrl.text.trim(),
       address: _addressCtrl.text.trim(),
-      latitude: _latCtrl.text.trim().isEmpty
-          ? null
-          : double.tryParse(_latCtrl.text.trim()),
-      longitude: _lngCtrl.text.trim().isEmpty
-          ? null
-          : double.tryParse(_lngCtrl.text.trim()),
+      latitude: lat,
+      longitude: lng,
     );
 
     setState(() => _isSubmitting = false);
 
+    // Banner sukses (Req 5.5)
     _notification.show(
       context,
-      'Kebun berhasil dibuat.',
+      'Kebun "${_nameCtrl.text.trim()}" berhasil ditambahkan.',
       isError: false,
     );
 
+    // Tunggu sebentar agar banner terlihat sebelum pop
     await Future.delayed(const Duration(milliseconds: 800));
+
     if (mounted) Navigator.maybePop(context);
   }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -107,57 +125,83 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // Top bar dengan tombol back (Req 8.2)
             const AppTopBar(title: 'Buat Kebun'),
+
+            // Form scrollable
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _TextField(
+                    // ── Nama Kebun (wajib) ─────────────────────────────────
+                    _FormField(
                       label: 'Nama Kebun',
                       hint: 'Contoh: Kebun Pak Risqi',
                       controller: _nameCtrl,
+                      textCapitalization: TextCapitalization.words,
                     ),
                     const SizedBox(height: 16),
-                    _TextField(
+
+                    // ── Provinsi (wajib) ───────────────────────────────────
+                    _FormField(
                       label: 'Provinsi',
                       hint: 'Contoh: Jawa Timur',
                       controller: _provinceCtrl,
+                      textCapitalization: TextCapitalization.words,
                     ),
                     const SizedBox(height: 16),
-                    _TextField(
+
+                    // ── Kota/Kabupaten (wajib) ─────────────────────────────
+                    _FormField(
                       label: 'Kota/Kabupaten',
                       hint: 'Contoh: Kabupaten Jember',
                       controller: _cityCtrl,
+                      textCapitalization: TextCapitalization.words,
                     ),
                     const SizedBox(height: 16),
-                    _TextField(
+
+                    // ── Kecamatan (wajib) ──────────────────────────────────
+                    _FormField(
                       label: 'Kecamatan',
                       hint: 'Contoh: Pakis',
                       controller: _districtCtrl,
+                      textCapitalization: TextCapitalization.words,
                     ),
                     const SizedBox(height: 16),
-                    _TextField(
+
+                    // ── Desa (wajib) ───────────────────────────────────────
+                    _FormField(
                       label: 'Desa',
                       hint: 'Contoh: Pakis',
                       controller: _villageCtrl,
+                      textCapitalization: TextCapitalization.words,
                     ),
                     const SizedBox(height: 16),
-                    _TextField(
+
+                    // ── Alamat (wajib) ─────────────────────────────────────
+                    _FormField(
                       label: 'Alamat',
                       hint: 'Contoh: Jl. Raya Pakis No. 1',
                       controller: _addressCtrl,
-                      maxLines: 2,
+                      maxLines: 3,
+                      textCapitalization: TextCapitalization.sentences,
                     ),
                     const SizedBox(height: 16),
-                    _TextField(
-                      label: 'Latitude (opsional)',
+
+                    // ── Divider opsional ───────────────────────────────────
+                    const _SectionDivider(label: 'Koordinat (Opsional)'),
+                    const SizedBox(height: 16),
+
+                    // ── Latitude (opsional) ────────────────────────────────
+                    _FormField(
+                      label: 'Latitude',
                       hint: 'Contoh: -8.1234',
                       controller: _latCtrl,
                       keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
                         signed: true,
+                        decimal: true,
                       ),
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(
@@ -166,13 +210,15 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _TextField(
-                      label: 'Longitude (opsional)',
+
+                    // ── Longitude (opsional) ───────────────────────────────
+                    _FormField(
+                      label: 'Longitude',
                       hint: 'Contoh: 113.7234',
                       controller: _lngCtrl,
                       keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
                         signed: true,
+                        decimal: true,
                       ),
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(
@@ -181,6 +227,8 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
                       ],
                     ),
                     const SizedBox(height: 32),
+
+                    // ── Tombol Simpan ──────────────────────────────────────
                     PrimaryPillButton(
                       label: 'SIMPAN KEBUN',
                       onPressed: _isSubmitting ? null : _submit,
@@ -198,25 +246,28 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Reusable text field
+// Reusable form field
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _TextField extends StatelessWidget {
-  const _TextField({
+/// Field teks bergaya konsisten dengan layar lain (border tipis, label atas).
+class _FormField extends StatelessWidget {
+  const _FormField({
     required this.label,
     required this.hint,
     required this.controller,
-    this.maxLines = 1,
     this.keyboardType,
     this.inputFormatters,
+    this.maxLines = 1,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   final String label;
   final String hint;
   final TextEditingController controller;
-  final int maxLines;
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? inputFormatters;
+  final int maxLines;
+  final TextCapitalization textCapitalization;
 
   @override
   Widget build(BuildContext context) {
@@ -234,10 +285,14 @@ class _TextField extends StatelessWidget {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
-          maxLines: maxLines,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
-          style: const TextStyle(fontSize: 14, color: AppColors.black),
+          maxLines: maxLines,
+          textCapitalization: textCapitalization,
+          style: const TextStyle(
+            fontSize: 14,
+            color: AppColors.black,
+          ),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(
@@ -267,6 +322,38 @@ class _TextField extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section divider
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Pemisah visual dengan label untuk memisahkan bagian wajib dan opsional.
+class _SectionDivider extends StatelessWidget {
+  const _SectionDivider({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(child: Divider(color: Color(0xFFE5E7EB))),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.placeholder,
+            ),
+          ),
+        ),
+        const Expanded(child: Divider(color: Color(0xFFE5E7EB))),
       ],
     );
   }

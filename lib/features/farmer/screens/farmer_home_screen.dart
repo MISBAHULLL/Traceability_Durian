@@ -7,8 +7,8 @@ import '../models/harvest_batch.dart';
 import 'add_batch_screen.dart';
 import 'batch_detail_screen.dart';
 import 'batch_qr_screen.dart';
-import 'farm_management_screen.dart';
 import 'farmer_profile_screen.dart';
+import '../widgets/farmer_drawer.dart';
 
 // [FE - Component Rendering] Screen ini adalah layar root petani setelah
 // login — menampilkan ringkasan statistik, daftar batch, dan navigasi
@@ -34,6 +34,9 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
     with SingleTickerProviderStateMixin {
   final _repo = FarmerRepository.instance;
   final TextEditingController _searchController = TextEditingController();
+
+  // Key untuk membuka navigation drawer dari ikon hamburger di top bar.
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   BatchFilter _activeFilter = BatchFilter.semua;
   String _query = '';
@@ -118,10 +121,9 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
     await FarmerRoutes.push(context, const FarmerProfileScreen());
   }
 
-  /// Buka Layar Kelola Kebun dari menu Beranda (Req 5.1, 5.2).
-  Future<void> _openFarmManagement() async {
-    await FarmerRoutes.push(context, const FarmManagementScreen());
-    // Repo listener (_onRepoChanged) sudah menangani refresh otomatis.
+  /// Buka navigation drawer dari ikon hamburger.
+  void _openDrawer() {
+    _scaffoldKey.currentState?.openEndDrawer();
   }
 
   @override
@@ -130,7 +132,11 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
     final profile = _repo.profile;
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: AppColors.white,
+      // Drawer dibuka dari kanan (endDrawer) agar konsisten dengan posisi
+      // ikon hamburger di sisi kanan top bar.
+      endDrawer: const FarmerDrawer(),
       body: SafeArea(
         child: FadeTransition(
           opacity: _fadeAnim,
@@ -140,7 +146,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
               children: [
                 _TopBar(
                   onProfile: _openProfile,
-                  onMenu: _openFarmManagement,
+                  onMenu: _openDrawer,
                 ),
                 Expanded(
                   child: CustomScrollView(
@@ -216,6 +222,8 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
 /// Top bar: judul "Beranda" di tengah + ikon profil & menu di kanan.
 ///
 /// Tidak ada tombol back karena beranda adalah root setelah login.
+/// Ikon menu membuka navigation drawer (Beranda, Kelola Kebun, Profil,
+/// Bantuan, Tentang, Keluar).
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.onProfile, required this.onMenu});
 

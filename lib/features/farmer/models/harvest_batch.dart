@@ -118,6 +118,8 @@ extension BatchFilterX on BatchFilter {
 class HarvestBatch {
   const HarvestBatch({
     required this.code,
+    required this.farmerId,
+    required this.farmId,
     required this.variety,
     required this.grade,
     required this.quantity,
@@ -125,10 +127,19 @@ class HarvestBatch {
     required this.harvestDate,
     required this.farmName,
     required this.status,
+    this.fertilizer,
+    this.harvestMethod,
+    this.createdAt,
   });
 
   /// Kode unik batch, contoh: DRN-2026-000128.
   final String code;
+
+  /// ID petani pemilik batch — dipakai untuk isolasi data (Req 7.2).
+  final String farmerId;
+
+  /// ID kebun asal batch — relasi ke [Farm].
+  final String farmId;
 
   /// Varietas durian, contoh: Montong, Bawor.
   final String variety;
@@ -150,17 +161,81 @@ class HarvestBatch {
 
   /// Status batch saat ini pada rantai pasok.
   final BatchStatus status;
+
+  /// Pupuk yang digunakan, contoh: Organik Kompos, NPK (opsional).
+  final String? fertilizer;
+
+  /// Metode panen, contoh: Jatuh Alami, Petik Matang (opsional).
+  final String? harvestMethod;
+
+  /// Waktu batch dibuat — dipakai untuk urutan daftar dan timeline.
+  final DateTime? createdAt;
+
+  /// Membuat salinan batch dengan field yang diubah.
+  HarvestBatch copyWith({
+    String? code,
+    String? farmerId,
+    String? farmId,
+    String? variety,
+    String? grade,
+    double? quantity,
+    String? unit,
+    DateTime? harvestDate,
+    String? farmName,
+    BatchStatus? status,
+    String? fertilizer,
+    String? harvestMethod,
+    DateTime? createdAt,
+  }) {
+    return HarvestBatch(
+      code: code ?? this.code,
+      farmerId: farmerId ?? this.farmerId,
+      farmId: farmId ?? this.farmId,
+      variety: variety ?? this.variety,
+      grade: grade ?? this.grade,
+      quantity: quantity ?? this.quantity,
+      unit: unit ?? this.unit,
+      harvestDate: harvestDate ?? this.harvestDate,
+      farmName: farmName ?? this.farmName,
+      status: status ?? this.status,
+      fertilizer: fertilizer ?? this.fertilizer,
+      harvestMethod: harvestMethod ?? this.harvestMethod,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }
 
-/// Data ringkas profil petani yang login (mock untuk tahap FE).
+/// Data profil petani yang login (mock untuk tahap FE).
 class FarmerProfile {
   const FarmerProfile({
+    required this.farmerId,
     required this.fullName,
     required this.roleLabel,
     required this.location,
+    required this.village,
+    required this.district,
+    required this.city,
+    required this.contact,
   });
+
+  /// ID unik petani — dipakai untuk isolasi data (Req 7.2).
+  final String farmerId;
 
   final String fullName;
   final String roleLabel;
+
+  /// Lokasi ringkas yang ditampilkan di Beranda (sudah ada).
   final String location;
+
+  /// Desa — ditampilkan di Detail Batch (Req 3.2).
+  final String village;
+
+  /// Kecamatan — ditampilkan di Detail Batch (Req 3.2).
+  final String district;
+
+  /// Kabupaten/kota — ditampilkan di Detail Batch (Req 3.2).
+  final String city;
+
+  /// Nomor HP atau email — ditampilkan di Profil (Req 6.1).
+  final String contact;
 }

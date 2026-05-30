@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
-import '../data/farmer_mock_data.dart';
+import '../data/farmer_repository.dart';
+import '../farmer_routes.dart';
 import '../models/harvest_batch.dart';
+import 'add_batch_screen.dart';
+import 'batch_detail_screen.dart';
+import 'batch_qr_screen.dart';
+import 'farmer_profile_screen.dart';
 
 /// Beranda untuk role Petani (Farmer).
 ///
@@ -13,9 +18,8 @@ import '../models/harvest_batch.dart';
 /// - Petani hanya membuat & melihat batch panen miliknya + QR (role matrix).
 /// - Status batch mengikuti state machine (badge per status).
 ///
-/// Catatan: semua data masih mock (lihat [FarmerMockData]). Aksi (tambah
-/// batch, lihat QR, detail) baru menampilkan notifikasi placeholder sampai
-/// layar tujuan & backend tersedia.
+/// Data dibaca dari [FarmerRepository.instance] dan di-rebuild secara reaktif
+/// saat repo berubah (mis. setelah tambah batch atau tambah kebun).
 class FarmerHomeScreen extends StatefulWidget {
   const FarmerHomeScreen({super.key});
 
@@ -25,6 +29,7 @@ class FarmerHomeScreen extends StatefulWidget {
 
 class _FarmerHomeScreenState extends State<FarmerHomeScreen>
     with SingleTickerProviderStateMixin {
+  final _repo = FarmerRepository.instance;
   final TextEditingController _searchController = TextEditingController();
   final TopNotification _notification = TopNotification();
 
@@ -58,25 +63,53 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
     _searchController.addListener(() {
       setState(() => _query = _searchController.text.trim().toLowerCase());
     });
+
+    // Dengarkan perubahan repo agar stat cards, daftar, dan badge
+    // ter-refresh secara reaktif (Req 1.2, 1.3).
+    _repo.addListener(_onRepoChanged);
   }
 
   @override
   void dispose() {
+    _repo.removeListener(_onRepoChanged);
     _notification.dispose();
     _animController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  /// Daftar batch setelah difilter chip + query pencarian.
+  void _onRepoChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Daftar batch setelah difilter chip + query pencarian (Req 1.4, 1.5, 1.6).
+  ///
+  /// Menggunakan helper murni [searchAndFilterBatches] dari FarmerRepository.
   List<HarvestBatch> get _filteredBatches {
-    return FarmerMockData.batches.where((b) {
-      final matchFilter = _activeFilter.matches(b.status);
-      final matchQuery = _query.isEmpty ||
-          b.code.toLowerCase().contains(_query) ||
-          b.variety.toLowerCase().contains(_query);
-      return matchFilter && matchQuery;
-    }).toList();
+    return searchAndFilterBatches(_repo.batches, _activeFilter, _query);
+  }
+
+  // ── Navigasi ───────────────────────────────────────────────────────────────
+
+  /// Buka Layar Tambah Batch Panen (Req 1.8).
+  Future<void> _openAddBatch() async {
+    await FarmerRoutes.push(context, const AddBatchScreen());
+    // Repo listener (_onRepoChanged) sudah menangani refresh otomatis.
+  }
+
+  /// Buka Layar Detail Batch untuk batch tertentu (Req 1.9).
+  Future<void> _openBatchDetail(String code) async {
+    await FarmerRoutes.push(context, BatchDetailScreen(batchCode: code));
+  }
+
+  /// Buka Layar QR Batch untuk batch tertentu (Req 1.10).
+  Future<void> _openBatchQr(String code) async {
+    await FarmerRoutes.push(context, BatchQrScreen(batchCode: code));
+  }
+
+  /// Buka Layar Profil Petani (Req 1.11).
+  Future<void> _openProfile() async {
+    await FarmerRoutes.push(context, const FarmerProfileScreen());
   }
 
   void _comingSoon(String feature) {
@@ -90,6 +123,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
   @override
   Widget build(BuildContext context) {
     final batches = _filteredBatches;
+    final profile = _repo.profile;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -101,7 +135,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
             child: Column(
               children: [
                 _TopBar(
-                  onProfile: () => _comingSoon('Profil'),
+                  onProfile: _openProfile,
                   onMenu: () => _comingSoon('Menu'),
                 ),
                 Expanded(
@@ -111,13 +145,11 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
                         padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
                         sliver: SliverList(
                           delegate: SliverChildListDelegate([
-                            const _GreetingBlock(),
+                            _GreetingBlock(profile: profile),
                             const SizedBox(height: 16),
-                            const _StatRow(),
+                            _StatRow(repo: _repo),
                             const SizedBox(height: 16),
-                            _AddBatchCard(
-                              onTap: () => _comingSoon('Tambah Batch Panen'),
-                            ),
+                            _AddBatchCard(onTap: _openAddBatch),
                             const SizedBox(height: 16),
                             _SearchField(controller: _searchController),
                             const SizedBox(height: 14),
@@ -148,8 +180,10 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
                                   padding: const EdgeInsets.only(bottom: 12),
                                   child: _BatchCard(
                                     batch: batch,
-                                    onTap: () => _comingSoon('Detail Batch'),
-                                    onShowQr: () => _comingSoon('QR Batch'),
+                                    onTap: () =>
+                                        _openBatchDetail(batch.code),
+                                    onShowQr: () =>
+                                        _openBatchQr(batch.code),
                                   ),
                                 );
                               },
@@ -227,11 +261,12 @@ class _IconButton extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _GreetingBlock extends StatelessWidget {
-  const _GreetingBlock();
+  const _GreetingBlock({required this.profile});
+
+  final FarmerProfile profile;
 
   @override
   Widget build(BuildContext context) {
-    const profile = FarmerMockData.profile;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -286,7 +321,9 @@ class _GreetingBlock extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _StatRow extends StatelessWidget {
-  const _StatRow();
+  const _StatRow({required this.repo});
+
+  final FarmerRepository repo;
 
   @override
   Widget build(BuildContext context) {
@@ -294,7 +331,7 @@ class _StatRow extends StatelessWidget {
       children: [
         Expanded(
           child: _StatCard(
-            value: '${FarmerMockData.totalBatch}',
+            value: '${repo.totalBatch}',
             label: 'Total Batch',
             icon: Icons.inventory_2_outlined,
             color: AppColors.primary,
@@ -303,7 +340,7 @@ class _StatRow extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: _StatCard(
-            value: '${FarmerMockData.activeBatch}',
+            value: '${repo.activeBatch}',
             label: 'Batch Aktif',
             icon: Icons.local_shipping_outlined,
             color: const Color(0xFF1D6FA4),
@@ -312,7 +349,7 @@ class _StatRow extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: _StatCard(
-            value: '${FarmerMockData.verifiedBatch}',
+            value: '${repo.verifiedBatch}',
             label: 'Terverifikasi',
             icon: Icons.verified_outlined,
             color: const Color(0xFF3F8F27),

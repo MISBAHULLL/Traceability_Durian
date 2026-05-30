@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import '../data/farmer_mock_data.dart';
 import '../models/batch_event.dart';
 import '../models/farm.dart';
 import '../models/harvest_batch.dart';
@@ -21,40 +20,128 @@ import '../models/harvest_batch.dart';
 /// seed data dari [FarmerMockData] akan dipindahkan sepenuhnya ke sini.
 class FarmerRepository extends ChangeNotifier {
   FarmerRepository._seed() {
-    // Seed profil dari FarmerMockData
-    _currentFarmerId = FarmerMockData.currentFarmerId;
-    _profile = FarmerMockData.profile;
-
-    // Seed kebun awal
-    _farms = [
-      const Farm(
-        id: 'farm-001',
-        farmerId: 'farmer-001',
-        name: 'Kebun Pakis 1',
-        province: 'Jawa Timur',
-        city: 'Kabupaten Jember',
-        district: 'Pakis',
-        village: 'Pakis',
-        address: 'Jl. Raya Pakis No. 1, Desa Pakis, Kec. Pakis, Kab. Jember',
-      ),
-      const Farm(
-        id: 'farm-002',
-        farmerId: 'farmer-001',
-        name: 'Kebun Curah 2',
-        province: 'Jawa Timur',
-        city: 'Kabupaten Jember',
-        district: 'Curah Nongko',
-        village: 'Curah Nongko',
-        address: 'Jl. Curah Nongko No. 2, Desa Curah Nongko, Kab. Jember',
-      ),
-    ];
-
-    // Seed batch dari FarmerMockData (salinan mutable)
-    _batches = List<HarvestBatch>.from(FarmerMockData.batches);
-
-    // Inisialisasi counter kode batch dari batch yang sudah ada
+    _currentFarmerId = _kSeedFarmerId;
+    _profile = _kSeedProfile;
+    _farms = _buildSeedFarms();
+    _batches = _buildSeedBatches();
     _batchCounter = _batches.length;
   }
+
+  // ── Konstanta seed (dipindahkan dari FarmerMockData — task 13.3) ───────────
+
+  static const String _kSeedFarmerId = 'farmer-001';
+
+  static const FarmerProfile _kSeedProfile = FarmerProfile(
+    farmerId: _kSeedFarmerId,
+    fullName: 'Risqi Firdaus Setiawan',
+    roleLabel: 'Petani Durian',
+    location: 'Desa Pakis, Kab. Jember',
+    village: 'Pakis',
+    district: 'Pakis',
+    city: 'Kabupaten Jember',
+    contact: '081234567890',
+  );
+
+  static List<Farm> _buildSeedFarms() => [
+        const Farm(
+          id: 'farm-001',
+          farmerId: _kSeedFarmerId,
+          name: 'Kebun Pakis 1',
+          province: 'Jawa Timur',
+          city: 'Kabupaten Jember',
+          district: 'Pakis',
+          village: 'Pakis',
+          address: 'Jl. Raya Pakis No. 1, Desa Pakis, Kec. Pakis, Kab. Jember',
+        ),
+        const Farm(
+          id: 'farm-002',
+          farmerId: _kSeedFarmerId,
+          name: 'Kebun Curah 2',
+          province: 'Jawa Timur',
+          city: 'Kabupaten Jember',
+          district: 'Curah Nongko',
+          village: 'Curah Nongko',
+          address: 'Jl. Curah Nongko No. 2, Desa Curah Nongko, Kab. Jember',
+        ),
+      ];
+
+  static List<HarvestBatch> _buildSeedBatches() => [
+        HarvestBatch(
+          code: 'DRN-2026-000128',
+          farmerId: _kSeedFarmerId,
+          farmId: 'farm-001',
+          variety: 'Montong',
+          grade: 'A',
+          quantity: 52,
+          unit: 'kg',
+          harvestDate: DateTime(2026, 5, 24),
+          farmName: 'Kebun Pakis 1',
+          status: BatchStatus.created,
+          fertilizer: 'Organik Kompos',
+          harvestMethod: 'Jatuh Alami',
+          createdAt: DateTime(2026, 5, 24, 8, 30),
+        ),
+        HarvestBatch(
+          code: 'DRN-2026-000119',
+          farmerId: _kSeedFarmerId,
+          farmId: 'farm-001',
+          variety: 'Bawor',
+          grade: 'B',
+          quantity: 40,
+          unit: 'kg',
+          harvestDate: DateTime(2026, 5, 20),
+          farmName: 'Kebun Pakis 1',
+          status: BatchStatus.verifiedByCollector,
+          fertilizer: 'NPK',
+          harvestMethod: 'Petik Matang',
+          createdAt: DateTime(2026, 5, 20, 9, 0),
+        ),
+        HarvestBatch(
+          code: 'DRN-2026-000103',
+          farmerId: _kSeedFarmerId,
+          farmId: 'farm-002',
+          variety: 'Montong',
+          grade: 'A',
+          quantity: 65,
+          unit: 'kg',
+          harvestDate: DateTime(2026, 5, 12),
+          farmName: 'Kebun Curah 2',
+          status: BatchStatus.inDistribution,
+          fertilizer: 'Kandang',
+          harvestMethod: 'Jatuh Alami',
+          createdAt: DateTime(2026, 5, 12, 7, 45),
+        ),
+        HarvestBatch(
+          code: 'DRN-2026-000097',
+          farmerId: _kSeedFarmerId,
+          farmId: 'farm-002',
+          variety: 'Petruk',
+          grade: 'B',
+          quantity: 38,
+          unit: 'kg',
+          harvestDate: DateTime(2026, 5, 5),
+          farmName: 'Kebun Curah 2',
+          status: BatchStatus.receivedByUmkm,
+          fertilizer: 'Hayati',
+          harvestMethod: 'Petik Matang',
+          createdAt: DateTime(2026, 5, 5, 10, 15),
+        ),
+        HarvestBatch(
+          code: 'DRN-2026-000088',
+          farmerId: _kSeedFarmerId,
+          farmId: 'farm-001',
+          variety: 'Montong',
+          grade: 'A',
+          quantity: 70,
+          unit: 'kg',
+          harvestDate: DateTime(2026, 4, 28),
+          farmName: 'Kebun Pakis 1',
+          status: BatchStatus.processed,
+          fertilizer: 'Organik Kompos',
+          harvestMethod: 'Jatuh Alami',
+          createdAt: DateTime(2026, 4, 28, 8, 0),
+        ),
+      ];
 
   /// Singleton instance — diakses dari seluruh UI petani.
   static final FarmerRepository instance = FarmerRepository._seed();
@@ -400,31 +487,10 @@ class FarmerRepository extends ChangeNotifier {
   ///
   /// Dipanggil saat petani menekan "Keluar" di Layar Profil.
   void logout() {
-    _currentFarmerId = FarmerMockData.currentFarmerId;
-    _profile = FarmerMockData.profile;
-    _farms = [
-      const Farm(
-        id: 'farm-001',
-        farmerId: 'farmer-001',
-        name: 'Kebun Pakis 1',
-        province: 'Jawa Timur',
-        city: 'Kabupaten Jember',
-        district: 'Pakis',
-        village: 'Pakis',
-        address: 'Jl. Raya Pakis No. 1, Desa Pakis, Kec. Pakis, Kab. Jember',
-      ),
-      const Farm(
-        id: 'farm-002',
-        farmerId: 'farmer-001',
-        name: 'Kebun Curah 2',
-        province: 'Jawa Timur',
-        city: 'Kabupaten Jember',
-        district: 'Curah Nongko',
-        village: 'Curah Nongko',
-        address: 'Jl. Curah Nongko No. 2, Desa Curah Nongko, Kab. Jember',
-      ),
-    ];
-    _batches = List<HarvestBatch>.from(FarmerMockData.batches);
+    _currentFarmerId = _kSeedFarmerId;
+    _profile = _kSeedProfile;
+    _farms = _buildSeedFarms();
+    _batches = _buildSeedBatches();
     _batchCounter = _batches.length;
     notifyListeners();
   }

@@ -115,8 +115,8 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
       isError: false,
     );
 
-    // Tunggu sebentar agar banner terlihat sebelum pop
-    await Future.delayed(const Duration(milliseconds: 800));
+    // Tunggu banner auto-dismiss (3 detik) sebelum pop agar tidak terpotong.
+    await Future.delayed(const Duration(milliseconds: 3200));
 
     if (mounted) Navigator.maybePop(context);
   }

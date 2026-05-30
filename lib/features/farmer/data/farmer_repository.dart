@@ -616,6 +616,15 @@ class FarmerRepository extends ChangeNotifier {
     return _profile;
   }
 
+  // [FE - State Management] updateAvatar menyimpan path foto profil baru
+  // dan notifikasi listener agar header Profil, drawer, dan Beranda
+  // langsung menampilkan foto terbaru.
+  /// Memperbarui foto profil petani yang sedang login.
+  void updateAvatar(String? path) {
+    _profile = _profile.copyWith(avatarPath: path);
+    notifyListeners();
+  }
+
   // [FE - State Management] logout mereset seluruh state mock ke kondisi
   // awal seed — memastikan tidak ada data sesi yang bocor ke sesi berikutnya.
   /// Mereset seluruh state sesi mock dan menyemai ulang data awal.

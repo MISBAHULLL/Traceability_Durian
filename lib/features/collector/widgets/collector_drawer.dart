@@ -2,43 +2,33 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../auth/screens/home_screen.dart';
-import '../data/farmer_repository.dart';
-import '../farmer_routes.dart';
-import '../models/harvest_batch.dart';
-import '../screens/about_screen.dart';
-import '../screens/farm_management_screen.dart';
-import '../screens/farmer_profile_screen.dart';
-import '../screens/help_screen.dart';
-import 'farmer_avatar.dart';
+import '../collector_routes.dart';
+import '../data/collector_repository.dart';
+import '../models/collector_product.dart';
+import '../screens/collector_profile_screen.dart';
+import 'collector_avatar.dart';
 
-// [FE - Component Rendering] FarmerDrawer adalah navigation drawer utama
-// role Petani — dibuka dari ikon hamburger Beranda. Menggantikan pemakaian
-// hamburger satu-tujuan dengan menu navigasi penuh (pola standar mobile).
-//
-// Setiap aksi navigasi menutup drawer dulu (Navigator.pop) sebelum
-// mendorong layar tujuan, agar drawer tidak tertinggal di belakang.
-/// Drawer navigasi utama untuk Beranda Petani.
-class FarmerDrawer extends StatelessWidget {
-  const FarmerDrawer({super.key});
+// [FE - Component Rendering] CollectorDrawer adalah navigation drawer utama
+// role Pengepul — dibuka dari ikon hamburger Beranda. Pola identik dengan
+// FarmerDrawer agar konsisten di seluruh aplikasi.
+/// Drawer navigasi utama untuk Beranda Pengepul.
+class CollectorDrawer extends StatelessWidget {
+  const CollectorDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final profile = FarmerRepository.instance.profile;
+    final profile = CollectorRepository.instance.profile;
 
     return Drawer(
       backgroundColor: AppColors.white,
       child: SafeArea(
         child: Column(
           children: [
-            // ── Header profil ────────────────────────────────────────────
             _DrawerHeader(
               profile: profile,
-              onTap: () => _go(context, const FarmerProfileScreen()),
+              onTap: () => _go(context, const CollectorProfileScreen()),
             ),
-
             const Divider(height: 1, color: Color(0xFFE5E7EB)),
-
-            // ── Grup navigasi utama ──────────────────────────────────────
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -46,43 +36,17 @@ class FarmerDrawer extends StatelessWidget {
                   _DrawerItem(
                     icon: Icons.home_rounded,
                     label: 'Beranda',
-                    // Beranda adalah layar di belakang drawer; cukup tutup.
                     onTap: () => Navigator.pop(context),
-                  ),
-                  _DrawerItem(
-                    icon: Icons.grass_rounded,
-                    label: 'Kelola Kebun',
-                    onTap: () => _go(context, const FarmManagementScreen()),
                   ),
                   _DrawerItem(
                     icon: Icons.person_outline_rounded,
                     label: 'Profil',
-                    onTap: () => _go(context, const FarmerProfileScreen()),
-                  ),
-
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(20, 12, 20, 4),
-                    child: Divider(color: Color(0xFFE5E7EB)),
-                  ),
-
-                  // ── Grup sekunder ──────────────────────────────────────
-                  _DrawerItem(
-                    icon: Icons.help_outline_rounded,
-                    label: 'Bantuan & Panduan',
-                    onTap: () => _go(context, const HelpScreen()),
-                  ),
-                  _DrawerItem(
-                    icon: Icons.info_outline_rounded,
-                    label: 'Tentang',
-                    onTap: () => _go(context, const AboutScreen()),
+                    onTap: () => _go(context, const CollectorProfileScreen()),
                   ),
                 ],
               ),
             ),
-
             const Divider(height: 1, color: Color(0xFFE5E7EB)),
-
-            // ── Footer: keluar ───────────────────────────────────────────
             _DrawerItem(
               icon: Icons.logout_rounded,
               label: 'Keluar',
@@ -96,15 +60,14 @@ class FarmerDrawer extends StatelessWidget {
     );
   }
 
-  // [FE - Event Handler] _go menutup drawer lalu mendorong [page] — pola
-  // navigasi standar agar drawer tidak menumpuk di stack.
+  // [FE - Event Handler] _go menutup drawer lalu mendorong [page].
   void _go(BuildContext context, Widget page) {
     Navigator.pop(context); // tutup drawer
-    FarmerRoutes.push(context, page);
+    CollectorRoutes.push(context, page);
   }
 
-  // [FE - Event Handler] _confirmLogout menampilkan dialog konfirmasi
-  // sebelum mengakhiri sesi — mencegah logout tak sengaja.
+  // [FE - Event Handler] _confirmLogout menampilkan dialog konfirmasi sebelum
+  // mengakhiri sesi — mencegah logout tak sengaja.
   Future<void> _confirmLogout(BuildContext context) async {
     final navigator = Navigator.of(context);
     final confirmed = await showDialog<bool>(
@@ -138,13 +101,11 @@ class FarmerDrawer extends StatelessWidget {
     );
 
     if (confirmed != true) return;
-    // Pastikan widget masih terpasang sebelum memakai context lagi (lint-safe).
     if (!context.mounted) return;
 
-    // Reset sesi mock lalu bersihkan stack ke layar masuk.
-    FarmerRepository.instance.logout();
+    CollectorRepository.instance.logout();
     navigator.pop(); // tutup drawer
-    FarmerRoutes.replaceAll(context, const HomeScreen());
+    CollectorRoutes.replaceAll(context, const HomeScreen());
   }
 }
 
@@ -152,14 +113,11 @@ class FarmerDrawer extends StatelessWidget {
 // Sub-widgets
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Header drawer berisi avatar foto/inisial, nama, dan label peran petani.
+/// Header drawer berisi avatar foto/inisial, nama, dan label peran pengepul.
 class _DrawerHeader extends StatelessWidget {
-  const _DrawerHeader({
-    required this.profile,
-    required this.onTap,
-  });
+  const _DrawerHeader({required this.profile, required this.onTap});
 
-  final FarmerProfile profile;
+  final CollectorProfile profile;
   final VoidCallback onTap;
 
   @override
@@ -172,8 +130,7 @@ class _DrawerHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
         child: Row(
           children: [
-            // Avatar foto/inisial (tanpa tombol edit — edit ada di Profil)
-            FarmerAvatar(profile: profile, size: 52),
+            CollectorAvatar(profile: profile, size: 52),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -224,8 +181,6 @@ class _DrawerItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-
-  /// Warna kustom (mis. merah untuk Keluar). Default hitam/hijau standar.
   final Color? color;
 
   @override

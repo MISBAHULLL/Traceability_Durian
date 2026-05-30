@@ -7,6 +7,7 @@ import '../../../shared/widgets/top_notification_banner.dart';
 import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
 import '../models/harvest_batch.dart';
+import '../widgets/farmer_avatar.dart';
 import '../../auth/screens/home_screen.dart';
 import 'edit_profile_screen.dart';
 
@@ -183,24 +184,11 @@ class _ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // Avatar inisial
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            color: AppColors.primaryContainer,
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            _initials(profile.fullName),
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: AppColors.white,
-              letterSpacing: 1,
-            ),
-          ),
+        // Avatar foto/inisial dengan tombol edit kamera
+        FarmerAvatar(
+          profile: profile,
+          size: 72,
+          showEditButton: true,
         ),
 
         const SizedBox(width: 16),
@@ -242,15 +230,6 @@ class _ProfileHeader extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  /// Mengambil dua huruf pertama dari nama untuk avatar inisial.
-  String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    return name.isNotEmpty ? name[0].toUpperCase() : '?';
   }
 }
 

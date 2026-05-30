@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../collector/data/collector_repository.dart';
+import '../../collector/screens/collector_home_screen.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/screens/farmer_home_screen.dart';
 
@@ -203,7 +205,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     _showTopNotification('Pendaftaran berhasil! Selamat datang.', isError: false);
 
     // Navigasi ke beranda sesuai role setelah sukses.
-    // Saat ini baru role petani yang memiliki beranda. Role lain menyusul.
+    // Saat ini role petani dan pengepul yang memiliki beranda. Role lain
+    // menyusul.
+    Widget? destination;
+
     if (widget.role == 'petani') {
       // [FE - Event Handler] Aktifkan akun petani baru di repository dengan
       // data registrasi sebelum membuka Beranda, agar profil yang tampil
@@ -213,24 +218,35 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
         lastName: lastName,
         phone: phone,
       );
-
-      await Future.delayed(const Duration(milliseconds: 600));
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 500),
-          pageBuilder: (_, _, _) => const FarmerHomeScreen(),
-          transitionsBuilder: (_, animation, _, child) => FadeTransition(
-            opacity: CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeInOutCubic,
-            ),
-            child: child,
-          ),
-        ),
-        (route) => false,
+      destination = const FarmerHomeScreen();
+    } else if (widget.role == 'pengepul') {
+      // [FE - Event Handler] Aktifkan akun pengepul baru di repository dengan
+      // data registrasi sebelum membuka Beranda Pengepul.
+      CollectorRepository.instance.registerCollector(
+        firstName: firstName,
+        lastName: lastName,
       );
+      destination = const CollectorHomeScreen();
     }
+
+    if (destination == null) return;
+
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 500),
+        pageBuilder: (_, _, _) => destination!,
+        transitionsBuilder: (_, animation, _, child) => FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOutCubic,
+          ),
+          child: child,
+        ),
+      ),
+      (route) => false,
+    );
   }
 
   @override

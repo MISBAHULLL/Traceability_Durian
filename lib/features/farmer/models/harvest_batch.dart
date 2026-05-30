@@ -237,6 +237,7 @@ class FarmerProfile {
     required this.district,
     required this.city,
     required this.contact,
+    this.avatarPath,
   });
 
   /// ID unik petani — dipakai untuk isolasi data (Req 7.2).
@@ -260,6 +261,9 @@ class FarmerProfile {
   /// Nomor HP atau email — ditampilkan di Profil (Req 6.1).
   final String contact;
 
+  /// Path/URI foto profil (opsional). Null berarti pakai avatar inisial.
+  final String? avatarPath;
+
   /// Membuat salinan profil dengan field tertentu diubah.
   FarmerProfile copyWith({
     String? farmerId,
@@ -270,6 +274,7 @@ class FarmerProfile {
     String? district,
     String? city,
     String? contact,
+    String? avatarPath,
   }) {
     return FarmerProfile(
       farmerId: farmerId ?? this.farmerId,
@@ -280,6 +285,7 @@ class FarmerProfile {
       district: district ?? this.district,
       city: city ?? this.city,
       contact: contact ?? this.contact,
+      avatarPath: avatarPath ?? this.avatarPath,
     );
   }
 }

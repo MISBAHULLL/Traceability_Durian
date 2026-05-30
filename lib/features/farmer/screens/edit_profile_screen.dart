@@ -79,7 +79,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isSubmitting = false);
     _notification.show(context, 'Profil berhasil diperbarui.', isError: false);
 
-    await Future.delayed(const Duration(milliseconds: 800));
+    // Tunggu banner auto-dismiss sebelum pop agar tidak terpotong.
+    await Future.delayed(const Duration(milliseconds: 3200));
     if (mounted) Navigator.maybePop(context);
   }
 

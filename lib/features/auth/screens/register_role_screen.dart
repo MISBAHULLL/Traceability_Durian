@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'register_form_screen.dart';
 
 /// Model data untuk setiap pilihan peran.
 class _RoleOption {
@@ -127,13 +128,20 @@ class _RegisterRoleScreenState extends State<RegisterRoleScreen>
       return;
     }
 
-    // TODO: Navigasi ke halaman form pendaftaran berikutnya
-    // Navigator.push(context, MaterialPageRoute(
-    //   builder: (_) => RegisterFormScreen(role: _selectedRole!),
-    // ));
-    _showTopNotification(
-      'Peran dipilih: $_selectedRole. Halaman berikutnya segera hadir.',
-      isError: false,
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (_, __, ___) =>
+            RegisterFormScreen(role: _selectedRole!),
+        transitionsBuilder: (_, animation, __, child) => FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOutCubic,
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 

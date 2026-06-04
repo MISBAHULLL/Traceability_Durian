@@ -140,12 +140,20 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     overlay.insert(entry);
   }
 
+  // [UTIL - Helper Function] Normalisasi ini menjaga nomor HP register tetap
+  // konsisten untuk profil mock dan nanti mudah dipetakan ke payload API.
+  String _normalizeIndonesianPhone(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('0')) return digits.substring(1);
+    return digits;
+  }
+
   void _handleRegister() async {
     FocusScope.of(context).unfocus();
 
     final firstName = _firstNameCtrl.text.trim();
     final lastName = _lastNameCtrl.text.trim();
-    final phone = _phoneCtrl.text.trim();
+    final phone = _normalizeIndonesianPhone(_phoneCtrl.text);
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     final confirmPassword = _confirmPasswordCtrl.text;
@@ -163,8 +171,11 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
       _showTopNotification('Nomor HP wajib diisi.', isError: true);
       return;
     }
-    if (phone.length < 9 || phone.length > 15) {
-      _showTopNotification('Nomor HP tidak valid (9–15 digit).', isError: true);
+    if (phone.length < 9 || phone.length > 13) {
+      _showTopNotification(
+        'Nomor HP tidak valid (9-13 digit setelah +62).',
+        isError: true,
+      );
       return;
     }
     if (email.isEmpty) {
@@ -323,7 +334,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                         _FormField(
                           controller: _phoneCtrl,
                           focusNode: _phoneFocus,
-                          hintText: 'Contoh: 08123456789',
+                          hintText: 'Contoh: 8123456789',
                           prefixText: '+62  ',
                           textInputAction: TextInputAction.next,
                           keyboardType: TextInputType.phone,

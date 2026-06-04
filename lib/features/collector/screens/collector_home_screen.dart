@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
+import '../collector_routes.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_product.dart';
 import '../widgets/collector_drawer.dart';
+import 'add_transaction_screen.dart';
 import 'collector_profile_screen.dart';
 
 // [FE - Component Rendering] Screen ini adalah layar root pengepul setelah
@@ -105,15 +107,10 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
     );
   }
 
-  // [FE - Event Handler] _openAddTransaction membuka alur "Tambah Transaksi".
-  // Alur verifikasi/pembelian produk adalah pekerjaan lanjutan; untuk saat ini
-  // tampilkan notifikasi agar tombol tidak terasa mati.
-  void _openAddTransaction() {
-    _notif.show(
-      context,
-      'Pilih produk yang akan dibeli untuk memulai transaksi. '
-      'Alur transaksi akan segera hadir.',
-    );
+  // [FE - Event Handler] _openAddTransaction membuka layar Tambah Transaksi
+  // (form verifikasi/pembelian produk).
+  Future<void> _openAddTransaction() async {
+    await CollectorRoutes.push(context, const AddTransactionScreen());
   }
 
   void _onProductTap(CollectorProduct product) {

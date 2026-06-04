@@ -269,12 +269,24 @@ class _ProfileInfoSection extends StatelessWidget {
 
         const SizedBox(height: 14),
 
-        // Kontak (Req 6.1)
+        // [FE - Component Rendering] Nomor HP ditampilkan terpisah dari email
+        // agar identitas akun petani mudah dipakai oleh flow lintas role.
         _InfoRow(
           icon: Icons.phone_outlined,
-          label: 'Kontak',
+          label: 'Nomor HP',
           value: profile.contact.isEmpty ? _kNotSet : profile.contact,
           isEmpty: profile.contact.isEmpty,
+        ),
+
+        const SizedBox(height: 14),
+
+        // [FE - Component Rendering] Email akun ditampilkan sebagai kontak
+        // digital yang berbeda dari nomor HP untuk kesiapan integrasi auth/API.
+        _InfoRow(
+          icon: Icons.email_outlined,
+          label: 'Email',
+          value: profile.emailValue.isEmpty ? _kNotSet : profile.emailValue,
+          isEmpty: profile.emailValue.isEmpty,
         ),
       ],
     );

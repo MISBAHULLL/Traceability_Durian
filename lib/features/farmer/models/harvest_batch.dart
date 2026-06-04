@@ -237,6 +237,7 @@ class FarmerProfile {
     required this.district,
     required this.city,
     required this.contact,
+    this.email,
     this.avatarPath,
   });
 
@@ -258,8 +259,15 @@ class FarmerProfile {
   /// Kabupaten/kota — ditampilkan di Detail Batch (Req 3.2).
   final String city;
 
-  /// Nomor HP atau email — ditampilkan di Profil (Req 6.1).
+  /// Nomor HP utama petani — ditampilkan di Profil dan dipakai kontak cepat.
   final String contact;
+
+  /// Email akun petani — nullable agar aman saat hot reload dari model lama.
+  final String? email;
+
+  // [UTIL - Helper Function] Getter ini memberi nilai aman untuk UI/API mock
+  // ketika instance profil lama belum memiliki field email setelah hot reload.
+  String get emailValue => email ?? '';
 
   /// Path/URI foto profil (opsional). Null berarti pakai avatar inisial.
   final String? avatarPath;
@@ -274,6 +282,7 @@ class FarmerProfile {
     String? district,
     String? city,
     String? contact,
+    String? email,
     String? avatarPath,
   }) {
     return FarmerProfile(
@@ -285,6 +294,7 @@ class FarmerProfile {
       district: district ?? this.district,
       city: city ?? this.city,
       contact: contact ?? this.contact,
+      email: email ?? emailValue,
       avatarPath: avatarPath ?? this.avatarPath,
     );
   }

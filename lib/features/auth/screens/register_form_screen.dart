@@ -228,6 +228,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
         firstName: firstName,
         lastName: lastName,
         phone: phone,
+        email: email,
       );
       destination = const FarmerHomeScreen();
     } else if (widget.role == 'pengepul') {

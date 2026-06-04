@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
@@ -25,7 +26,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _notification = TopNotification();
 
   late final TextEditingController _nameCtrl;
-  late final TextEditingController _contactCtrl;
+  late final TextEditingController _phoneCtrl;
+  late final TextEditingController _emailCtrl;
   late final TextEditingController _villageCtrl;
   late final TextEditingController _districtCtrl;
   late final TextEditingController _cityCtrl;
@@ -38,7 +40,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     // Prefill dari profil saat ini.
     final p = _repo.profile;
     _nameCtrl = TextEditingController(text: p.fullName);
-    _contactCtrl = TextEditingController(text: p.contact);
+    _phoneCtrl = TextEditingController(text: _phoneFieldValue(p.contact));
+    _emailCtrl = TextEditingController(text: p.emailValue);
     _villageCtrl = TextEditingController(text: p.village);
     _districtCtrl = TextEditingController(text: p.district);
     _cityCtrl = TextEditingController(text: p.city);
@@ -48,19 +51,60 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void dispose() {
     _notification.dispose();
     _nameCtrl.dispose();
-    _contactCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emailCtrl.dispose();
     _villageCtrl.dispose();
     _districtCtrl.dispose();
     _cityCtrl.dispose();
     super.dispose();
   }
 
+  // [UTIL - Helper Function] Helper ini menyiapkan nomor dari profil agar
+  // field edit hanya berisi digit lokal setelah prefix +62.
+  String _phoneFieldValue(String contact) {
+    final digits = contact.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('62')) return digits.substring(2);
+    if (digits.startsWith('0')) return digits.substring(1);
+    return digits;
+  }
+
+  // [UTIL - Helper Function] Normalisasi ini menjaga nilai Nomor HP konsisten
+  // antara register, edit profil, repository mock, dan calon payload API.
+  String _normalizeIndonesianPhone(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('0')) return digits.substring(1);
+    return digits;
+  }
+
   // [FE - Event Handler] _submit memvalidasi field wajib lalu menyimpan
   // perubahan profil ke repository, menampilkan banner, dan pop kembali.
   Future<void> _submit() async {
     final name = _nameCtrl.text.trim();
+    final phone = _normalizeIndonesianPhone(_phoneCtrl.text);
+    final email = _emailCtrl.text.trim();
     if (name.isEmpty) {
       _notification.show(context, 'Nama wajib diisi.', isError: true);
+      return;
+    }
+    if (phone.isEmpty) {
+      _notification.show(context, 'Nomor HP wajib diisi.', isError: true);
+      return;
+    }
+    if (phone.length < 9 || phone.length > 13) {
+      _notification.show(
+        context,
+        'Nomor HP tidak valid (9-13 digit setelah +62).',
+        isError: true,
+      );
+      return;
+    }
+    if (email.isEmpty) {
+      _notification.show(context, 'Email wajib diisi.', isError: true);
+      return;
+    }
+    final emailRegex = RegExp(r'^[\w\.\+\-]+@[\w\-]+\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(email)) {
+      _notification.show(context, 'Format email tidak valid.', isError: true);
       return;
     }
 
@@ -70,7 +114,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     _repo.updateProfile(
       fullName: name,
-      contact: _contactCtrl.text,
+      contact: '+62 $phone',
+      email: email,
       village: _villageCtrl.text,
       district: _districtCtrl.text,
       city: _cityCtrl.text,
@@ -109,10 +154,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                     const SizedBox(height: 16),
                     _FormField(
-                      label: 'Kontak (No. HP / Email)',
-                      hint: 'Contoh: 081234567890',
-                      controller: _contactCtrl,
-                      keyboardType: TextInputType.text,
+                      label: 'Nomor HP',
+                      hint: 'Contoh: 8123456789',
+                      controller: _phoneCtrl,
+                      prefixText: '+62  ',
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(13),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _FormField(
+                      label: 'Email',
+                      hint: 'contoh@email.com',
+                      controller: _emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
                     ),
                     const SizedBox(height: 24),
 
@@ -168,6 +225,8 @@ class _FormField extends StatelessWidget {
     required this.hint,
     required this.controller,
     this.keyboardType,
+    this.prefixText,
+    this.inputFormatters,
     this.textCapitalization = TextCapitalization.none,
   });
 
@@ -175,6 +234,8 @@ class _FormField extends StatelessWidget {
   final String hint;
   final TextEditingController controller;
   final TextInputType? keyboardType;
+  final String? prefixText;
+  final List<TextInputFormatter>? inputFormatters;
   final TextCapitalization textCapitalization;
 
   @override
@@ -194,10 +255,17 @@ class _FormField extends StatelessWidget {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           textCapitalization: textCapitalization,
           style: const TextStyle(fontSize: 14, color: AppColors.black),
           decoration: InputDecoration(
             hintText: hint,
+            prefixText: prefixText,
+            prefixStyle: const TextStyle(
+              fontSize: 14,
+              color: AppColors.subtitle,
+              fontWeight: FontWeight.w500,
+            ),
             hintStyle: const TextStyle(
               fontSize: 14,
               color: AppColors.placeholder,

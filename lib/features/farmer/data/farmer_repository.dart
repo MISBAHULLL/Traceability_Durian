@@ -45,6 +45,7 @@ class FarmerRepository extends ChangeNotifier {
     district: 'Pakis',
     city: 'Kabupaten Jember',
     contact: '081234567890',
+    email: 'risqi.petani@example.com',
   );
 
   static List<Farm> _buildSeedFarms() => [
@@ -564,6 +565,7 @@ class FarmerRepository extends ChangeNotifier {
     required String firstName,
     required String lastName,
     required String phone,
+    required String email,
     String roleLabel = 'Petani Durian',
   }) {
     final id = 'farmer-${DateTime.now().millisecondsSinceEpoch}';
@@ -577,6 +579,7 @@ class FarmerRepository extends ChangeNotifier {
       district: '',
       city: '',
       contact: phone.isEmpty ? '' : '+62 $phone',
+      email: email.trim(),
     );
 
     _currentFarmerId = id;
@@ -593,6 +596,7 @@ class FarmerRepository extends ChangeNotifier {
   FarmerProfile updateProfile({
     required String fullName,
     required String contact,
+    required String email,
     required String village,
     required String district,
     required String city,
@@ -611,6 +615,7 @@ class FarmerRepository extends ChangeNotifier {
       district: district.trim(),
       city: city.trim(),
       location: location,
+      email: email.trim(),
     );
     notifyListeners();
     return _profile;

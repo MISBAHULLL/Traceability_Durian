@@ -30,12 +30,28 @@ class FarmerMasterData {
   static const List<String> harvestMethods = [
     'Jatuh Alami',
     'Petik Matang',
-    'Petik Mentah',
+    'Petik Selektif',
   ];
 
   /// Grade/mutu durian yang tersedia.
   static const List<String> grades = ['A', 'B', 'C'];
 
-  /// Satuan berat yang tersedia.
-  static const List<String> units = ['kg'];
+  /// Satuan jumlah panen yang tersedia.
+  static const List<String> units = ['kg', 'buah'];
+
+  /// Tingkat kematangan durian saat dicatat oleh petani.
+  static const List<String> maturityLevels = [
+    'Mentah',
+    'Setengah Matang',
+    'Matang',
+    'Matang Pohon',
+  ];
+
+  /// Estimasi masa simpan durian segar untuk informasi konsumen.
+  static const List<String> shelfLifeEstimates = [
+    '1 hari',
+    '2-3 hari',
+    '4-5 hari',
+    'Lebih dari 5 hari',
+  ];
 }

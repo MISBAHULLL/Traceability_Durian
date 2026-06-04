@@ -590,6 +590,26 @@ class _ProductInfoCard extends StatelessWidget {
             label: 'Tanggal Panen',
             value: _formatDate(batch.harvestDate),
           ),
+          // [FE - Component Rendering] Baris opsional ini menampilkan
+          // metadata kualitas durian yang dipakai role berikutnya saat sortir.
+          if (batch.maturityLevel != null &&
+              batch.maturityLevel!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.spa_outlined,
+              label: 'Tingkat Kematangan',
+              value: batch.maturityLevel!,
+            ),
+          ],
+          if (batch.shelfLifeEstimate != null &&
+              batch.shelfLifeEstimate!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.schedule_outlined,
+              label: 'Estimasi Masa Simpan',
+              value: batch.shelfLifeEstimate!,
+            ),
+          ],
           if (batch.fertilizer != null && batch.fertilizer!.isNotEmpty) ...[
             const SizedBox(height: 10),
             _InfoRow(
@@ -605,6 +625,23 @@ class _ProductInfoCard extends StatelessWidget {
               icon: Icons.agriculture_outlined,
               label: 'Metode Panen',
               value: batch.harvestMethod!,
+            ),
+          ],
+          if (batch.storageSuggestion != null &&
+              batch.storageSuggestion!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.inventory_2_outlined,
+              label: 'Saran Penyimpanan',
+              value: batch.storageSuggestion!,
+            ),
+          ],
+          if (batch.notes != null && batch.notes!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.notes_outlined,
+              label: 'Catatan Panen',
+              value: batch.notes!,
             ),
           ],
           const SizedBox(height: 10),

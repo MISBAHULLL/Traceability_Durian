@@ -85,6 +85,10 @@ class FarmerRepository extends ChangeNotifier {
           status: BatchStatus.created,
           fertilizer: 'Organik Kompos',
           harvestMethod: 'Jatuh Alami',
+          maturityLevel: 'Matang Pohon',
+          shelfLifeEstimate: '2-3 hari',
+          storageSuggestion: 'Simpan di tempat sejuk dan kering.',
+          notes: 'Kulit utuh, aroma kuat, siap disortir pengepul.',
           createdAt: DateTime(2026, 5, 24, 8, 30),
         ),
         HarvestBatch(
@@ -100,6 +104,10 @@ class FarmerRepository extends ChangeNotifier {
           status: BatchStatus.verifiedByCollector,
           fertilizer: 'NPK',
           harvestMethod: 'Petik Matang',
+          maturityLevel: 'Matang',
+          shelfLifeEstimate: '2-3 hari',
+          storageSuggestion: 'Hindari sinar matahari langsung.',
+          notes: 'Sudah lolos sortir awal di kebun.',
           createdAt: DateTime(2026, 5, 20, 9, 0),
         ),
         HarvestBatch(
@@ -115,6 +123,10 @@ class FarmerRepository extends ChangeNotifier {
           status: BatchStatus.inDistribution,
           fertilizer: 'Kandang',
           harvestMethod: 'Jatuh Alami',
+          maturityLevel: 'Matang Pohon',
+          shelfLifeEstimate: '1 hari',
+          storageSuggestion: 'Segera distribusikan setelah diterima.',
+          notes: 'Sebagian buah sangat matang.',
           createdAt: DateTime(2026, 5, 12, 7, 45),
         ),
         HarvestBatch(
@@ -130,6 +142,10 @@ class FarmerRepository extends ChangeNotifier {
           status: BatchStatus.receivedByUmkm,
           fertilizer: 'Hayati',
           harvestMethod: 'Petik Matang',
+          maturityLevel: 'Matang',
+          shelfLifeEstimate: '2-3 hari',
+          storageSuggestion: 'Simpan di ruang berventilasi.',
+          notes: 'Cocok untuk bahan olahan.',
           createdAt: DateTime(2026, 5, 5, 10, 15),
         ),
         HarvestBatch(
@@ -145,6 +161,10 @@ class FarmerRepository extends ChangeNotifier {
           status: BatchStatus.processed,
           fertilizer: 'Organik Kompos',
           harvestMethod: 'Jatuh Alami',
+          maturityLevel: 'Matang Pohon',
+          shelfLifeEstimate: '1 hari',
+          storageSuggestion: 'Gunakan segera untuk menjaga aroma.',
+          notes: 'Batch telah diproses UMKM.',
           createdAt: DateTime(2026, 4, 28, 8, 0),
         ),
       ];
@@ -242,7 +262,11 @@ class FarmerRepository extends ChangeNotifier {
     required String grade,
     required double quantity,
     required DateTime harvestDate,
+    required String maturityLevel,
+    required String shelfLifeEstimate,
     String unit = 'kg',
+    String? storageSuggestion,
+    String? notes,
     String? photoPath,
   }) {
     final code = generateBatchCode();
@@ -262,6 +286,10 @@ class FarmerRepository extends ChangeNotifier {
       status: BatchStatus.created,
       createdAt: now,
       photoPath: photoPath,
+      maturityLevel: maturityLevel,
+      shelfLifeEstimate: shelfLifeEstimate,
+      storageSuggestion: storageSuggestion,
+      notes: notes,
     );
     _batches.add(batch);
     notifyListeners();
@@ -368,6 +396,10 @@ class FarmerRepository extends ChangeNotifier {
     double? quantity,
     String? unit,
     DateTime? harvestDate,
+    String? maturityLevel,
+    String? shelfLifeEstimate,
+    String? storageSuggestion,
+    String? notes,
     String? photoPath,
   }) {
     if (!canEditBatch(code)) return false;
@@ -388,6 +420,10 @@ class FarmerRepository extends ChangeNotifier {
       quantity: quantity,
       unit: unit,
       harvestDate: harvestDate,
+      maturityLevel: maturityLevel,
+      shelfLifeEstimate: shelfLifeEstimate,
+      storageSuggestion: storageSuggestion,
+      notes: notes,
       photoPath: photoPath,
     );
     notifyListeners();
@@ -708,6 +744,10 @@ class FarmerValidator {
     required Farm? farm,
     required String? variety,
     required String? grade,
+    required String? unit,
+    required String? maturityLevel,
+    required String? shelfLifeEstimate,
+    required String? harvestMethod,
     required DateTime? harvestDate,
     required String quantityText,
   }) {
@@ -719,6 +759,18 @@ class FarmerValidator {
     }
     if (grade == null || grade.isEmpty) {
       return 'Silakan pilih grade/mutu durian.';
+    }
+    if (unit == null || unit.isEmpty) {
+      return 'Silakan pilih satuan panen.';
+    }
+    if (maturityLevel == null || maturityLevel.isEmpty) {
+      return 'Silakan pilih tingkat kematangan durian.';
+    }
+    if (shelfLifeEstimate == null || shelfLifeEstimate.isEmpty) {
+      return 'Silakan pilih estimasi masa simpan durian.';
+    }
+    if (harvestMethod == null || harvestMethod.isEmpty) {
+      return 'Silakan pilih metode panen.';
     }
     if (harvestDate == null) {
       return 'Silakan pilih tanggal panen.';

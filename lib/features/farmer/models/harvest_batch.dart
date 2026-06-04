@@ -137,6 +137,10 @@ class HarvestBatch {
     required this.status,
     this.fertilizer,
     this.harvestMethod,
+    this.maturityLevel,
+    this.shelfLifeEstimate,
+    this.storageSuggestion,
+    this.notes,
     this.createdAt,
     this.photoPath,
   });
@@ -174,8 +178,22 @@ class HarvestBatch {
   /// Pupuk yang digunakan, contoh: Organik Kompos, NPK (opsional).
   final String? fertilizer;
 
-  /// Metode panen, contoh: Jatuh Alami, Petik Matang (opsional).
+  /// Metode panen, contoh: Jatuh Alami, Petik Matang.
   final String? harvestMethod;
+
+  // [DB - Model/Entity] Metadata kualitas ini ikut melekat pada batch agar
+  // informasi panen dapat dibaca role berikutnya sampai konsumen.
+  /// Tingkat kematangan saat panen, contoh: Matang Pohon.
+  final String? maturityLevel;
+
+  /// Estimasi masa simpan durian segar, contoh: 2-3 hari.
+  final String? shelfLifeEstimate;
+
+  /// Saran penyimpanan untuk menjaga kualitas durian (opsional).
+  final String? storageSuggestion;
+
+  /// Catatan tambahan dari petani tentang kondisi panen (opsional).
+  final String? notes;
 
   /// Waktu batch dibuat — dipakai untuk urutan daftar dan timeline.
   final DateTime? createdAt;
@@ -201,6 +219,10 @@ class HarvestBatch {
     BatchStatus? status,
     String? fertilizer,
     String? harvestMethod,
+    String? maturityLevel,
+    String? shelfLifeEstimate,
+    String? storageSuggestion,
+    String? notes,
     DateTime? createdAt,
     String? photoPath,
   }) {
@@ -217,6 +239,10 @@ class HarvestBatch {
       status: status ?? this.status,
       fertilizer: fertilizer ?? this.fertilizer,
       harvestMethod: harvestMethod ?? this.harvestMethod,
+      maturityLevel: maturityLevel ?? this.maturityLevel,
+      shelfLifeEstimate: shelfLifeEstimate ?? this.shelfLifeEstimate,
+      storageSuggestion: storageSuggestion ?? this.storageSuggestion,
+      notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       photoPath: photoPath ?? this.photoPath,
     );

@@ -52,12 +52,21 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
   final _repo = FarmerRepository.instance;
   final _notification = TopNotification();
   final _quantityController = TextEditingController();
+  // [FE - State Management] Controller ini menyimpan input opsional yang
+  // menjadi metadata traceability batch sebelum dikirim ke repository.
+  final _storageSuggestionController = TextEditingController();
+  final _notesController = TextEditingController();
 
   Farm? _selectedFarm;
   String? _variety;
   String? _fertilizer;
   String? _harvestMethod;
   String? _grade;
+  String? _unit = FarmerMasterData.units.first;
+  // [FE - State Management] State ini menyimpan pilihan kualitas durian yang
+  // dipakai UI form dan diteruskan ke model HarvestBatch.
+  String? _maturityLevel;
+  String? _shelfLifeEstimate;
   DateTime? _harvestDate;
   String? _photoPath;
   bool _isSubmitting = false;
@@ -95,8 +104,16 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     _harvestMethod =
         (batch.harvestMethod?.isEmpty ?? true) ? null : batch.harvestMethod;
     _grade = batch.grade;
+    _unit = batch.unit;
+    _maturityLevel =
+        (batch.maturityLevel?.isEmpty ?? true) ? null : batch.maturityLevel;
+    _shelfLifeEstimate = (batch.shelfLifeEstimate?.isEmpty ?? true)
+        ? null
+        : batch.shelfLifeEstimate;
     _harvestDate = batch.harvestDate;
     _quantityController.text = batch.quantity.toStringAsFixed(0);
+    _storageSuggestionController.text = batch.storageSuggestion ?? '';
+    _notesController.text = batch.notes ?? '';
     _photoPath = batch.photoPath;
   }
 
@@ -105,6 +122,8 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     _repo.removeListener(_onRepoChanged);
     _notification.dispose();
     _quantityController.dispose();
+    _storageSuggestionController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -224,6 +243,10 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       farm: _selectedFarm,
       variety: _variety,
       grade: _grade,
+      unit: _unit,
+      maturityLevel: _maturityLevel,
+      shelfLifeEstimate: _shelfLifeEstimate,
+      harvestMethod: _harvestMethod,
       harvestDate: _harvestDate,
       quantityText: _quantityController.text,
     );
@@ -258,7 +281,12 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       harvestMethod: _harvestMethod ?? '',
       grade: _grade!,
       quantity: double.parse(_quantityController.text.trim()),
+      unit: _unit!,
       harvestDate: _harvestDate!,
+      maturityLevel: _maturityLevel!,
+      shelfLifeEstimate: _shelfLifeEstimate!,
+      storageSuggestion: _storageSuggestionController.text.trim(),
+      notes: _notesController.text.trim(),
       photoPath: _photoPath,
     );
 
@@ -291,7 +319,12 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       harvestMethod: _harvestMethod ?? '',
       grade: _grade,
       quantity: double.parse(_quantityController.text.trim()),
+      unit: _unit,
       harvestDate: _harvestDate,
+      maturityLevel: _maturityLevel,
+      shelfLifeEstimate: _shelfLifeEstimate,
+      storageSuggestion: _storageSuggestionController.text.trim(),
+      notes: _notesController.text.trim(),
       photoPath: _photoPath,
     );
 
@@ -382,40 +415,8 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ── 3. Pupuk (Req 2.2) ─────────────────────────────────
-                    LabeledDropdownField<String>(
-                      label: 'Pilih Pupuk yang Digunakan',
-                      hint: 'Pilih pupuk',
-                      value: _fertilizer,
-                      items: FarmerMasterData.fertilizers,
-                      itemLabel: (f) => f,
-                      onChanged: (f) => setState(() => _fertilizer = f),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── 4. Metode Panen (Req 2.2) ──────────────────────────
-                    LabeledDropdownField<String>(
-                      label: 'Pilih Metode Panen',
-                      hint: 'Pilih metode panen',
-                      value: _harvestMethod,
-                      items: FarmerMasterData.harvestMethods,
-                      itemLabel: (m) => m,
-                      onChanged: (m) => setState(() => _harvestMethod = m),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── 5. Grade (Req 2.2) ─────────────────────────────────
-                    LabeledDropdownField<String>(
-                      label: 'Pilih Grade/Mutu Durian',
-                      hint: 'Pilih grade',
-                      value: _grade,
-                      items: FarmerMasterData.grades,
-                      itemLabel: (g) => 'Grade $g',
-                      onChanged: (g) => setState(() => _grade = g),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── 6. Tanggal Panen (Req 2.2) ─────────────────────────
+                    // [FE - Component Rendering] Bagian ini menyusun input
+                    // utama batch agar data panen siap dipakai role berikutnya.
                     _DatePickerField(
                       label: 'Pilih Tanggal Panen',
                       hint: 'Pilih tanggal',
@@ -428,6 +429,83 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
 
                     // ── 7. Jumlah Panen (Req 2.2) ──────────────────────────
                     _QuantityField(controller: _quantityController),
+                    const SizedBox(height: 16),
+
+                    // [FE - Component Rendering] Field tambahan ini menjadi
+                    // metadata traceability yang dibawa dari petani ke role
+                    // pengepul, UMKM, retailer, dan konsumen.
+                    LabeledDropdownField<String>(
+                      label: 'Pilih Satuan Panen',
+                      hint: 'Pilih satuan',
+                      value: _unit,
+                      items: FarmerMasterData.units,
+                      itemLabel: (u) => u,
+                      onChanged: (u) => setState(() => _unit = u),
+                    ),
+                    const SizedBox(height: 16),
+
+                    LabeledDropdownField<String>(
+                      label: 'Pilih Grade/Mutu Durian',
+                      hint: 'Pilih grade',
+                      value: _grade,
+                      items: FarmerMasterData.grades,
+                      itemLabel: (g) => 'Grade $g',
+                      onChanged: (g) => setState(() => _grade = g),
+                    ),
+                    const SizedBox(height: 16),
+
+                    LabeledDropdownField<String>(
+                      label: 'Pilih Tingkat Kematangan',
+                      hint: 'Pilih tingkat kematangan',
+                      value: _maturityLevel,
+                      items: FarmerMasterData.maturityLevels,
+                      itemLabel: (m) => m,
+                      onChanged: (m) => setState(() => _maturityLevel = m),
+                    ),
+                    const SizedBox(height: 16),
+
+                    LabeledDropdownField<String>(
+                      label: 'Pilih Estimasi Masa Simpan',
+                      hint: 'Pilih masa simpan',
+                      value: _shelfLifeEstimate,
+                      items: FarmerMasterData.shelfLifeEstimates,
+                      itemLabel: (s) => s,
+                      onChanged: (s) => setState(() => _shelfLifeEstimate = s),
+                    ),
+                    const SizedBox(height: 16),
+
+                    LabeledDropdownField<String>(
+                      label: 'Pilih Metode Panen',
+                      hint: 'Pilih metode panen',
+                      value: _harvestMethod,
+                      items: FarmerMasterData.harvestMethods,
+                      itemLabel: (m) => m,
+                      onChanged: (m) => setState(() => _harvestMethod = m),
+                    ),
+                    const SizedBox(height: 16),
+
+                    LabeledDropdownField<String>(
+                      label: 'Pilih Pupuk yang Digunakan (opsional)',
+                      hint: 'Pilih pupuk',
+                      value: _fertilizer,
+                      items: FarmerMasterData.fertilizers,
+                      itemLabel: (f) => f,
+                      onChanged: (f) => setState(() => _fertilizer = f),
+                    ),
+                    const SizedBox(height: 16),
+
+                    _TextAreaField(
+                      label: 'Saran Penyimpanan (opsional)',
+                      hint: 'Contoh: Simpan di tempat sejuk dan kering',
+                      controller: _storageSuggestionController,
+                    ),
+                    const SizedBox(height: 16),
+
+                    _TextAreaField(
+                      label: 'Catatan Panen (opsional)',
+                      hint: 'Contoh: Buah sudah disortir awal di kebun',
+                      controller: _notesController,
+                    ),
                     const SizedBox(height: 32),
 
                     // ── Tombol KIRIM / SIMPAN (Req 2.9) ────────────────────
@@ -723,7 +801,76 @@ class _DatePickerField extends StatelessWidget {
 // Quantity input field
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Input numerik untuk jumlah panen (dalam kg).
+// [FE - Component Rendering] _TextAreaField menyediakan input teks panjang
+// untuk metadata opsional batch tanpa mencampur logika form utama.
+class _TextAreaField extends StatelessWidget {
+  const _TextAreaField({
+    required this.label,
+    required this.hint,
+    required this.controller,
+  });
+
+  final String label;
+  final String hint;
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.subtitle,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          maxLines: 3,
+          textInputAction: TextInputAction.newline,
+          style: const TextStyle(
+            fontSize: 14,
+            color: AppColors.black,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(
+              fontSize: 14,
+              color: AppColors.placeholder,
+            ),
+            filled: true,
+            fillColor: AppColors.white,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(
+                color: AppColors.primaryContainer,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Input numerik untuk jumlah panen; satuannya dipilih lewat dropdown terpisah.
 class _QuantityField extends StatelessWidget {
   const _QuantityField({required this.controller});
 
@@ -735,7 +882,7 @@ class _QuantityField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Masukan Jumlah (kg)',
+          'Masukan Jumlah Panen',
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -759,12 +906,6 @@ class _QuantityField extends StatelessWidget {
             hintStyle: const TextStyle(
               fontSize: 14,
               color: AppColors.placeholder,
-            ),
-            suffixText: 'kg',
-            suffixStyle: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.subtitle,
             ),
             filled: true,
             fillColor: AppColors.white,

@@ -43,6 +43,10 @@ class CollectorProduct {
     required this.location,
     required this.harvestDate,
     required this.treeOwner,
+    this.grade,
+    this.maturityLevel,
+    this.shelfLifeEstimate,
+    this.storageSuggestion,
     this.imagePath,
   });
 
@@ -72,6 +76,13 @@ class CollectorProduct {
 
   /// Pemilik pohon (petani), contoh: "Bapak Rusdi".
   final String treeOwner;
+
+  // [DB - Model/Entity] Metadata ini diwariskan dari HarvestBatch petani agar
+  // pengepul membaca kualitas awal tanpa mengubah data sumber batch.
+  final String? grade;
+  final String? maturityLevel;
+  final String? shelfLifeEstimate;
+  final String? storageSuggestion;
 
   /// Path/URI gambar produk (opsional). Null berarti pakai aset fallback.
   final String? imagePath;

@@ -222,6 +222,16 @@ class FarmerRepository extends ChangeNotifier {
     }
   }
 
+  // [FE - State Management] Lookup publik ini dipakai layar trace konsumen:
+  // hanya membaca batch dari QR/code tanpa membuka akses edit milik petani.
+  HarvestBatch? findPublicBatch(String code) {
+    try {
+      return _batches.firstWhere((b) => b.code == code);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── Pembuatan kode batch (Req 2.7) ─────────────────────────────────────────
 
   // [UTIL - Helper Function] generateBatchCode menghasilkan kode unik
@@ -448,6 +458,39 @@ class FarmerRepository extends ChangeNotifier {
       batches.where((b) => b.status == BatchStatus.verifiedByCollector).length;
 
   // ── Timeline (Req 3.6) ─────────────────────────────────────────────────────
+
+  // [FE - State Management] Getter ini membuka batch CREATED sebagai antrean
+  // verifikasi pengepul tanpa memberi pengepul akses mengubah data panen.
+  List<HarvestBatch> get batchesForCollectorVerification {
+    final items = _batches.where((b) => b.status == BatchStatus.created).toList();
+    items.sort((a, b) {
+      final aDate = a.createdAt ?? a.harvestDate;
+      final bDate = b.createdAt ?? b.harvestDate;
+      return bDate.compareTo(aDate);
+    });
+    return List.unmodifiable(items);
+  }
+
+  // [FE - State Management] Mutasi ini menjadi transisi status dari petani
+  // ke pengepul: CREATED -> VERIFIED_BY_COLLECTOR pada fase mock FE-only.
+  bool verifyBatchByCollector({
+    required String code,
+    required double receivedQuantity,
+    required String verifiedGrade,
+    String? qualityNotes,
+  }) {
+    if (receivedQuantity <= 0 || verifiedGrade.trim().isEmpty) return false;
+
+    final index = _batches.indexWhere((b) => b.code == code);
+    if (index == -1) return false;
+
+    final existing = _batches[index];
+    if (existing.status != BatchStatus.created) return false;
+
+    _batches[index] = existing.copyWith(status: BatchStatus.verifiedByCollector);
+    notifyListeners();
+    return true;
+  }
 
   // [FE - State Management] eventsFor membangkitkan timeline dari status
   // batch saat ini — pada fase FE-only ini bersifat deterministik;

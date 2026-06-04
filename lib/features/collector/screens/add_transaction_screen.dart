@@ -91,10 +91,33 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (!mounted) return;
     setState(() => _isSubmitting = false);
 
-    // TODO: Ganti dengan API call saat BE siap
+    final selectedProduct = _selectedProduct!;
+    final ok = _repo.verifyFreshBatch(
+      code: selectedProduct.code,
+      receivedQuantity: quantity,
+      verifiedGrade: _verifiedGrade!,
+      qualityNotes: _notesCtrl.text.trim(),
+    );
+
+    if (!ok) {
+      _notif.show(
+        context,
+        'Batch sudah tidak tersedia untuk diverifikasi.',
+        isError: true,
+      );
+      return;
+    }
+
+    setState(() {
+      _selectedProduct = null;
+      _verifiedGrade = null;
+      _quantityCtrl.clear();
+      _notesCtrl.clear();
+    });
+
     _notif.show(
       context,
-      'Transaksi verifikasi untuk ${_selectedProduct!.name} berhasil disimpan.',
+      'Transaksi verifikasi untuk ${selectedProduct.name} berhasil disimpan.',
     );
 
     // Kembali ke beranda setelah sukses
@@ -423,6 +446,28 @@ class _ProductInfo extends StatelessWidget {
             value: _formatDate(product.harvestDate),
           ),
           _InfoRow(label: 'Pemilik Pohon', value: product.treeOwner),
+          // [FE - Component Rendering] Metadata opsional ini berasal dari
+          // batch petani dan membantu pengepul memverifikasi kualitas awal.
+          if (product.grade != null && product.grade!.isNotEmpty)
+            _InfoRow(label: 'Grade Awal', value: 'Grade ${product.grade}'),
+          if (product.maturityLevel != null &&
+              product.maturityLevel!.isNotEmpty)
+            _InfoRow(
+              label: 'Kematangan',
+              value: product.maturityLevel!,
+            ),
+          if (product.shelfLifeEstimate != null &&
+              product.shelfLifeEstimate!.isNotEmpty)
+            _InfoRow(
+              label: 'Masa Simpan',
+              value: product.shelfLifeEstimate!,
+            ),
+          if (product.storageSuggestion != null &&
+              product.storageSuggestion!.isNotEmpty)
+            _InfoRow(
+              label: 'Saran Simpan',
+              value: product.storageSuggestion!,
+            ),
         ],
       ),
     );

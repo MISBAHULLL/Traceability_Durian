@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
+import '../../trace/screens/public_trace_screen.dart';
 import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
 import 'farmer_home_screen.dart';
@@ -82,8 +83,10 @@ class _BatchQrScreenState extends State<BatchQrScreen>
     }
   }
 
+  // [FE - Event Handler] Tombol ini mensimulasikan hasil scan QR oleh
+  // konsumen: membuka halaman trace publik read-only berdasarkan kode batch.
   void _handleViewDetail() {
-    Navigator.maybePop(context);
+    FarmerRoutes.push(context, PublicTraceScreen(batchCode: widget.batchCode));
   }
 
   @override

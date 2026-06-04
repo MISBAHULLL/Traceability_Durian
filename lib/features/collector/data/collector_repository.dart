@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../farmer/data/farmer_repository.dart';
+import '../../farmer/models/harvest_batch.dart';
 import '../models/collector_product.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -23,6 +25,7 @@ class CollectorRepository extends ChangeNotifier {
     _currentCollectorId = _kSeedCollectorId;
     _profile = _kSeedProfile;
     _products = _buildSeedProducts();
+    _farmerRepo.addListener(_onFarmerRepoChanged);
   }
 
   // ── Konstanta seed ─────────────────────────────────────────────────────────
@@ -97,6 +100,7 @@ class CollectorRepository extends ChangeNotifier {
   late String _currentCollectorId;
   late CollectorProfile _profile;
   late List<CollectorProduct> _products;
+  final FarmerRepository _farmerRepo = FarmerRepository.instance;
 
   // ── Identitas sesi ──────────────────────────────────────────────────────────
 
@@ -108,16 +112,77 @@ class CollectorRepository extends ChangeNotifier {
 
   // ── Produk ──────────────────────────────────────────────────────────────────
 
-  /// Seluruh produk yang tersedia untuk dibeli/diverifikasi pengepul.
-  List<CollectorProduct> get products => List.unmodifiable(_products);
+  // [FE - State Management] Produk segar dibentuk dari antrean batch petani,
+  // sedangkan produk olahan/bibit masih memakai seed prototype sementara.
+  List<CollectorProduct> get products {
+    final freshProducts = _farmerRepo.batchesForCollectorVerification
+        .map(_productFromHarvestBatch)
+        .toList();
+    final prototypeProducts = _products
+        .where((p) => p.category != ProductCategory.durianSegar)
+        .toList();
+    return List.unmodifiable([...freshProducts, ...prototypeProducts]);
+  }
 
   /// Mencari satu produk berdasarkan [code].
   CollectorProduct? findProduct(String code) {
     try {
-      return _products.firstWhere((p) => p.code == code);
+      return products.firstWhere((p) => p.code == code);
     } catch (_) {
       return null;
     }
+  }
+
+  // [UTIL - Helper Function] Mapper ini mengubah HarvestBatch milik petani
+  // menjadi CollectorProduct read-only untuk UI pengepul.
+  CollectorProduct _productFromHarvestBatch(HarvestBatch batch) {
+    final quantityText = batch.quantity % 1 == 0
+        ? batch.quantity.toStringAsFixed(0)
+        : batch.quantity.toStringAsFixed(2);
+    final shelfText = batch.shelfLifeEstimate?.isNotEmpty == true
+        ? ', estimasi simpan ${batch.shelfLifeEstimate}'
+        : '';
+    final maturityText = batch.maturityLevel?.isNotEmpty == true
+        ? 'Kematangan ${batch.maturityLevel}'
+        : 'Kematangan belum dicatat';
+
+    return CollectorProduct(
+      code: batch.code,
+      name: 'Durian ${batch.variety}',
+      category: ProductCategory.durianSegar,
+      weightRange: '$quantityText ${batch.unit}',
+      taste: 'Grade awal ${batch.grade}',
+      fleshDescription: '$maturityText$shelfText',
+      location: batch.farmName,
+      harvestDate: batch.harvestDate,
+      treeOwner: 'Petani Durian',
+      grade: batch.grade,
+      maturityLevel: batch.maturityLevel,
+      shelfLifeEstimate: batch.shelfLifeEstimate,
+      storageSuggestion: batch.storageSuggestion,
+    );
+  }
+
+  // [FE - State Management] Listener ini meneruskan perubahan batch petani
+  // agar Beranda/Form pengepul rebuild saat ada batch baru atau terverifikasi.
+  void _onFarmerRepoChanged() {
+    notifyListeners();
+  }
+
+  // [FE - Event Handler] Submit verifikasi pengepul meneruskan aksi ke
+  // FarmerRepository karena status batch adalah state utama rantai pasok.
+  bool verifyFreshBatch({
+    required String code,
+    required double receivedQuantity,
+    required String verifiedGrade,
+    String? qualityNotes,
+  }) {
+    return _farmerRepo.verifyBatchByCollector(
+      code: code,
+      receivedQuantity: receivedQuantity,
+      verifiedGrade: verifiedGrade,
+      qualityNotes: qualityNotes,
+    );
   }
 
   // ── Sesi ─────────────────────────────────────────────────────────────────────

@@ -571,6 +571,13 @@ class _ProductCard extends StatelessWidget {
                       if (product.taste.trim() != '-')
                         _Bullet(text: 'Rasa : ${product.taste}'),
                       _Bullet(text: 'Daging Buah : ${product.fleshDescription}'),
+                      // [FE - Component Rendering] Info traceability dari
+                      // petani ditampilkan ringkas di kartu antrean pengepul.
+                      if (product.shelfLifeEstimate != null &&
+                          product.shelfLifeEstimate!.isNotEmpty)
+                        _Bullet(
+                          text: 'Masa Simpan : ${product.shelfLifeEstimate}',
+                        ),
                       _Bullet(text: 'Lokasi : ${product.location}'),
                       _Bullet(
                         text: 'Waktu Panen : ${_formatDate(product.harvestDate)}',

@@ -361,10 +361,10 @@ class _StatRow extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: _StatCard(
-            value: '${repo.activeBatch}',
-            label: 'Batch Aktif',
-            icon: Icons.local_shipping_outlined,
-            color: const Color(0xFF1D6FA4),
+            value: '${repo.pendingVerificationBatch}',
+            label: 'Menunggu',
+            icon: Icons.pending_actions_outlined,
+            color: const Color(0xFFB45309),
           ),
         ),
         const SizedBox(width: 10),
@@ -468,7 +468,7 @@ class _AddBatchCard extends StatelessWidget {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Catat hasil panen baru & buat QR Code batch',
+                    'Catat panen dan siapkan QR untuk pengepul',
                     style: TextStyle(
                       fontSize: 12,
                       color: Color(0xFFEAF7E5),

@@ -89,7 +89,7 @@ extension BatchStatusX on BatchStatus {
 // yang menentukan batch mana yang lolos berdasarkan status — dipakai oleh
 // helper searchAndFilterBatches di FarmerRepository.
 /// Filter cepat yang ditampilkan sebagai chips di Beranda Petani.
-enum BatchFilter { semua, menunggu, terverifikasi, distribusi }
+enum BatchFilter { semua, menunggu, terverifikasi, ditolak }
 
 extension BatchFilterX on BatchFilter {
   String get label {
@@ -100,8 +100,8 @@ extension BatchFilterX on BatchFilter {
         return 'Menunggu';
       case BatchFilter.terverifikasi:
         return 'Terverifikasi';
-      case BatchFilter.distribusi:
-        return 'Distribusi';
+      case BatchFilter.ditolak:
+        return 'Ditolak';
     }
   }
 
@@ -114,9 +114,8 @@ extension BatchFilterX on BatchFilter {
         return status == BatchStatus.created;
       case BatchFilter.terverifikasi:
         return status == BatchStatus.verifiedByCollector;
-      case BatchFilter.distribusi:
-        return status == BatchStatus.inDistribution ||
-            status == BatchStatus.receivedByUmkm;
+      case BatchFilter.ditolak:
+        return status == BatchStatus.rejected;
     }
   }
 }

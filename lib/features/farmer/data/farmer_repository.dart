@@ -399,6 +399,11 @@ class FarmerRepository extends ChangeNotifier {
   /// Total seluruh batch milik petani yang sedang login.
   int get totalBatch => batches.length;
 
+  // [FE - State Management] Statistik ini menghitung batch yang baru dibuat
+  // petani dan menunggu aksi/verifikasi dari pengepul.
+  int get pendingVerificationBatch =>
+      batches.where((b) => b.status == BatchStatus.created).length;
+
   /// Jumlah batch yang masih aktif berjalan di rantai pasok.
   int get activeBatch => batches.where((b) => b.status.isActive).length;
 
@@ -657,7 +662,7 @@ class FarmerRepository extends ChangeNotifier {
 /// Fungsi ini **murni** (pure function): tidak mengubah state apapun dan
 /// hasilnya hanya bergantung pada argumen yang diberikan.
 ///
-/// - [filter]: chip aktif dari {Semua, Menunggu, Terverifikasi, Distribusi}.
+/// - [filter]: chip aktif dari {Semua, Menunggu, Terverifikasi, Ditolak}.
 /// - [query]: teks pencarian; pencocokan case-insensitive pada [HarvestBatch.code]
 ///   dan [HarvestBatch.variety]. String kosong berarti tidak ada filter teks.
 ///

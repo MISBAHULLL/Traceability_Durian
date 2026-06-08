@@ -551,6 +551,12 @@ class _ProductInfoCard extends StatelessWidget {
     return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
 
+  String _formatDateTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${_formatDate(dt)}, $h:$m';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -601,6 +607,50 @@ class _ProductInfoCard extends StatelessWidget {
             label: 'Grade Awal',
             value: 'Grade ${batch.grade}',
           ),
+          // [FE - Component Rendering] Hasil verifikasi pengepul ditampilkan
+          // terpisah agar grade petani tidak tertimpa oleh grade sortir.
+          if (batch.verifiedGrade != null &&
+              batch.verifiedGrade!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.verified_outlined,
+              label: 'Grade Pengepul',
+              value: 'Grade ${batch.verifiedGrade}',
+            ),
+          ],
+          if (batch.receivedQuantity != null) ...[
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.inventory_outlined,
+              label: 'Berat Diterima',
+              value:
+                  '${batch.receivedQuantity!.toStringAsFixed(0)} ${batch.unit}',
+            ),
+          ],
+          if (batch.verifiedBy != null && batch.verifiedBy!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.person_search_outlined,
+              label: 'Diverifikasi Oleh',
+              value: batch.verifiedBy!,
+            ),
+          ],
+          if (batch.verifiedAt != null) ...[
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.event_available_outlined,
+              label: 'Waktu Verifikasi',
+              value: _formatDateTime(batch.verifiedAt!),
+            ),
+          ],
+          if (batch.qualityNotes != null && batch.qualityNotes!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.rate_review_outlined,
+              label: 'Catatan Sortir',
+              value: batch.qualityNotes!,
+            ),
+          ],
           const SizedBox(height: 10),
           _InfoRow(
             icon: Icons.calendar_today_outlined,

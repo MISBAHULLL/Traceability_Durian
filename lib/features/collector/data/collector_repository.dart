@@ -213,6 +213,7 @@ class CollectorRepository extends ChangeNotifier {
       receivedQuantity: receivedQuantity,
       verifiedGrade: verifiedGrade,
       qualityNotes: qualityNotes,
+      verifiedBy: _profile.fullName,
     );
   }
 

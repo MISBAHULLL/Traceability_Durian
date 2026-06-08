@@ -81,6 +81,12 @@ class _TraceContent extends StatelessWidget {
     return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
 
+  String _formatDateTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${_formatDate(dt)}, $h:$m';
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasPhoto = batch.photoPath != null && batch.photoPath!.isNotEmpty;
@@ -119,6 +125,30 @@ class _TraceContent extends StatelessWidget {
                 label: 'Grade Awal Petani',
                 value: 'Grade ${batch.grade}',
               ),
+              // [FE - Component Rendering] Data sortir pengepul ditampilkan
+              // sebagai hasil verifikasi, bukan pengganti data awal petani.
+              if (batch.verifiedGrade != null &&
+                  batch.verifiedGrade!.isNotEmpty)
+                _TraceInfoRow(
+                  label: 'Grade Pengepul',
+                  value: 'Grade ${batch.verifiedGrade}',
+                ),
+              if (batch.receivedQuantity != null)
+                _TraceInfoRow(
+                  label: 'Berat Diterima',
+                  value:
+                      '${batch.receivedQuantity!.toStringAsFixed(0)} ${batch.unit}',
+                ),
+              if (batch.verifiedBy != null && batch.verifiedBy!.isNotEmpty)
+                _TraceInfoRow(
+                  label: 'Diverifikasi Oleh',
+                  value: batch.verifiedBy!,
+                ),
+              if (batch.verifiedAt != null)
+                _TraceInfoRow(
+                  label: 'Waktu Verifikasi',
+                  value: _formatDateTime(batch.verifiedAt!),
+                ),
               _TraceInfoRow(
                 label: 'Tanggal Panen',
                 value: _formatDate(batch.harvestDate),
@@ -154,6 +184,12 @@ class _TraceContent extends StatelessWidget {
                   ),
                 if (batch.notes != null && batch.notes!.isNotEmpty)
                   _TraceInfoRow(label: 'Catatan', value: batch.notes!),
+                if (batch.qualityNotes != null &&
+                    batch.qualityNotes!.isNotEmpty)
+                  _TraceInfoRow(
+                    label: 'Catatan Sortir',
+                    value: batch.qualityNotes!,
+                  ),
               ],
             ),
             const SizedBox(height: 16),
@@ -167,7 +203,8 @@ class _TraceContent extends StatelessWidget {
   bool _hasHandlingInfo(HarvestBatch batch) {
     return (batch.storageSuggestion != null &&
             batch.storageSuggestion!.isNotEmpty) ||
-        (batch.notes != null && batch.notes!.isNotEmpty);
+        (batch.notes != null && batch.notes!.isNotEmpty) ||
+        (batch.qualityNotes != null && batch.qualityNotes!.isNotEmpty);
   }
 }
 

@@ -144,6 +144,11 @@ class HarvestBatch {
     this.notes,
     this.createdAt,
     this.photoPath,
+    this.receivedQuantity,
+    this.verifiedGrade,
+    this.qualityNotes,
+    this.verifiedBy,
+    this.verifiedAt,
     this.rejectionReason,
     this.rejectedBy,
     this.rejectedAt,
@@ -212,6 +217,14 @@ class HarvestBatch {
   /// gambar dari server. Nullable agar data lama tetap aman dibaca.
   final String? photoPath;
 
+  // [DB - Model/Entity] Metadata verifikasi ini menyimpan hasil sortir
+  // pengepul tanpa menimpa data panen awal dari petani.
+  final double? receivedQuantity;
+  final String? verifiedGrade;
+  final String? qualityNotes;
+  final String? verifiedBy;
+  final DateTime? verifiedAt;
+
   // [DB - Model/Entity] Metadata penolakan ini menjaga alasan audit saat
   // batch gagal diverifikasi oleh role berikutnya.
   final String? rejectionReason;
@@ -239,6 +252,11 @@ class HarvestBatch {
     String? notes,
     DateTime? createdAt,
     String? photoPath,
+    double? receivedQuantity,
+    String? verifiedGrade,
+    String? qualityNotes,
+    String? verifiedBy,
+    DateTime? verifiedAt,
     String? rejectionReason,
     String? rejectedBy,
     DateTime? rejectedAt,
@@ -263,6 +281,11 @@ class HarvestBatch {
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       photoPath: photoPath ?? this.photoPath,
+      receivedQuantity: receivedQuantity ?? this.receivedQuantity,
+      verifiedGrade: verifiedGrade ?? this.verifiedGrade,
+      qualityNotes: qualityNotes ?? this.qualityNotes,
+      verifiedBy: verifiedBy ?? this.verifiedBy,
+      verifiedAt: verifiedAt ?? this.verifiedAt,
       rejectionReason: rejectionReason ?? this.rejectionReason,
       rejectedBy: rejectedBy ?? this.rejectedBy,
       rejectedAt: rejectedAt ?? this.rejectedAt,
@@ -291,6 +314,11 @@ class HarvestBatch {
     'notes': notes,
     'createdAt': createdAt?.toIso8601String(),
     'photoPath': photoPath,
+    'receivedQuantity': receivedQuantity,
+    'verifiedGrade': verifiedGrade,
+    'qualityNotes': qualityNotes,
+    'verifiedBy': verifiedBy,
+    'verifiedAt': verifiedAt?.toIso8601String(),
     'rejectionReason': rejectionReason,
     'rejectedBy': rejectedBy,
     'rejectedAt': rejectedAt?.toIso8601String(),
@@ -323,6 +351,13 @@ class HarvestBatch {
         ? DateTime.parse(json['createdAt'] as String)
         : null,
     photoPath: json['photoPath'] as String?,
+    receivedQuantity: (json['receivedQuantity'] as num?)?.toDouble(),
+    verifiedGrade: json['verifiedGrade'] as String?,
+    qualityNotes: json['qualityNotes'] as String?,
+    verifiedBy: json['verifiedBy'] as String?,
+    verifiedAt: json['verifiedAt'] != null
+        ? DateTime.parse(json['verifiedAt'] as String)
+        : null,
     rejectionReason: json['rejectionReason'] as String?,
     rejectedBy: json['rejectedBy'] as String?,
     rejectedAt: json['rejectedAt'] != null

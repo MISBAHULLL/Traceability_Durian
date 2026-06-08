@@ -4,6 +4,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../data/collector_repository.dart';
+import '../models/collector_stock_summary.dart';
 
 // [FE - Component Rendering] Screen ini menampilkan stok durian pengepul
 // yang berasal dari batch petani setelah berhasil diverifikasi.
@@ -36,6 +37,7 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
   @override
   Widget build(BuildContext context) {
     final stocks = _repo.stockBatches;
+    final overview = _repo.stockOverview;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -46,13 +48,20 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
             Expanded(
               child: stocks.isEmpty
                   ? const _EmptyStock()
-                  : ListView.separated(
+                  : ListView(
                       padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-                      itemBuilder: (context, index) {
-                        return _StockCard(batch: stocks[index]);
-                      },
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                      itemCount: stocks.length,
+                      children: [
+                        _StockOverviewPanel(overview: overview),
+                        const SizedBox(height: 18),
+                        const _SectionHeader(title: 'Batch Aktif'),
+                        const SizedBox(height: 10),
+                        ...stocks.map(
+                          (batch) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _StockCard(batch: batch),
+                          ),
+                        ),
+                      ],
                     ),
             ),
           ],
@@ -99,6 +108,252 @@ class _EmptyStock extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// [FE - Component Rendering] Panel ini menampilkan inventory overview dari
+// repository sebagai dashboard gudang pengepul.
+class _StockOverviewPanel extends StatelessWidget {
+  const _StockOverviewPanel({required this.overview});
+
+  final CollectorStockOverview overview;
+
+  String _formatWeight(double value) {
+    final text =
+        value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+    return '$text kg';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader(title: 'Ringkasan Gudang'),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _SummaryMetricTile(
+                icon: Icons.scale_outlined,
+                label: 'Total Berat',
+                value: _formatWeight(overview.totalWeightKg),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _SummaryMetricTile(
+                icon: Icons.inventory_2_outlined,
+                label: 'Total Butir',
+                value: '${overview.totalFruitCount}',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _SummaryMetricTile(
+                icon: Icons.qr_code_2_rounded,
+                label: 'Batch Aktif',
+                value: '${overview.activeBatchCount}',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _StockBreakdownSection(
+          title: 'Stok per Grade',
+          items: overview.gradeBreakdown,
+        ),
+        const SizedBox(height: 14),
+        _StockBreakdownSection(
+          title: 'Stok per Varietas',
+          items: overview.varietyBreakdown,
+        ),
+      ],
+    );
+  }
+}
+
+// [FE - Component Rendering] Tile metrik cepat ini membantu pengepul melihat
+// kapasitas gudang tanpa membuka setiap batch.
+class _SummaryMetricTile extends StatelessWidget {
+  const _SummaryMetricTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 92,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          const Spacer(),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: AppColors.black,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 10,
+              height: 1.15,
+              color: AppColors.placeholder,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// [FE - Component Rendering] Section breakdown ini memecah stok berdasarkan
+// dimensi operasional seperti grade dan varietas.
+class _StockBreakdownSection extends StatelessWidget {
+  const _StockBreakdownSection({
+    required this.title,
+    required this.items,
+  });
+
+  final String title;
+  final List<CollectorStockBreakdown> items;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(title: title),
+        const SizedBox(height: 8),
+        ...items.map(
+          (item) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _StockBreakdownRow(item: item),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// [FE - Component Rendering] Row breakdown ini menampilkan agregasi kg, butir,
+// dan jumlah batch untuk satu grade/varietas.
+class _StockBreakdownRow extends StatelessWidget {
+  const _StockBreakdownRow({required this.item});
+
+  final CollectorStockBreakdown item;
+
+  String _formatWeight(double value) {
+    final text =
+        value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+    return '$text kg';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: AppColors.black,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '${_formatWeight(item.totalWeightKg)} / '
+            '${item.totalFruitCount} butir',
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: AppColors.subtitle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          _TinyCountPill(label: '${item.batchCount} batch'),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w900,
+        color: AppColors.black,
+      ),
+    );
+  }
+}
+
+class _TinyCountPill extends StatelessWidget {
+  const _TinyCountPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.primaryContainer.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: AppColors.primary,
         ),
       ),
     );

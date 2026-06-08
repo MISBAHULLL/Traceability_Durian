@@ -4,6 +4,7 @@ import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../models/collector_product.dart';
+import '../models/collector_stock_summary.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CollectorRepository
@@ -175,6 +176,90 @@ class CollectorRepository extends ChangeNotifier {
       return bDate.compareTo(aDate);
     });
     return List.unmodifiable(items);
+  }
+
+  // [FE - State Management] Overview stok ini menjadi DTO mock untuk dashboard
+  // gudang; nantinya bisa diganti langsung oleh response backend.
+  CollectorStockOverview get stockOverview {
+    final batches = stockBatches;
+    final gradeBuckets = <String, _MutableStockBucket>{};
+    final varietyBuckets = <String, _MutableStockBucket>{};
+    var totalWeightKg = 0.0;
+    var totalFruitCount = 0;
+
+    for (final batch in batches) {
+      final weightKg = batch.receivedQuantity ?? batch.quantity;
+      final fruitCount = batch.receivedFruitCount ?? batch.fruitCount ?? 0;
+      totalWeightKg += weightKg;
+      totalFruitCount += fruitCount;
+
+      _addToBucket(
+        varietyBuckets,
+        key: batch.variety.toLowerCase(),
+        label: batch.variety,
+        weightKg: weightKg,
+        fruitCount: fruitCount,
+      );
+
+      if (batch.gradeBreakdown.isEmpty) {
+        final grade = batch.verifiedGrade ?? batch.grade;
+        _addToBucket(
+          gradeBuckets,
+          key: grade.toUpperCase(),
+          label: 'Grade ${grade.toUpperCase()}',
+          weightKg: weightKg,
+          fruitCount: fruitCount,
+        );
+      } else {
+        for (final item in batch.gradeBreakdown.where((e) => e.hasValue)) {
+          final grade = item.grade.toUpperCase();
+          _addToBucket(
+            gradeBuckets,
+            key: grade,
+            label: 'Grade $grade',
+            weightKg: item.weightKg,
+            fruitCount: item.fruitCount,
+          );
+        }
+      }
+    }
+
+    return CollectorStockOverview(
+      activeBatchCount: batches.length,
+      totalWeightKg: totalWeightKg,
+      totalFruitCount: totalFruitCount,
+      gradeBreakdown: _sortedBuckets(gradeBuckets),
+      varietyBreakdown: _sortedBuckets(varietyBuckets),
+    );
+  }
+
+  // [UTIL - Helper Function] Helper ini mengakumulasi stok ke bucket grade
+  // atau varietas agar kalkulasi dashboard tidak tersebar di widget UI.
+  void _addToBucket(
+    Map<String, _MutableStockBucket> buckets, {
+    required String key,
+    required String label,
+    required double weightKg,
+    required int fruitCount,
+  }) {
+    final normalizedKey = key.trim();
+    final bucket = buckets.putIfAbsent(
+      normalizedKey,
+      () => _MutableStockBucket(key: normalizedKey, label: label.trim()),
+    );
+    bucket.totalWeightKg += weightKg;
+    bucket.totalFruitCount += fruitCount;
+    bucket.batchCount++;
+  }
+
+  // [UTIL - Helper Function] Sorter ini membuat output summary stabil untuk
+  // UI dan calon kontrak API backend.
+  List<CollectorStockBreakdown> _sortedBuckets(
+    Map<String, _MutableStockBucket> buckets,
+  ) {
+    final values = buckets.values.map((bucket) => bucket.toBreakdown()).toList();
+    values.sort((a, b) => a.label.compareTo(b.label));
+    return List.unmodifiable(values);
   }
 
   // [FE - State Management] Riwayat pengepul menggabungkan batch yang sudah
@@ -363,6 +448,31 @@ class CollectorRepository extends ChangeNotifier {
 ///   berarti tidak ada filter teks.
 ///
 /// Produk yang dikembalikan memenuhi **kedua** kriteria (kategori AND query).
+// [UTIL - Helper Function] Bucket internal ini hanya dipakai repository untuk
+// membangun DTO CollectorStockOverview dari batch stok mock.
+class _MutableStockBucket {
+  _MutableStockBucket({
+    required this.key,
+    required this.label,
+  });
+
+  final String key;
+  final String label;
+  double totalWeightKg = 0;
+  int totalFruitCount = 0;
+  int batchCount = 0;
+
+  CollectorStockBreakdown toBreakdown() {
+    return CollectorStockBreakdown(
+      key: key,
+      label: label,
+      totalWeightKg: totalWeightKg,
+      totalFruitCount: totalFruitCount,
+      batchCount: batchCount,
+    );
+  }
+}
+
 List<CollectorProduct> searchAndFilterProducts(
   List<CollectorProduct> products,
   ProductCategory category,

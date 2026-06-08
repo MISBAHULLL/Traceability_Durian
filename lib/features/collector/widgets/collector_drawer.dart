@@ -6,6 +6,9 @@ import '../collector_routes.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_product.dart';
 import '../screens/add_transaction_screen.dart';
+import '../screens/collector_about_screen.dart';
+import '../screens/collector_help_screen.dart';
+import '../screens/collector_history_screen.dart';
 import '../screens/collector_profile_screen.dart';
 import '../screens/collector_scan_qr_screen.dart';
 import '../screens/collector_stock_screen.dart';
@@ -57,9 +60,30 @@ class CollectorDrawer extends StatelessWidget {
                     onTap: () => _go(context, const CollectorStockScreen()),
                   ),
                   _DrawerItem(
+                    icon: Icons.history_rounded,
+                    label: 'Riwayat Transaksi',
+                    onTap: () => _go(context, const CollectorHistoryScreen()),
+                  ),
+                  _DrawerItem(
                     icon: Icons.person_outline_rounded,
                     label: 'Profil',
                     onTap: () => _go(context, const CollectorProfileScreen()),
+                  ),
+                  const Divider(
+                    height: 18,
+                    color: Color(0xFFE5E7EB),
+                    indent: 20,
+                    endIndent: 20,
+                  ),
+                  _DrawerItem(
+                    icon: Icons.help_outline_rounded,
+                    label: 'Bantuan & Panduan',
+                    onTap: () => _go(context, const CollectorHelpScreen()),
+                  ),
+                  _DrawerItem(
+                    icon: Icons.info_outline_rounded,
+                    label: 'Tentang',
+                    onTap: () => _go(context, const CollectorAboutScreen()),
                   ),
                 ],
               ),

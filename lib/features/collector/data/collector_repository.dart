@@ -177,6 +177,23 @@ class CollectorRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
+  // [FE - State Management] Riwayat pengepul menggabungkan batch yang sudah
+  // diverifikasi dan ditolak untuk kebutuhan audit FE sementara.
+  List<HarvestBatch> get historyBatches {
+    final items = _farmerRepo.batches.where((b) {
+      return b.status == BatchStatus.verifiedByCollector ||
+          b.status == BatchStatus.rejected;
+    }).toList();
+    items.sort((a, b) {
+      final aDate =
+          a.verifiedAt ?? a.rejectedAt ?? a.createdAt ?? a.harvestDate;
+      final bDate =
+          b.verifiedAt ?? b.rejectedAt ?? b.createdAt ?? b.harvestDate;
+      return bDate.compareTo(aDate);
+    });
+    return List.unmodifiable(items);
+  }
+
   // [UTIL - Helper Function] Mapper ini mengubah HarvestBatch milik petani
   // menjadi CollectorProduct read-only untuk UI pengepul.
   CollectorProduct _productFromHarvestBatch(HarvestBatch batch) {

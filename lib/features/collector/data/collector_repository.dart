@@ -163,6 +163,20 @@ class CollectorRepository extends ChangeNotifier {
     }
   }
 
+  // [FE - State Management] Stok pengepul dibentuk dari batch petani yang
+  // sudah diverifikasi pengepul dan siap masuk flow distribusi berikutnya.
+  List<HarvestBatch> get stockBatches {
+    final items = _farmerRepo.batches
+        .where((b) => b.status == BatchStatus.verifiedByCollector)
+        .toList();
+    items.sort((a, b) {
+      final aDate = a.verifiedAt ?? a.createdAt ?? a.harvestDate;
+      final bDate = b.verifiedAt ?? b.createdAt ?? b.harvestDate;
+      return bDate.compareTo(aDate);
+    });
+    return List.unmodifiable(items);
+  }
+
   // [UTIL - Helper Function] Mapper ini mengubah HarvestBatch milik petani
   // menjadi CollectorProduct read-only untuk UI pengepul.
   CollectorProduct _productFromHarvestBatch(HarvestBatch batch) {

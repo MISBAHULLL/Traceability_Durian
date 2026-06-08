@@ -8,6 +8,7 @@ import '../models/collector_product.dart';
 import '../screens/add_transaction_screen.dart';
 import '../screens/collector_profile_screen.dart';
 import '../screens/collector_scan_qr_screen.dart';
+import '../screens/collector_stock_screen.dart';
 import 'collector_avatar.dart';
 
 // [FE - Component Rendering] CollectorDrawer adalah navigation drawer utama
@@ -49,6 +50,11 @@ class CollectorDrawer extends StatelessWidget {
                     icon: Icons.fact_check_outlined,
                     label: 'Verifikasi Manual',
                     onTap: () => _go(context, const AddTransactionScreen()),
+                  ),
+                  _DrawerItem(
+                    icon: Icons.inventory_2_outlined,
+                    label: 'Stok Saya',
+                    onTap: () => _go(context, const CollectorStockScreen()),
                   ),
                   _DrawerItem(
                     icon: Icons.person_outline_rounded,

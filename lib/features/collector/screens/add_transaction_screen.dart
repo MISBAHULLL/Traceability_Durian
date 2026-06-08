@@ -156,10 +156,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       'Transaksi verifikasi untuk ${selectedProduct.name} berhasil disimpan.',
     );
 
-    // Kembali ke beranda setelah sukses
+    // [FE - Event Handler] Kirim sinyal sukses ke caller; layar scan akan
+    // membuka Stok Saya agar batch terverifikasi terlihat sebagai stok.
     await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
-    Navigator.pop(context);
+    Navigator.pop(context, true);
   }
 
   // [FE - Event Handler] _handleReject memvalidasi pilihan batch, meminta

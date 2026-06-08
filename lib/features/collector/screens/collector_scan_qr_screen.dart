@@ -8,6 +8,7 @@ import '../collector_routes.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_product.dart';
 import 'add_transaction_screen.dart';
+import 'collector_stock_screen.dart';
 
 // [FE - Component Rendering] Screen ini mensimulasikan scan QR batch untuk
 // pengepul sebelum integrasi kamera/mobile_scanner ditambahkan.
@@ -67,11 +68,14 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
   // [FE - Event Handler] Navigasi ini membawa kode hasil scan ke form
   // verifikasi sehingga produk terpilih otomatis.
   Future<void> _openVerification(String code) async {
-    await CollectorRoutes.push(
+    final completed = await CollectorRoutes.push<bool>(
       context,
       AddTransactionScreen(initialBatchCode: code),
     );
     if (mounted) setState(() {});
+    if (mounted && completed == true) {
+      await CollectorRoutes.push(context, const CollectorStockScreen());
+    }
   }
 
   @override

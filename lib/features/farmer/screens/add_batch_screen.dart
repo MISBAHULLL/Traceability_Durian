@@ -52,6 +52,9 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
   final _repo = FarmerRepository.instance;
   final _notification = TopNotification();
   final _quantityController = TextEditingController();
+  // [FE - State Management] Controller ini menyimpan jumlah buah per batch
+  // dalam satuan butir untuk melengkapi total panen berbasis kg/buah.
+  final _fruitCountController = TextEditingController();
   // [FE - State Management] Controller ini menyimpan input opsional yang
   // menjadi metadata traceability batch sebelum dikirim ke repository.
   final _storageSuggestionController = TextEditingController();
@@ -112,6 +115,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
         : batch.shelfLifeEstimate;
     _harvestDate = batch.harvestDate;
     _quantityController.text = batch.quantity.toStringAsFixed(0);
+    _fruitCountController.text = batch.fruitCount?.toString() ?? '';
     _storageSuggestionController.text = batch.storageSuggestion ?? '';
     _notesController.text = batch.notes ?? '';
     _photoPath = batch.photoPath;
@@ -122,6 +126,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     _repo.removeListener(_onRepoChanged);
     _notification.dispose();
     _quantityController.dispose();
+    _fruitCountController.dispose();
     _storageSuggestionController.dispose();
     _notesController.dispose();
     super.dispose();
@@ -249,6 +254,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       harvestMethod: _harvestMethod,
       harvestDate: _harvestDate,
       quantityText: _quantityController.text,
+      fruitCountText: _fruitCountController.text,
     );
 
     if (error != null) {
@@ -282,6 +288,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       grade: _grade!,
       quantity: double.parse(_quantityController.text.trim()),
       unit: _unit!,
+      fruitCount: int.parse(_fruitCountController.text.trim()),
       harvestDate: _harvestDate!,
       maturityLevel: _maturityLevel!,
       shelfLifeEstimate: _shelfLifeEstimate!,
@@ -320,6 +327,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       grade: _grade,
       quantity: double.parse(_quantityController.text.trim()),
       unit: _unit,
+      fruitCount: int.parse(_fruitCountController.text.trim()),
       harvestDate: _harvestDate,
       maturityLevel: _maturityLevel,
       shelfLifeEstimate: _shelfLifeEstimate,
@@ -442,6 +450,9 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                       itemLabel: (u) => u,
                       onChanged: (u) => setState(() => _unit = u),
                     ),
+                    const SizedBox(height: 16),
+
+                    _FruitCountField(controller: _fruitCountController),
                     const SizedBox(height: 16),
 
                     LabeledDropdownField<String>(
@@ -841,6 +852,77 @@ class _TextAreaField extends StatelessWidget {
             hintStyle: const TextStyle(
               fontSize: 14,
               color: AppColors.placeholder,
+            ),
+            filled: true,
+            fillColor: AppColors.white,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(
+                color: AppColors.primaryContainer,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// [FE - Component Rendering] _FruitCountField menangkap jumlah buah dalam
+// satu batch sebagai integer agar data sortasi bisa dihitung per butir.
+class _FruitCountField extends StatelessWidget {
+  const _FruitCountField({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Masukan Jumlah Buah (butir)',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.subtitle,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+          ],
+          style: const TextStyle(
+            fontSize: 14,
+            color: AppColors.black,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Contoh: 18',
+            hintStyle: const TextStyle(
+              fontSize: 14,
+              color: AppColors.placeholder,
+            ),
+            suffixText: 'butir',
+            suffixStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.subtitle,
             ),
             filled: true,
             fillColor: AppColors.white,

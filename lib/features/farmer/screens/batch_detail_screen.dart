@@ -578,6 +578,16 @@ class _ProductInfoCard extends StatelessWidget {
             label: 'Jumlah',
             value: '${batch.quantity.toStringAsFixed(0)} ${batch.unit}',
           ),
+          // [FE - Component Rendering] Jumlah buah ditampilkan terpisah dari
+          // total panen agar pengepul bisa membaca komposisi batch per butir.
+          if (batch.fruitCount != null) ...[
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.inventory_2_outlined,
+              label: 'Jumlah Buah',
+              value: '${batch.fruitCount} butir',
+            ),
+          ],
           const SizedBox(height: 10),
           _InfoRow(
             icon: Icons.star_border_rounded,

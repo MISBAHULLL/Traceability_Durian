@@ -570,6 +570,12 @@ class _ProductCard extends StatelessWidget {
                       _Bullet(text: 'Berat : ${product.weightRange}'),
                       if (product.taste.trim() != '-')
                         _Bullet(text: 'Rasa : ${product.taste}'),
+                      // [FE - Component Rendering] Jumlah buah dari petani
+                      // membantu pengepul membaca batch dalam satuan butir.
+                      if (product.fruitCount != null)
+                        _Bullet(
+                          text: 'Jumlah Buah : ${product.fruitCount} butir',
+                        ),
                       _Bullet(text: 'Daging Buah : ${product.fleshDescription}'),
                       // [FE - Component Rendering] Info traceability dari
                       // petani ditampilkan ringkas di kartu antrean pengepul.

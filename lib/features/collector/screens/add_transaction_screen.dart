@@ -440,6 +440,11 @@ class _ProductInfo extends StatelessWidget {
           const SizedBox(height: 8),
           _InfoRow(label: 'Kode', value: product.code),
           _InfoRow(label: 'Rentang Berat', value: product.weightRange),
+          if (product.fruitCount != null)
+            _InfoRow(
+              label: 'Jumlah Buah',
+              value: '${product.fruitCount} butir',
+            ),
           _InfoRow(label: 'Lokasi', value: product.location),
           _InfoRow(
             label: 'Tanggal Panen',

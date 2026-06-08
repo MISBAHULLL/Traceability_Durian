@@ -157,6 +157,7 @@ class CollectorRepository extends ChangeNotifier {
       harvestDate: batch.harvestDate,
       treeOwner: 'Petani Durian',
       grade: batch.grade,
+      fruitCount: batch.fruitCount,
       maturityLevel: batch.maturityLevel,
       shelfLifeEstimate: batch.shelfLifeEstimate,
       storageSuggestion: batch.storageSuggestion,

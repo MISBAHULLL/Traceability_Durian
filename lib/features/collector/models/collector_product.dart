@@ -44,6 +44,7 @@ class CollectorProduct {
     required this.harvestDate,
     required this.treeOwner,
     this.grade,
+    this.fruitCount,
     this.maturityLevel,
     this.shelfLifeEstimate,
     this.storageSuggestion,
@@ -80,6 +81,7 @@ class CollectorProduct {
   // [DB - Model/Entity] Metadata ini diwariskan dari HarvestBatch petani agar
   // pengepul membaca kualitas awal tanpa mengubah data sumber batch.
   final String? grade;
+  final int? fruitCount;
   final String? maturityLevel;
   final String? shelfLifeEstimate;
   final String? storageSuggestion;
@@ -99,6 +101,7 @@ class CollectorProduct {
     'harvestDate': harvestDate.toIso8601String(),
     'treeOwner': treeOwner,
     'grade': grade,
+    'fruitCount': fruitCount,
     'maturityLevel': maturityLevel,
     'shelfLifeEstimate': shelfLifeEstimate,
     'storageSuggestion': storageSuggestion,
@@ -121,6 +124,7 @@ class CollectorProduct {
         harvestDate: DateTime.parse(json['harvestDate'] as String),
         treeOwner: json['treeOwner'] as String,
         grade: json['grade'] as String?,
+        fruitCount: (json['fruitCount'] as num?)?.toInt(),
         maturityLevel: json['maturityLevel'] as String?,
         shelfLifeEstimate: json['shelfLifeEstimate'] as String?,
         storageSuggestion: json['storageSuggestion'] as String?,

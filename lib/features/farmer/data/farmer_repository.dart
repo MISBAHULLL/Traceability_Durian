@@ -125,6 +125,7 @@ class FarmerRepository extends ChangeNotifier {
           grade: 'A',
           quantity: 52,
           unit: 'kg',
+          fruitCount: 18,
           harvestDate: DateTime(2026, 5, 24),
           farmName: 'Kebun Pakis 1',
           status: BatchStatus.created,
@@ -144,6 +145,7 @@ class FarmerRepository extends ChangeNotifier {
           grade: 'B',
           quantity: 40,
           unit: 'kg',
+          fruitCount: 14,
           harvestDate: DateTime(2026, 5, 20),
           farmName: 'Kebun Pakis 1',
           status: BatchStatus.verifiedByCollector,
@@ -163,6 +165,7 @@ class FarmerRepository extends ChangeNotifier {
           grade: 'A',
           quantity: 65,
           unit: 'kg',
+          fruitCount: 22,
           harvestDate: DateTime(2026, 5, 12),
           farmName: 'Kebun Curah 2',
           status: BatchStatus.inDistribution,
@@ -182,6 +185,7 @@ class FarmerRepository extends ChangeNotifier {
           grade: 'B',
           quantity: 38,
           unit: 'kg',
+          fruitCount: 13,
           harvestDate: DateTime(2026, 5, 5),
           farmName: 'Kebun Curah 2',
           status: BatchStatus.receivedByUmkm,
@@ -201,6 +205,7 @@ class FarmerRepository extends ChangeNotifier {
           grade: 'A',
           quantity: 70,
           unit: 'kg',
+          fruitCount: 24,
           harvestDate: DateTime(2026, 4, 28),
           farmName: 'Kebun Pakis 1',
           status: BatchStatus.processed,
@@ -316,6 +321,7 @@ class FarmerRepository extends ChangeNotifier {
     required String harvestMethod,
     required String grade,
     required double quantity,
+    required int fruitCount,
     required DateTime harvestDate,
     required String maturityLevel,
     required String shelfLifeEstimate,
@@ -452,6 +458,7 @@ class FarmerRepository extends ChangeNotifier {
     String? grade,
     double? quantity,
     String? unit,
+    int? fruitCount,
     DateTime? harvestDate,
     String? maturityLevel,
     String? shelfLifeEstimate,
@@ -476,6 +483,7 @@ class FarmerRepository extends ChangeNotifier {
       grade: grade,
       quantity: quantity,
       unit: unit,
+      fruitCount: fruitCount,
       harvestDate: harvestDate,
       maturityLevel: maturityLevel,
       shelfLifeEstimate: shelfLifeEstimate,
@@ -832,6 +840,7 @@ class FarmerValidator {
     required String? harvestMethod,
     required DateTime? harvestDate,
     required String quantityText,
+    required String fruitCountText,
   }) {
     if (farm == null) {
       return 'Silakan pilih lokasi kebun terlebih dahulu.';
@@ -858,7 +867,8 @@ class FarmerValidator {
       return 'Silakan pilih tanggal panen.';
     }
     return validateHarvestDate(harvestDate) ??
-        validateQuantity(quantityText);
+        validateQuantity(quantityText) ??
+        validateFruitCount(fruitCountText);
   }
 
   /// Memvalidasi jumlah panen.
@@ -872,6 +882,20 @@ class FarmerValidator {
     final value = double.tryParse(trimmed);
     if (value == null || value <= 0) {
       return 'Jumlah panen harus berupa angka lebih dari nol.';
+    }
+    return null;
+  }
+
+  // [ERROR - Exception Handling] Validator ini memastikan jumlah buah per
+  // batch berupa bilangan bulat positif karena satuannya adalah butir.
+  static String? validateFruitCount(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return 'Jumlah buah wajib diisi.';
+    }
+    final value = int.tryParse(trimmed);
+    if (value == null || value <= 0) {
+      return 'Jumlah buah harus berupa angka bulat lebih dari nol.';
     }
     return null;
   }

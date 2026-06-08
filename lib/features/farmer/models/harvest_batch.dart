@@ -132,6 +132,7 @@ class HarvestBatch {
     required this.grade,
     required this.quantity,
     required this.unit,
+    this.fruitCount,
     required this.harvestDate,
     required this.farmName,
     required this.status,
@@ -165,6 +166,9 @@ class HarvestBatch {
 
   /// Satuan, contoh: kg.
   final String unit;
+
+  /// Jumlah buah dalam batch, dihitung per butir.
+  final int? fruitCount;
 
   /// Tanggal panen.
   final DateTime harvestDate;
@@ -214,6 +218,7 @@ class HarvestBatch {
     String? grade,
     double? quantity,
     String? unit,
+    int? fruitCount,
     DateTime? harvestDate,
     String? farmName,
     BatchStatus? status,
@@ -234,6 +239,7 @@ class HarvestBatch {
       grade: grade ?? this.grade,
       quantity: quantity ?? this.quantity,
       unit: unit ?? this.unit,
+      fruitCount: fruitCount ?? this.fruitCount,
       harvestDate: harvestDate ?? this.harvestDate,
       farmName: farmName ?? this.farmName,
       status: status ?? this.status,
@@ -258,6 +264,7 @@ class HarvestBatch {
     'grade': grade,
     'quantity': quantity,
     'unit': unit,
+    'fruitCount': fruitCount,
     'harvestDate': harvestDate.toIso8601String(),
     'farmName': farmName,
     'status': status.name,
@@ -281,6 +288,7 @@ class HarvestBatch {
     grade: json['grade'] as String,
     quantity: (json['quantity'] as num).toDouble(),
     unit: json['unit'] as String,
+    fruitCount: (json['fruitCount'] as num?)?.toInt(),
     harvestDate: DateTime.parse(json['harvestDate'] as String),
     farmName: json['farmName'] as String,
     status: BatchStatus.values.firstWhere(

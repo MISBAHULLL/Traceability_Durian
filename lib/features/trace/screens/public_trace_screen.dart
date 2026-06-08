@@ -110,6 +110,11 @@ class _TraceContent extends StatelessWidget {
                 label: 'Jumlah Panen',
                 value: '${batch.quantity.toStringAsFixed(0)} ${batch.unit}',
               ),
+              if (batch.fruitCount != null)
+                _TraceInfoRow(
+                  label: 'Jumlah Buah',
+                  value: '${batch.fruitCount} butir',
+                ),
               _TraceInfoRow(label: 'Grade Awal', value: 'Grade ${batch.grade}'),
               _TraceInfoRow(
                 label: 'Tanggal Panen',

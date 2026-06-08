@@ -21,7 +21,13 @@ import '../models/collector_product.dart';
 /// Mengikuti alur Batch Validation Form (blueprint 08 sec 4.4): pilih produk
 /// (simulasi scan QR) → input receivedQuantity, grade, qualityNotes → submit.
 class AddTransactionScreen extends StatefulWidget {
-  const AddTransactionScreen({super.key});
+  const AddTransactionScreen({
+    super.key,
+    this.initialBatchCode,
+  });
+
+  /// Kode batch hasil scan QR simulasi; jika valid, produk langsung terpilih.
+  final String? initialBatchCode;
 
   @override
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
@@ -44,6 +50,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool _isRejecting = false;
 
   @override
+  void initState() {
+    super.initState();
+
+    // [FE - State Management] Initial selection ini menghubungkan hasil scan
+    // QR ke form verifikasi tanpa user memilih batch ulang dari dropdown.
+    final initialCode = widget.initialBatchCode?.trim();
+    if (initialCode != null && initialCode.isNotEmpty) {
+      final product = _repo.findProduct(initialCode);
+      if (product != null && product.category == ProductCategory.durianSegar) {
+        _selectProduct(product);
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _notif.dispose();
     _quantityCtrl.dispose();
@@ -51,6 +72,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _quantityFocus.dispose();
     _notesFocus.dispose();
     super.dispose();
+  }
+
+  // [FE - State Management] Helper ini memusatkan perubahan produk terpilih
+  // dan prefill berat agar dropdown manual dan hasil scan memakai alur sama.
+  void _selectProduct(CollectorProduct? product) {
+    _selectedProduct = product;
+    if (product != null) {
+      _quantityCtrl.text = product.weightRange.split(' ')[0];
+    } else {
+      _quantityCtrl.clear();
+    }
   }
 
   // [FE - Event Handler] _handleSubmit memvalidasi input lalu membuat event
@@ -301,7 +333,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const AppTopBar(title: 'Tambah Transaksi'),
+            const AppTopBar(title: 'Verifikasi Batch'),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -315,11 +347,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       products: products,
                       selected: _selectedProduct,
                       onChanged: (p) => setState(() {
-                        _selectedProduct = p;
-                        // Pre-fill quantity dengan nilai produk
-                        if (p != null) {
-                          _quantityCtrl.text = p.weightRange.split(' ')[0];
-                        }
+                        _selectProduct(p);
                       }),
                     ),
 

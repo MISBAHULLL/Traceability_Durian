@@ -6,8 +6,8 @@ import '../collector_routes.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_product.dart';
 import '../widgets/collector_drawer.dart';
-import 'add_transaction_screen.dart';
 import 'collector_profile_screen.dart';
+import 'collector_scan_qr_screen.dart';
 
 // [FE - Component Rendering] Screen ini adalah layar root pengepul setelah
 // login — turunan langsung dari prototype "Beranda — Pengepul Durian".
@@ -107,10 +107,10 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
     );
   }
 
-  // [FE - Event Handler] _openAddTransaction membuka layar Tambah Transaksi
-  // (form verifikasi/pembelian produk).
-  Future<void> _openAddTransaction() async {
-    await CollectorRoutes.push(context, const AddTransactionScreen());
+  // [FE - Event Handler] _openScanQr membuka simulasi scan QR sebagai pintu
+  // utama pengepul untuk mencari batch petani sebelum verifikasi.
+  Future<void> _openScanQr() async {
+    await CollectorRoutes.push(context, const CollectorScanQrScreen());
   }
 
   void _onProductTap(CollectorProduct product) {
@@ -150,7 +150,7 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
                           delegate: SliverChildListDelegate([
                             _GreetingBlock(profile: profile),
                             const SizedBox(height: 16),
-                            _AddTransactionCard(onTap: _openAddTransaction),
+                            _AddTransactionCard(onTap: _openScanQr),
                             const SizedBox(height: 16),
                             _SearchField(controller: _searchController),
                             const SizedBox(height: 14),
@@ -367,7 +367,7 @@ class _AddTransactionCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Tambah Transaksi',
+                    'Scan QR Batch',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -376,7 +376,7 @@ class _AddTransactionCard extends StatelessWidget {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'silahkan memilih produk yang akan dibeli',
+                    'scan kode batch petani untuk verifikasi',
                     style: TextStyle(
                       fontSize: 11,
                       color: Color(0xFFEAF7E5),
@@ -395,7 +395,7 @@ class _AddTransactionCard extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.add_rounded,
+                Icons.qr_code_scanner_rounded,
                 color: AppColors.primaryContainer,
                 size: 26,
               ),

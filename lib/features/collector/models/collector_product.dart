@@ -130,6 +130,19 @@ class CollectorProduct {
         storageSuggestion: json['storageSuggestion'] as String?,
         imagePath: json['imagePath'] as String?,
       );
+
+  // [DB - Model/Entity] Equality berbasis kode+kategori membuat item dropdown
+  // tetap dikenali meski repository membangun instance produk baru.
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is CollectorProduct &&
+            other.code == code &&
+            other.category == category;
+  }
+
+  @override
+  int get hashCode => Object.hash(code, category);
 }
 
 // [DB - Model/Entity] Model ini merepresentasikan profil pengepul yang login —

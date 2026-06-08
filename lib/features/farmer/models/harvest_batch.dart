@@ -144,6 +144,9 @@ class HarvestBatch {
     this.notes,
     this.createdAt,
     this.photoPath,
+    this.rejectionReason,
+    this.rejectedBy,
+    this.rejectedAt,
   });
 
   /// Kode unik batch, contoh: DRN-2026-000128.
@@ -209,6 +212,12 @@ class HarvestBatch {
   /// gambar dari server. Nullable agar data lama tetap aman dibaca.
   final String? photoPath;
 
+  // [DB - Model/Entity] Metadata penolakan ini menjaga alasan audit saat
+  // batch gagal diverifikasi oleh role berikutnya.
+  final String? rejectionReason;
+  final String? rejectedBy;
+  final DateTime? rejectedAt;
+
   /// Membuat salinan batch dengan field yang diubah.
   HarvestBatch copyWith({
     String? code,
@@ -230,6 +239,9 @@ class HarvestBatch {
     String? notes,
     DateTime? createdAt,
     String? photoPath,
+    String? rejectionReason,
+    String? rejectedBy,
+    DateTime? rejectedAt,
   }) {
     return HarvestBatch(
       code: code ?? this.code,
@@ -251,6 +263,9 @@ class HarvestBatch {
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       photoPath: photoPath ?? this.photoPath,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
+      rejectedBy: rejectedBy ?? this.rejectedBy,
+      rejectedAt: rejectedAt ?? this.rejectedAt,
     );
   }
 
@@ -276,6 +291,9 @@ class HarvestBatch {
     'notes': notes,
     'createdAt': createdAt?.toIso8601String(),
     'photoPath': photoPath,
+    'rejectionReason': rejectionReason,
+    'rejectedBy': rejectedBy,
+    'rejectedAt': rejectedAt?.toIso8601String(),
   };
 
   // [DB - Model/Entity] Factory ini membangun kembali batch dari JSON lokal
@@ -305,6 +323,11 @@ class HarvestBatch {
         ? DateTime.parse(json['createdAt'] as String)
         : null,
     photoPath: json['photoPath'] as String?,
+    rejectionReason: json['rejectionReason'] as String?,
+    rejectedBy: json['rejectedBy'] as String?,
+    rejectedAt: json['rejectedAt'] != null
+        ? DateTime.parse(json['rejectedAt'] as String)
+        : null,
   );
 }
 

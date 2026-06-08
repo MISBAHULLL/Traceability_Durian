@@ -230,6 +230,13 @@ class _BatchDetailContent extends StatelessWidget {
           _StatusSection(status: batch.status),
           const SizedBox(height: 16),
 
+          // [FE - Component Rendering] Kartu penolakan hanya muncul saat
+          // batch rejected agar petani mendapat konteks bisnisnya.
+          if (batch.status == BatchStatus.rejected) ...[
+            _RejectionInfoCard(batch: batch),
+            const SizedBox(height: 16),
+          ],
+
           // ── Timeline (Req 3.6) ─────────────────────────────────────────────
           _BatchTimeline(events: events),
           const SizedBox(height: 24),
@@ -936,6 +943,105 @@ class _TimelineItem extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// [FE - Component Rendering] Widget ini menampilkan metadata audit penolakan
+// dari repository agar petani tahu alasan batch tidak lanjut ke transaksi.
+class _RejectionInfoCard extends StatelessWidget {
+  const _RejectionInfoCard({required this.batch});
+
+  final HarvestBatch batch;
+
+  String _formatDateTime(DateTime dt) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}, $h:$m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = batch.rejectionReason?.trim();
+    final rejectedBy = batch.rejectedBy?.trim();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF5F5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFF3B4B4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.report_problem_outlined,
+                size: 18,
+                color: Color(0xFFD64545),
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Informasi Penolakan',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFD64545),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            reason == null || reason.isEmpty
+                ? 'Batch ditolak, tetapi alasan belum dicatat.'
+                : reason,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              fontWeight: FontWeight.w600,
+              color: AppColors.black,
+            ),
+          ),
+          if (rejectedBy != null && rejectedBy.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Ditolak oleh: $rejectedBy',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.subtitle,
+              ),
+            ),
+          ],
+          if (batch.rejectedAt != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Waktu: ${_formatDateTime(batch.rejectedAt!)}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.subtitle,
+              ),
+            ),
+          ],
         ],
       ),
     );

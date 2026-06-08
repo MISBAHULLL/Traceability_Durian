@@ -56,6 +56,20 @@ class FarmerRepository extends ChangeNotifier {
 
     _batchCounter =
         LocalStorageService.loadInt('farmer_batch_counter') ?? _batches.length;
+    _ensureSeedRejectedBatch();
+  }
+
+  // [FE - State Management] Migrasi seed ini menjaga data demo tetap lengkap
+  // setelah struktur mock bertambah tanpa menghapus data lokal yang sudah ada.
+  void _ensureSeedRejectedBatch() {
+    if (_currentFarmerId != _kSeedFarmerId) return;
+    if (_batches.any((b) => b.code == _kSeedRejectedBatchCode)) return;
+
+    _batches.add(_buildSeedRejectedBatch());
+    if (_batchCounter < _batches.length) {
+      _batchCounter = _batches.length;
+    }
+    _saveToLocal();
   }
 
   // [FE - State Management] Saver ini menulis semua state penting petani ke
@@ -79,6 +93,7 @@ class FarmerRepository extends ChangeNotifier {
   // ── Konstanta seed (dipindahkan dari FarmerMockData — task 13.3) ───────────
 
   static const String _kSeedFarmerId = 'farmer-001';
+  static const String _kSeedRejectedBatchCode = 'DRN-2026-000077';
 
 
   static const FarmerProfile _kSeedProfile = FarmerProfile(
@@ -217,7 +232,35 @@ class FarmerRepository extends ChangeNotifier {
           notes: 'Batch telah diproses UMKM.',
           createdAt: DateTime(2026, 4, 28, 8, 0),
         ),
+        _buildSeedRejectedBatch(),
       ];
+
+  // [FE - State Management] Seed ini menyediakan contoh batch ditolak agar
+  // role petani bisa menguji filter, badge, timeline, dan alasan penolakan.
+  static HarvestBatch _buildSeedRejectedBatch() => HarvestBatch(
+        code: _kSeedRejectedBatchCode,
+        farmerId: _kSeedFarmerId,
+        farmId: 'farm-001',
+        variety: 'Bawor',
+        grade: 'B',
+        quantity: 45,
+        unit: 'kg',
+        fruitCount: 16,
+        harvestDate: DateTime(2026, 4, 20),
+        farmName: 'Kebun Pakis 1',
+        status: BatchStatus.rejected,
+        fertilizer: 'Organik Kompos',
+        harvestMethod: 'Petik Matang',
+        maturityLevel: 'Matang',
+        shelfLifeEstimate: '1-2 hari',
+        storageSuggestion: 'Pisahkan dari batch siap jual.',
+        notes: 'Contoh data untuk alur batch yang tidak lolos verifikasi.',
+        createdAt: DateTime(2026, 4, 20, 8, 45),
+        rejectionReason:
+            'Beberapa buah retak dan tingkat kematangan tidak seragam.',
+        rejectedBy: 'Pengepul Jember',
+        rejectedAt: DateTime(2026, 4, 21, 10, 30),
+      );
 
   /// Singleton instance — diakses dari seluruh UI petani.
   static final FarmerRepository instance = FarmerRepository._seed();
@@ -550,6 +593,33 @@ class FarmerRepository extends ChangeNotifier {
     return true;
   }
 
+  // [FE - State Management] Mutasi ini menjadi jalur penolakan batch dari
+  // pengepul ke petani pada fase mock FE-only.
+  bool rejectBatchByCollector({
+    required String code,
+    required String reason,
+    String rejectedBy = 'Pengepul',
+  }) {
+    final cleanReason = reason.trim();
+    if (cleanReason.isEmpty) return false;
+
+    final index = _batches.indexWhere((b) => b.code == code);
+    if (index == -1) return false;
+
+    final existing = _batches[index];
+    if (existing.status != BatchStatus.created) return false;
+
+    _batches[index] = existing.copyWith(
+      status: BatchStatus.rejected,
+      rejectionReason: cleanReason,
+      rejectedBy: rejectedBy.trim().isEmpty ? 'Pengepul' : rejectedBy.trim(),
+      rejectedAt: DateTime.now(),
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
   // [FE - State Management] eventsFor membangkitkan timeline dari status
   // batch saat ini — pada fase FE-only ini bersifat deterministik;
   // di masa depan akan diganti dengan event nyata dari backend.
@@ -676,9 +746,9 @@ class FarmerRepository extends ChangeNotifier {
         ));
       case BatchStatus.rejected:
         events.add(BatchEvent(
-          title: 'Ditolak',
-          actorLabel: 'Pengepul / Admin',
-          timestamp: createdAt.add(const Duration(days: 1)),
+          title: 'Ditolak Pengepul',
+          actorLabel: batch.rejectedBy ?? 'Pengepul',
+          timestamp: batch.rejectedAt ?? createdAt.add(const Duration(days: 1)),
           status: BatchStatus.rejected,
         ));
     }

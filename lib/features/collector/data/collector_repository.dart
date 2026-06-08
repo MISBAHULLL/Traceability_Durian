@@ -186,6 +186,19 @@ class CollectorRepository extends ChangeNotifier {
     );
   }
 
+  // [FE - Event Handler] Submit penolakan pengepul meneruskan alasan reject
+  // ke FarmerRepository sebagai state utama rantai pasok.
+  bool rejectFreshBatch({
+    required String code,
+    required String reason,
+  }) {
+    return _farmerRepo.rejectBatchByCollector(
+      code: code,
+      reason: reason,
+      rejectedBy: _profile.fullName,
+    );
+  }
+
   // ── Sesi ─────────────────────────────────────────────────────────────────────
 
   // [FE - State Management] registerCollector menjadikan akun yang baru

@@ -37,7 +37,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   CollectorProduct? _selectedProduct;
   String? _verifiedGrade;
+
+  // [FE - State Management] Flag submit/reject ini mengunci aksi paralel
+  // agar satu batch tidak diverifikasi dan ditolak bersamaan.
   bool _isSubmitting = false;
+  bool _isRejecting = false;
 
   @override
   void dispose() {
@@ -124,6 +128,166 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
     Navigator.pop(context);
+  }
+
+  // [FE - Event Handler] _handleReject memvalidasi pilihan batch, meminta
+  // alasan penolakan, lalu mengirim transisi status ke repository pengepul.
+  Future<void> _handleReject() async {
+    FocusScope.of(context).unfocus();
+
+    final selectedProduct = _selectedProduct;
+    if (selectedProduct == null) {
+      _notif.show(
+        context,
+        'Pilih produk yang akan ditolak terlebih dahulu.',
+        isError: true,
+      );
+      return;
+    }
+
+    final reason = await _showRejectReasonDialog(selectedProduct);
+    if (reason == null || reason.trim().isEmpty) return;
+    if (!mounted) return;
+
+    setState(() => _isRejecting = true);
+
+    // Simulasi delay submit; ganti dengan API call POST /trace-events/reject-batch.
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    if (!mounted) return;
+
+    final ok = _repo.rejectFreshBatch(
+      code: selectedProduct.code,
+      reason: reason,
+    );
+
+    setState(() => _isRejecting = false);
+
+    if (!ok) {
+      _notif.show(
+        context,
+        'Batch sudah tidak tersedia untuk ditolak.',
+        isError: true,
+      );
+      return;
+    }
+
+    setState(() {
+      _selectedProduct = null;
+      _verifiedGrade = null;
+      _quantityCtrl.clear();
+      _notesCtrl.clear();
+    });
+
+    _notif.show(
+      context,
+      'Batch ${selectedProduct.name} berhasil ditolak.',
+    );
+
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (!mounted) return;
+    Navigator.pop(context);
+  }
+
+  // [FE - Component Rendering] Dialog ini menjadi pintu input alasan reject
+  // agar penolakan memiliki konteks audit yang bisa dibaca petani.
+  Future<String?> _showRejectReasonDialog(CollectorProduct product) async {
+    final controller = TextEditingController();
+    String? errorText;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.white,
+              title: const Text(
+                'Tolak Batch',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.black,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.code,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: controller,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                      hintText: 'Contoh: buah retak, busuk, atau tidak matang',
+                      errorText: errorText,
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE5E7EB),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFE5E7EB),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFD64545),
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final value = controller.text.trim();
+                    if (value.isEmpty) {
+                      setDialogState(() {
+                        errorText = 'Alasan penolakan wajib diisi.';
+                      });
+                      return;
+                    }
+                    Navigator.pop(dialogContext, value);
+                  },
+                  child: const Text(
+                    'Tolak',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFD64545),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+    return result;
   }
 
   @override
@@ -286,9 +450,48 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     // ── Tombol KIRIM ─────────────────────────────────────
                     PrimaryPillButton(
                       label: 'KIRIM',
-                      onPressed: _handleSubmit,
+                      onPressed: _isRejecting ? null : _handleSubmit,
                       isLoading: _isSubmitting,
                     ),
+                    if (_selectedProduct != null) ...[
+                      const SizedBox(height: 12),
+                      // [FE - Component Rendering] Tombol reject menjadi aksi
+                      // alternatif pengepul selain verifikasi batch.
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _isSubmitting || _isRejecting
+                              ? null
+                              : _handleReject,
+                          icon: _isRejecting
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Color(0xFFD64545),
+                                    ),
+                                  ),
+                                )
+                              : const Icon(Icons.close_rounded),
+                          label: Text(
+                            _isRejecting ? 'MENOLAK...' : 'TOLAK BATCH',
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFD64545),
+                            side: const BorderSide(color: Color(0xFFD64545)),
+                            shape: const StadiumBorder(),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            textStyle: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

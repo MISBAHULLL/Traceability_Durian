@@ -115,7 +115,10 @@ class _TraceContent extends StatelessWidget {
                   label: 'Jumlah Buah',
                   value: '${batch.fruitCount} butir',
                 ),
-              _TraceInfoRow(label: 'Grade Awal', value: 'Grade ${batch.grade}'),
+              _TraceInfoRow(
+                label: 'Grade Awal Petani',
+                value: 'Grade ${batch.grade}',
+              ),
               _TraceInfoRow(
                 label: 'Tanggal Panen',
                 value: _formatDate(batch.harvestDate),

@@ -841,15 +841,21 @@ class FarmerValidator {
     required DateTime? harvestDate,
     required String quantityText,
     required String fruitCountText,
+    required String? photoPath,
   }) {
     if (farm == null) {
       return 'Silakan pilih lokasi kebun terlebih dahulu.';
+    }
+    // [ERROR - Exception Handling] Foto menjadi bukti visual awal batch,
+    // sehingga form ditolak bila petani belum menambahkan gambar durian.
+    if (photoPath == null || photoPath.isEmpty) {
+      return 'Tambahkan foto durian terlebih dahulu.';
     }
     if (variety == null || variety.isEmpty) {
       return 'Silakan pilih varietas durian.';
     }
     if (grade == null || grade.isEmpty) {
-      return 'Silakan pilih grade/mutu durian.';
+      return 'Silakan pilih grade awal estimasi petani.';
     }
     if (unit == null || unit.isEmpty) {
       return 'Silakan pilih satuan panen.';

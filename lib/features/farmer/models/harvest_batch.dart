@@ -158,7 +158,7 @@ class HarvestBatch {
   /// Varietas durian, contoh: Montong, Bawor.
   final String variety;
 
-  /// Grade/mutu, contoh: A, B, C.
+  /// Grade awal estimasi petani, contoh: A, B, C.
   final String grade;
 
   /// Jumlah hasil panen.
@@ -202,11 +202,11 @@ class HarvestBatch {
   /// Waktu batch dibuat — dipakai untuk urutan daftar dan timeline.
   final DateTime? createdAt;
 
-  /// Path/URI foto durian untuk batch ini (opsional).
+  /// Path/URI foto durian untuk batch ini.
   ///
   /// Pada fase FE-only, ini berisi path file lokal (mobile/desktop) atau
   /// blob URL (web) hasil dari image_picker. Di masa depan diganti URL
-  /// gambar dari server.
+  /// gambar dari server. Nullable agar data lama tetap aman dibaca.
   final String? photoPath;
 
   /// Membuat salinan batch dengan field yang diubah.

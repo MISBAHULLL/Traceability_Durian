@@ -255,6 +255,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       harvestDate: _harvestDate,
       quantityText: _quantityController.text,
       fruitCountText: _fruitCountController.text,
+      photoPath: _photoPath,
     );
 
     if (error != null) {
@@ -390,7 +391,9 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── 0. Foto Durian (opsional) ─────────────────────────
+                    // ── 0. Foto Durian ─────────────────────────────────────
+                    // [FE - Component Rendering] Foto durian menjadi bukti
+                    // visual awal batch sebelum data dikirim ke pengepul.
                     _PhotoPickerField(
                       photoPath: _photoPath,
                       onPick: _pickPhoto,
@@ -456,8 +459,8 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                     const SizedBox(height: 16),
 
                     LabeledDropdownField<String>(
-                      label: 'Pilih Grade/Mutu Durian',
-                      hint: 'Pilih grade',
+                      label: 'Pilih Grade Awal (Estimasi Petani)',
+                      hint: 'Pilih grade awal',
                       value: _grade,
                       items: FarmerMasterData.grades,
                       itemLabel: (g) => 'Grade $g',
@@ -625,7 +628,7 @@ class _PhotoPickerField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Foto Durian (opsional)',
+          'Foto Durian',
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,

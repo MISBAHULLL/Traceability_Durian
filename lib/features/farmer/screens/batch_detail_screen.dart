@@ -591,7 +591,7 @@ class _ProductInfoCard extends StatelessWidget {
           const SizedBox(height: 10),
           _InfoRow(
             icon: Icons.star_border_rounded,
-            label: 'Grade/Mutu',
+            label: 'Grade Awal',
             value: 'Grade ${batch.grade}',
           ),
           const SizedBox(height: 10),

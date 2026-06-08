@@ -454,7 +454,10 @@ class _ProductInfo extends StatelessWidget {
           // [FE - Component Rendering] Metadata opsional ini berasal dari
           // batch petani dan membantu pengepul memverifikasi kualitas awal.
           if (product.grade != null && product.grade!.isNotEmpty)
-            _InfoRow(label: 'Grade Awal', value: 'Grade ${product.grade}'),
+            _InfoRow(
+              label: 'Grade Awal Petani',
+              value: 'Grade ${product.grade}',
+            ),
           if (product.maturityLevel != null &&
               product.maturityLevel!.isNotEmpty)
             _InfoRow(

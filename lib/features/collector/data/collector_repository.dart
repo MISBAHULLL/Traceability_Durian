@@ -151,7 +151,7 @@ class CollectorRepository extends ChangeNotifier {
       name: 'Durian ${batch.variety}',
       category: ProductCategory.durianSegar,
       weightRange: '$quantityText ${batch.unit}',
-      taste: 'Grade awal ${batch.grade}',
+      taste: 'Grade awal petani ${batch.grade}',
       fleshDescription: '$maturityText$shelfText',
       location: batch.farmName,
       harvestDate: batch.harvestDate,

@@ -107,7 +107,7 @@ class _TraceContent extends StatelessWidget {
               _TraceInfoRow(label: 'Kode Batch', value: batch.code),
               _TraceInfoRow(label: 'Varietas', value: batch.variety),
               _TraceInfoRow(
-                label: 'Jumlah Panen',
+                label: 'Total Berat',
                 value: '${batch.quantity.toStringAsFixed(0)} ${batch.unit}',
               ),
               if (batch.fruitCount != null)

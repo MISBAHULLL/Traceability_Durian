@@ -65,7 +65,6 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
   String? _fertilizer;
   String? _harvestMethod;
   String? _grade;
-  String? _unit = FarmerMasterData.units.first;
   // [FE - State Management] State ini menyimpan pilihan kualitas durian yang
   // dipakai UI form dan diteruskan ke model HarvestBatch.
   String? _maturityLevel;
@@ -107,7 +106,6 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     _harvestMethod =
         (batch.harvestMethod?.isEmpty ?? true) ? null : batch.harvestMethod;
     _grade = batch.grade;
-    _unit = batch.unit;
     _maturityLevel =
         (batch.maturityLevel?.isEmpty ?? true) ? null : batch.maturityLevel;
     _shelfLifeEstimate = (batch.shelfLifeEstimate?.isEmpty ?? true)
@@ -248,7 +246,6 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       farm: _selectedFarm,
       variety: _variety,
       grade: _grade,
-      unit: _unit,
       maturityLevel: _maturityLevel,
       shelfLifeEstimate: _shelfLifeEstimate,
       harvestMethod: _harvestMethod,
@@ -288,7 +285,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       harvestMethod: _harvestMethod ?? '',
       grade: _grade!,
       quantity: double.parse(_quantityController.text.trim()),
-      unit: _unit!,
+      unit: 'kg',
       fruitCount: int.parse(_fruitCountController.text.trim()),
       harvestDate: _harvestDate!,
       maturityLevel: _maturityLevel!,
@@ -327,7 +324,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       harvestMethod: _harvestMethod ?? '',
       grade: _grade,
       quantity: double.parse(_quantityController.text.trim()),
-      unit: _unit,
+      unit: 'kg',
       fruitCount: int.parse(_fruitCountController.text.trim()),
       harvestDate: _harvestDate,
       maturityLevel: _maturityLevel,
@@ -439,20 +436,9 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                     const SizedBox(height: 16),
 
                     // ── 7. Jumlah Panen (Req 2.2) ──────────────────────────
+                    // [FE - Component Rendering] Berat panen dikunci ke kg
+                    // agar tidak rancu dengan jumlah buah dalam butir.
                     _QuantityField(controller: _quantityController),
-                    const SizedBox(height: 16),
-
-                    // [FE - Component Rendering] Field tambahan ini menjadi
-                    // metadata traceability yang dibawa dari petani ke role
-                    // pengepul, UMKM, retailer, dan konsumen.
-                    LabeledDropdownField<String>(
-                      label: 'Pilih Satuan Panen',
-                      hint: 'Pilih satuan',
-                      value: _unit,
-                      items: FarmerMasterData.units,
-                      itemLabel: (u) => u,
-                      onChanged: (u) => setState(() => _unit = u),
-                    ),
                     const SizedBox(height: 16),
 
                     _FruitCountField(controller: _fruitCountController),
@@ -955,7 +941,7 @@ class _FruitCountField extends StatelessWidget {
   }
 }
 
-/// Input numerik untuk jumlah panen; satuannya dipilih lewat dropdown terpisah.
+/// Input numerik untuk total berat panen dalam kilogram.
 class _QuantityField extends StatelessWidget {
   const _QuantityField({required this.controller});
 
@@ -967,7 +953,7 @@ class _QuantityField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Masukan Jumlah Panen',
+          'Masukan Jumlah Panen (kg)',
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -991,6 +977,12 @@ class _QuantityField extends StatelessWidget {
             hintStyle: const TextStyle(
               fontSize: 14,
               color: AppColors.placeholder,
+            ),
+            suffixText: 'kg',
+            suffixStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.subtitle,
             ),
             filled: true,
             fillColor: AppColors.white,

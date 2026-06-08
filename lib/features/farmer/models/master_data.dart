@@ -36,9 +36,6 @@ class FarmerMasterData {
   /// Grade/mutu durian yang tersedia.
   static const List<String> grades = ['A', 'B', 'C'];
 
-  /// Satuan jumlah panen yang tersedia.
-  static const List<String> units = ['kg', 'buah'];
-
   /// Tingkat kematangan durian saat dicatat oleh petani.
   static const List<String> maturityLevels = [
     'Mentah',

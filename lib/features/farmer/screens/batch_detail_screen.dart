@@ -575,7 +575,7 @@ class _ProductInfoCard extends StatelessWidget {
           const SizedBox(height: 10),
           _InfoRow(
             icon: Icons.scale_outlined,
-            label: 'Jumlah',
+            label: 'Total Berat',
             value: '${batch.quantity.toStringAsFixed(0)} ${batch.unit}',
           ),
           // [FE - Component Rendering] Jumlah buah ditampilkan terpisah dari

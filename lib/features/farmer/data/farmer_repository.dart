@@ -343,6 +343,7 @@ class FarmerRepository extends ChangeNotifier {
       grade: grade,
       quantity: quantity,
       unit: unit,
+      fruitCount: fruitCount,
       harvestDate: harvestDate,
       status: BatchStatus.created,
       createdAt: now,
@@ -834,7 +835,6 @@ class FarmerValidator {
     required Farm? farm,
     required String? variety,
     required String? grade,
-    required String? unit,
     required String? maturityLevel,
     required String? shelfLifeEstimate,
     required String? harvestMethod,
@@ -856,9 +856,6 @@ class FarmerValidator {
     }
     if (grade == null || grade.isEmpty) {
       return 'Silakan pilih grade awal estimasi petani.';
-    }
-    if (unit == null || unit.isEmpty) {
-      return 'Silakan pilih satuan panen.';
     }
     if (maturityLevel == null || maturityLevel.isEmpty) {
       return 'Silakan pilih tingkat kematangan durian.';

@@ -120,6 +120,38 @@ extension BatchFilterX on BatchFilter {
   }
 }
 
+// [DB - Model/Entity] Model ini menyimpan pecahan hasil grading pengepul
+// per mutu agar stok tidak hanya punya satu grade umum.
+class BatchGradeBreakdown {
+  const BatchGradeBreakdown({
+    required this.grade,
+    required this.weightKg,
+    required this.fruitCount,
+  });
+
+  final String grade;
+  final double weightKg;
+  final int fruitCount;
+
+  // [UTIL - Helper Function] Getter ini dipakai validasi agar grade kosong
+  // tidak ikut disimpan ke event verifikasi batch.
+  bool get hasValue => weightKg > 0 || fruitCount > 0;
+
+  Map<String, dynamic> toJson() => {
+        'grade': grade,
+        'weightKg': weightKg,
+        'fruitCount': fruitCount,
+      };
+
+  factory BatchGradeBreakdown.fromJson(Map<String, dynamic> json) {
+    return BatchGradeBreakdown(
+      grade: json['grade'] as String,
+      weightKg: (json['weightKg'] as num).toDouble(),
+      fruitCount: (json['fruitCount'] as num).toInt(),
+    );
+  }
+}
+
 // [DB - Model/Entity] Model ini merepresentasikan satu batch panen durian
 // sebagai unit data utama yang mengalir di seluruh rantai pasok.
 /// Model satu batch panen durian milik petani.
@@ -145,7 +177,9 @@ class HarvestBatch {
     this.createdAt,
     this.photoPath,
     this.receivedQuantity,
+    this.receivedFruitCount,
     this.verifiedGrade,
+    this.gradeBreakdown = const [],
     this.qualityNotes,
     this.verifiedBy,
     this.verifiedAt,
@@ -220,7 +254,9 @@ class HarvestBatch {
   // [DB - Model/Entity] Metadata verifikasi ini menyimpan hasil sortir
   // pengepul tanpa menimpa data panen awal dari petani.
   final double? receivedQuantity;
+  final int? receivedFruitCount;
   final String? verifiedGrade;
+  final List<BatchGradeBreakdown> gradeBreakdown;
   final String? qualityNotes;
   final String? verifiedBy;
   final DateTime? verifiedAt;
@@ -253,7 +289,9 @@ class HarvestBatch {
     DateTime? createdAt,
     String? photoPath,
     double? receivedQuantity,
+    int? receivedFruitCount,
     String? verifiedGrade,
+    List<BatchGradeBreakdown>? gradeBreakdown,
     String? qualityNotes,
     String? verifiedBy,
     DateTime? verifiedAt,
@@ -282,7 +320,9 @@ class HarvestBatch {
       createdAt: createdAt ?? this.createdAt,
       photoPath: photoPath ?? this.photoPath,
       receivedQuantity: receivedQuantity ?? this.receivedQuantity,
+      receivedFruitCount: receivedFruitCount ?? this.receivedFruitCount,
       verifiedGrade: verifiedGrade ?? this.verifiedGrade,
+      gradeBreakdown: gradeBreakdown ?? this.gradeBreakdown,
       qualityNotes: qualityNotes ?? this.qualityNotes,
       verifiedBy: verifiedBy ?? this.verifiedBy,
       verifiedAt: verifiedAt ?? this.verifiedAt,
@@ -315,7 +355,9 @@ class HarvestBatch {
     'createdAt': createdAt?.toIso8601String(),
     'photoPath': photoPath,
     'receivedQuantity': receivedQuantity,
+    'receivedFruitCount': receivedFruitCount,
     'verifiedGrade': verifiedGrade,
+    'gradeBreakdown': gradeBreakdown.map((e) => e.toJson()).toList(),
     'qualityNotes': qualityNotes,
     'verifiedBy': verifiedBy,
     'verifiedAt': verifiedAt?.toIso8601String(),
@@ -352,7 +394,14 @@ class HarvestBatch {
         : null,
     photoPath: json['photoPath'] as String?,
     receivedQuantity: (json['receivedQuantity'] as num?)?.toDouble(),
+    receivedFruitCount: (json['receivedFruitCount'] as num?)?.toInt(),
     verifiedGrade: json['verifiedGrade'] as String?,
+    gradeBreakdown: ((json['gradeBreakdown'] as List<dynamic>?) ?? [])
+        .whereType<Map>()
+        .map((item) => BatchGradeBreakdown.fromJson(
+              Map<String, dynamic>.from(item),
+            ))
+        .toList(),
     qualityNotes: json['qualityNotes'] as String?,
     verifiedBy: json['verifiedBy'] as String?,
     verifiedAt: json['verifiedAt'] != null

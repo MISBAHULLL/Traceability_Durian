@@ -236,13 +236,15 @@ class CollectorRepository extends ChangeNotifier {
   bool verifyFreshBatch({
     required String code,
     required double receivedQuantity,
-    required String verifiedGrade,
+    required int receivedFruitCount,
+    required List<BatchGradeBreakdown> gradeBreakdown,
     String? qualityNotes,
   }) {
     return _farmerRepo.verifyBatchByCollector(
       code: code,
       receivedQuantity: receivedQuantity,
-      verifiedGrade: verifiedGrade,
+      receivedFruitCount: receivedFruitCount,
+      gradeBreakdown: gradeBreakdown,
       qualityNotes: qualityNotes,
       verifiedBy: _profile.fullName,
     );

@@ -139,6 +139,23 @@ class _TraceContent extends StatelessWidget {
                   value:
                       '${batch.receivedQuantity!.toStringAsFixed(0)} ${batch.unit}',
                 ),
+              if (batch.receivedFruitCount != null)
+                _TraceInfoRow(
+                  label: 'Jumlah Diterima',
+                  value: '${batch.receivedFruitCount} butir',
+                ),
+              // [FE - Component Rendering] Komposisi grade memperlihatkan
+              // hasil sortir pengepul sebagai event tambahan traceability.
+              if (batch.gradeBreakdown.isNotEmpty)
+                _TraceInfoRow(
+                  label: 'Komposisi Grade',
+                  value: batch.gradeBreakdown.map((item) {
+                    final weight = item.weightKg % 1 == 0
+                        ? item.weightKg.toStringAsFixed(0)
+                        : item.weightKg.toStringAsFixed(2);
+                    return '${item.grade}: $weight kg / ${item.fruitCount} butir';
+                  }).join('\n'),
+                ),
               if (batch.verifiedBy != null && batch.verifiedBy!.isNotEmpty)
                 _TraceInfoRow(
                   label: 'Diverifikasi Oleh',

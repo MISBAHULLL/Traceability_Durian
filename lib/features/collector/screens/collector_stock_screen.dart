@@ -130,12 +130,26 @@ class _StockCard extends StatelessWidget {
     return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
 
+  // [UTIL - Helper Function] Formatter ini mengubah grade breakdown menjadi
+  // ringkasan stok yang mudah dibaca di kartu pengepul.
+  String _formatGradeBreakdown(HarvestBatch batch) {
+    if (batch.gradeBreakdown.isEmpty) return '';
+    return batch.gradeBreakdown.map((item) {
+      final weight = item.weightKg % 1 == 0
+          ? item.weightKg.toStringAsFixed(0)
+          : item.weightKg.toStringAsFixed(2);
+      return 'Grade ${item.grade}: $weight kg / ${item.fruitCount} butir';
+    }).join('\n');
+  }
+
   @override
   Widget build(BuildContext context) {
     final receivedQty = batch.receivedQuantity ?? batch.quantity;
+    final receivedFruitCount = batch.receivedFruitCount ?? batch.fruitCount;
     final verifiedGrade = batch.verifiedGrade?.isNotEmpty == true
         ? batch.verifiedGrade!
         : batch.grade;
+    final gradeBreakdownText = _formatGradeBreakdown(batch);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -200,13 +214,13 @@ class _StockCard extends StatelessWidget {
               ),
               _InfoData(
                 label: 'Grade Pengepul',
-                value: 'Grade $verifiedGrade',
+                value: 'Dominan Grade $verifiedGrade',
               ),
               _InfoData(
-                label: 'Jumlah Buah',
-                value: batch.fruitCount == null
+                label: 'Jumlah Diterima',
+                value: receivedFruitCount == null
                     ? '-'
-                    : '${batch.fruitCount} butir',
+                    : '$receivedFruitCount butir',
               ),
               _InfoData(
                 label: 'Tanggal Verifikasi',
@@ -216,6 +230,10 @@ class _StockCard extends StatelessWidget {
               ),
             ],
           ),
+          if (gradeBreakdownText.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _GradeBreakdownBox(text: gradeBreakdownText),
+          ],
           if (batch.qualityNotes != null && batch.qualityNotes!.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
@@ -260,6 +278,35 @@ class _StatusPill extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w800,
           color: AppColors.primary,
+        ),
+      ),
+    );
+  }
+}
+
+// [FE - Component Rendering] Box ini menampilkan komposisi grade riil hasil
+// sortir agar stok gudang bisa dilihat per mutu.
+class _GradeBreakdownBox extends StatelessWidget {
+  const _GradeBreakdownBox({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primaryContainer.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 12,
+          height: 1.45,
+          fontWeight: FontWeight.w700,
+          color: AppColors.subtitle,
         ),
       ),
     );

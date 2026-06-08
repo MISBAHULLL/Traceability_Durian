@@ -627,6 +627,29 @@ class _ProductInfoCard extends StatelessWidget {
                   '${batch.receivedQuantity!.toStringAsFixed(0)} ${batch.unit}',
             ),
           ],
+          if (batch.receivedFruitCount != null) ...[
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.inventory_2_outlined,
+              label: 'Jumlah Diterima',
+              value: '${batch.receivedFruitCount} butir',
+            ),
+          ],
+          // [FE - Component Rendering] Rincian grade pengepul membantu petani
+          // melihat hasil sortir riil tanpa mengubah grade awal miliknya.
+          if (batch.gradeBreakdown.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _InfoRow(
+              icon: Icons.grading_outlined,
+              label: 'Komposisi Grade',
+              value: batch.gradeBreakdown.map((item) {
+                final weight = item.weightKg % 1 == 0
+                    ? item.weightKg.toStringAsFixed(0)
+                    : item.weightKg.toStringAsFixed(2);
+                return '${item.grade}: $weight kg / ${item.fruitCount} butir';
+              }).join('\n'),
+            ),
+          ],
           if (batch.verifiedBy != null && batch.verifiedBy!.isNotEmpty) ...[
             const SizedBox(height: 10),
             _InfoRow(

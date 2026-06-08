@@ -172,7 +172,13 @@ class FarmerRepository extends ChangeNotifier {
           notes: 'Sudah lolos sortir awal di kebun.',
           createdAt: DateTime(2026, 5, 20, 9, 0),
           receivedQuantity: 39,
+          receivedFruitCount: 14,
           verifiedGrade: 'B',
+          gradeBreakdown: const [
+            BatchGradeBreakdown(grade: 'A', weightKg: 10, fruitCount: 3),
+            BatchGradeBreakdown(grade: 'B', weightKg: 24, fruitCount: 9),
+            BatchGradeBreakdown(grade: 'C', weightKg: 5, fruitCount: 2),
+          ],
           qualityNotes: 'Berat diterima sesuai, sebagian kulit lecet ringan.',
           verifiedBy: 'Pengepul Jember',
           verifiedAt: DateTime(2026, 5, 21, 10, 0),
@@ -581,11 +587,17 @@ class FarmerRepository extends ChangeNotifier {
   bool verifyBatchByCollector({
     required String code,
     required double receivedQuantity,
-    required String verifiedGrade,
+    required int receivedFruitCount,
+    required List<BatchGradeBreakdown> gradeBreakdown,
     String? qualityNotes,
     String verifiedBy = 'Pengepul',
   }) {
-    if (receivedQuantity <= 0 || verifiedGrade.trim().isEmpty) return false;
+    final cleanBreakdown = gradeBreakdown.where((e) => e.hasValue).toList();
+    if (receivedQuantity <= 0 ||
+        receivedFruitCount <= 0 ||
+        cleanBreakdown.isEmpty) {
+      return false;
+    }
 
     final index = _batches.indexWhere((b) => b.code == code);
     if (index == -1) return false;
@@ -593,10 +605,19 @@ class FarmerRepository extends ChangeNotifier {
     final existing = _batches[index];
     if (existing.status != BatchStatus.created) return false;
 
+    // [FE - State Management] Grade dominan disimpan sebagai ringkasan lama
+    // agar UI yang belum membaca breakdown tetap punya label grade pengepul.
+    final dominantBreakdown = cleanBreakdown.reduce(
+      (a, b) => b.weightKg > a.weightKg ? b : a,
+    );
+    final dominantGrade = dominantBreakdown.grade.trim();
+
     _batches[index] = existing.copyWith(
       status: BatchStatus.verifiedByCollector,
       receivedQuantity: receivedQuantity,
-      verifiedGrade: verifiedGrade.trim(),
+      receivedFruitCount: receivedFruitCount,
+      verifiedGrade: dominantGrade,
+      gradeBreakdown: cleanBreakdown,
       qualityNotes: qualityNotes?.trim(),
       verifiedBy: verifiedBy.trim().isEmpty ? 'Pengepul' : verifiedBy.trim(),
       verifiedAt: DateTime.now(),

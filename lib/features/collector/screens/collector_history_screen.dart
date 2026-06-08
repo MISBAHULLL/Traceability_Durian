@@ -193,7 +193,13 @@ class _HistoryCard extends StatelessWidget {
                     '${(batch.receivedQuantity ?? batch.quantity).toStringAsFixed(0)} ${batch.unit}',
               ),
               _MiniInfo(
-                label: 'Grade',
+                label: 'Butir',
+                value: (batch.receivedFruitCount ?? batch.fruitCount) == null
+                    ? '-'
+                    : '${batch.receivedFruitCount ?? batch.fruitCount}',
+              ),
+              _MiniInfo(
+                label: 'Grade Dominan',
                 value: 'Grade ${batch.verifiedGrade ?? batch.grade}',
               ),
             ],

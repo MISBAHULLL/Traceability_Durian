@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- [CONFIG - Environment] Permission ini mengizinkan plugin scanner
+         membuka kamera device untuk membaca QR batch. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+
     <application
         android:label="DurianTrace"
         android:name="${applicationName}"

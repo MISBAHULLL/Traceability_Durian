@@ -5,7 +5,7 @@
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Aplikasi membutuhkan akses kamera untuk mengambil foto durian batch panen.</string>
+	<string>Aplikasi membutuhkan akses kamera untuk mengambil foto durian dan memindai QR batch.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Aplikasi membutuhkan akses galeri untuk memilih foto durian batch panen.</string>
 	<key>CFBundleDevelopmentRegion</key>

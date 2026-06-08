@@ -122,6 +122,9 @@ class _DrawerHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final subtitle =
+        profile.businessName.isEmpty ? profile.roleLabel : profile.businessName;
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -147,7 +150,7 @@ class _DrawerHeader extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    profile.roleLabel,
+                    subtitle,
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,

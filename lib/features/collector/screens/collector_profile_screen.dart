@@ -6,6 +6,7 @@ import '../../auth/screens/home_screen.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
 import '../widgets/collector_avatar.dart';
+import 'edit_collector_profile_screen.dart';
 
 // [FE - Component Rendering] Layar profil pengepul — menampilkan identitas
 // akun dan aksi keluar (logout). Pola mengikuti Profil Petani.
@@ -34,6 +35,12 @@ class _CollectorProfileScreenState extends State<CollectorProfileScreen> {
 
   void _onRepoChanged() {
     if (mounted) setState(() {});
+  }
+
+  // [FE - Event Handler] Membuka form edit profil pengepul melalui route
+  // khusus agar halaman Profil tetap menjadi layar read-only ringkas.
+  Future<void> _openEditProfile() async {
+    await CollectorRoutes.push(context, const EditCollectorProfileScreen());
   }
 
   // [FE - Event Handler] _confirmLogout menampilkan dialog konfirmasi sebelum
@@ -138,9 +145,30 @@ class _CollectorProfileScreenState extends State<CollectorProfileScreen> {
                   const _SectionTitle(title: 'Informasi Akun'),
                   const SizedBox(height: 8),
                   _InfoTile(
+                    icon: Icons.storefront_outlined,
+                    label: 'Usaha/Lapak',
+                    value: profile.businessName.isEmpty
+                        ? 'Belum dilengkapi'
+                        : profile.businessName,
+                  ),
+                  _InfoTile(
                     icon: Icons.badge_outlined,
                     label: 'Peran',
                     value: profile.roleLabel,
+                  ),
+                  _InfoTile(
+                    icon: Icons.phone_outlined,
+                    label: 'Nomor HP',
+                    value: profile.contact.isEmpty
+                        ? 'Belum dilengkapi'
+                        : profile.contact,
+                  ),
+                  _InfoTile(
+                    icon: Icons.email_outlined,
+                    label: 'Email',
+                    value: profile.email.isEmpty
+                        ? 'Belum dilengkapi'
+                        : profile.email,
                   ),
                   _InfoTile(
                     icon: Icons.place_outlined,
@@ -148,6 +176,34 @@ class _CollectorProfileScreenState extends State<CollectorProfileScreen> {
                     value: profile.location.isEmpty
                         ? 'Belum dilengkapi'
                         : profile.location,
+                  ),
+                  _InfoTile(
+                    icon: Icons.map_outlined,
+                    label: 'Alamat Detail',
+                    value: profile.address.isEmpty
+                        ? 'Belum dilengkapi'
+                        : profile.address,
+                  ),
+                  const SizedBox(height: 12),
+                  // [FE - Component Rendering] Tombol ini menjadi pintu
+                  // masuk form edit tanpa mencampur mode baca dan mode ubah.
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _openEditProfile,
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Ubah Profil & Lokasi'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),

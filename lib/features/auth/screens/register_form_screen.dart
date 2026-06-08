@@ -237,6 +237,8 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
       CollectorRepository.instance.registerCollector(
         firstName: firstName,
         lastName: lastName,
+        phone: phone,
+        email: email,
       );
       destination = const CollectorHomeScreen();
     }

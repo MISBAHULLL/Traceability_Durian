@@ -299,6 +299,9 @@ class _GreetingBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final secondaryLabel =
+        profile.businessName.isEmpty ? profile.roleLabel : profile.businessName;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -312,12 +315,24 @@ class _GreetingBlock extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         Text(
-          profile.roleLabel,
+          secondaryLabel,
           style: const TextStyle(
             fontSize: 13,
             color: AppColors.placeholder,
           ),
         ),
+        // [FE - Component Rendering] Lokasi operasional ditampilkan bila ada
+        // agar pengepul langsung tahu konteks akun yang sedang aktif.
+        if (profile.location.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            profile.location,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.placeholder,
+            ),
+          ),
+        ],
       ],
     );
   }

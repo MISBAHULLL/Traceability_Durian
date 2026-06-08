@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../models/collector_product.dart';
@@ -22,10 +23,31 @@ import '../models/collector_product.dart';
 /// di bawah mengikuti prototype "Beranda — Pengepul Durian".
 class CollectorRepository extends ChangeNotifier {
   CollectorRepository._seed() {
-    _currentCollectorId = _kSeedCollectorId;
-    _profile = _kSeedProfile;
+    _loadFromLocal();
     _products = _buildSeedProducts();
     _farmerRepo.addListener(_onFarmerRepoChanged);
+  }
+
+  // [FE - State Management] Loader ini me-restore profil pengepul dari
+  // SharedPreferences agar edit profil bertahan setelah aplikasi restart.
+  void _loadFromLocal() {
+    _currentCollectorId =
+        LocalStorageService.loadString('collector_current_id') ??
+            _kSeedCollectorId;
+
+    final profileJson = LocalStorageService.loadJson('collector_profile');
+    if (profileJson != null) {
+      _profile = CollectorProfile.fromJson(profileJson);
+    } else {
+      _profile = _kSeedProfile;
+    }
+  }
+
+  // [FE - State Management] Saver ini menulis state profil pengepul ke JSON
+  // lokal setiap ada mutasi identitas, lokasi, atau avatar.
+  void _saveToLocal() {
+    LocalStorageService.saveString('collector_current_id', _currentCollectorId);
+    LocalStorageService.saveJson('collector_profile', _profile.toJson());
   }
 
   // ── Konstanta seed ─────────────────────────────────────────────────────────
@@ -36,6 +58,14 @@ class CollectorRepository extends ChangeNotifier {
     collectorId: _kSeedCollectorId,
     fullName: 'Risqi Firdaus Setiawan',
     roleLabel: 'Pengepul Durian',
+    businessName: 'Lapak Durian Jember',
+    contact: '081234567890',
+    email: 'pengepul@example.com',
+    location: 'Desa Pakis, Kabupaten Jember',
+    village: 'Pakis',
+    district: 'Pakis',
+    city: 'Kabupaten Jember',
+    address: 'Jl. Raya Pakis No. 2',
   );
 
   // [FE - State Management] Seed produk mengikuti prototype: Durian Montong
@@ -208,6 +238,8 @@ class CollectorRepository extends ChangeNotifier {
   CollectorProfile registerCollector({
     required String firstName,
     required String lastName,
+    String phone = '',
+    String email = '',
     String roleLabel = 'Pengepul Durian',
   }) {
     final id = 'collector-${DateTime.now().millisecondsSinceEpoch}';
@@ -216,12 +248,49 @@ class CollectorRepository extends ChangeNotifier {
       collectorId: id,
       fullName: fullName.isEmpty ? 'Pengepul' : fullName,
       roleLabel: roleLabel,
+      contact: phone.isEmpty ? '' : '+62 $phone',
+      email: email.trim(),
     );
 
     _currentCollectorId = id;
     _profile = profile;
+    _saveToLocal();
     notifyListeners();
     return profile;
+  }
+
+  // [FE - State Management] updateProfile memperbarui identitas dan lokasi
+  // operasional pengepul yang dipakai di Beranda, Profil, dan aksi verifikasi.
+  CollectorProfile updateProfile({
+    required String fullName,
+    required String contact,
+    required String email,
+    required String businessName,
+    required String village,
+    required String district,
+    required String city,
+    required String address,
+  }) {
+    final locationParts = <String>[
+      if (village.trim().isNotEmpty) 'Desa ${village.trim()}',
+      if (city.trim().isNotEmpty) city.trim(),
+    ];
+    final location = locationParts.join(', ');
+
+    _profile = _profile.copyWith(
+      fullName: fullName.trim(),
+      contact: contact.trim(),
+      email: email.trim(),
+      businessName: businessName.trim(),
+      village: village.trim(),
+      district: district.trim(),
+      city: city.trim(),
+      address: address.trim(),
+      location: location,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return _profile;
   }
 
   // [FE - State Management] updateAvatar menyimpan path foto profil baru dan
@@ -229,16 +298,15 @@ class CollectorRepository extends ChangeNotifier {
   /// Memperbarui foto profil pengepul yang sedang login.
   void updateAvatar(String? path) {
     _profile = _profile.copyWith(avatarPath: path);
+    _saveToLocal();
     notifyListeners();
   }
 
-  // [FE - State Management] logout mereset seluruh state mock ke kondisi awal
-  // seed — memastikan tidak ada data sesi yang bocor ke sesi berikutnya.
-  /// Mereset seluruh state sesi mock dan menyemai ulang data awal.
+  // [FE - State Management] logout menyimpan state mock terakhir agar data
+  // testing pengepul tetap ada setelah user keluar masuk aplikasi.
+  /// Menyimpan state profil mock sebelum keluar dari sesi.
   void logout() {
-    _currentCollectorId = _kSeedCollectorId;
-    _profile = _kSeedProfile;
-    _products = _buildSeedProducts();
+    _saveToLocal();
     notifyListeners();
   }
 }

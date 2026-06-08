@@ -52,6 +52,7 @@ dependencies:
   # Date/number formatting in Indonesian locale (Req 8.4)
   # Pinned to ^0.20.2 to match flutter_localizations constraint from device_preview
   intl: ^0.20.2
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

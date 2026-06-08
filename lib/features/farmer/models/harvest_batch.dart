@@ -247,6 +247,57 @@ class HarvestBatch {
       photoPath: photoPath ?? this.photoPath,
     );
   }
+
+  // [DB - Model/Entity] Serialisasi ini mengubah batch panen menjadi JSON
+  // lokal agar data traceability tetap ada setelah aplikasi restart.
+  Map<String, dynamic> toJson() => {
+    'code': code,
+    'farmerId': farmerId,
+    'farmId': farmId,
+    'variety': variety,
+    'grade': grade,
+    'quantity': quantity,
+    'unit': unit,
+    'harvestDate': harvestDate.toIso8601String(),
+    'farmName': farmName,
+    'status': status.name,
+    'fertilizer': fertilizer,
+    'harvestMethod': harvestMethod,
+    'maturityLevel': maturityLevel,
+    'shelfLifeEstimate': shelfLifeEstimate,
+    'storageSuggestion': storageSuggestion,
+    'notes': notes,
+    'createdAt': createdAt?.toIso8601String(),
+    'photoPath': photoPath,
+  };
+
+  // [DB - Model/Entity] Factory ini membangun kembali batch dari JSON lokal
+  // dan menjaga status state machine melalui enum BatchStatus.
+  factory HarvestBatch.fromJson(Map<String, dynamic> json) => HarvestBatch(
+    code: json['code'] as String,
+    farmerId: json['farmerId'] as String,
+    farmId: json['farmId'] as String,
+    variety: json['variety'] as String,
+    grade: json['grade'] as String,
+    quantity: (json['quantity'] as num).toDouble(),
+    unit: json['unit'] as String,
+    harvestDate: DateTime.parse(json['harvestDate'] as String),
+    farmName: json['farmName'] as String,
+    status: BatchStatus.values.firstWhere(
+      (e) => e.name == json['status'],
+      orElse: () => BatchStatus.draft,
+    ),
+    fertilizer: json['fertilizer'] as String?,
+    harvestMethod: json['harvestMethod'] as String?,
+    maturityLevel: json['maturityLevel'] as String?,
+    shelfLifeEstimate: json['shelfLifeEstimate'] as String?,
+    storageSuggestion: json['storageSuggestion'] as String?,
+    notes: json['notes'] as String?,
+    createdAt: json['createdAt'] != null
+        ? DateTime.parse(json['createdAt'] as String)
+        : null,
+    photoPath: json['photoPath'] as String?,
+  );
 }
 
 // [DB - Model/Entity] Model ini merepresentasikan profil petani yang login —
@@ -323,4 +374,34 @@ class FarmerProfile {
       avatarPath: avatarPath ?? this.avatarPath,
     );
   }
+
+  // [DB - Model/Entity] Serialisasi ini menyimpan profil petani aktif sebagai
+  // JSON lokal untuk kebutuhan mock login/session FE.
+  Map<String, dynamic> toJson() => {
+    'farmerId': farmerId,
+    'fullName': fullName,
+    'roleLabel': roleLabel,
+    'location': location,
+    'village': village,
+    'district': district,
+    'city': city,
+    'contact': contact,
+    'email': email,
+    'avatarPath': avatarPath,
+  };
+
+  // [DB - Model/Entity] Factory ini memulihkan profil petani dari JSON lokal
+  // dan tetap aman untuk field email/avatar yang opsional.
+  factory FarmerProfile.fromJson(Map<String, dynamic> json) => FarmerProfile(
+    farmerId: json['farmerId'] as String,
+    fullName: json['fullName'] as String,
+    roleLabel: json['roleLabel'] as String,
+    location: json['location'] as String,
+    village: json['village'] as String,
+    district: json['district'] as String,
+    city: json['city'] as String,
+    contact: json['contact'] as String,
+    email: json['email'] as String?,
+    avatarPath: json['avatarPath'] as String?,
+  );
 }

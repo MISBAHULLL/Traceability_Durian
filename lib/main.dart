@@ -6,7 +6,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/screens/splash_screen.dart';
 
-void main() {
+import 'core/storage/local_storage_service.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // [CONFIG - Environment] Init storage lokal sebelum runApp agar repository
+  // dapat memuat mock data tersimpan saat singleton pertama kali dibuat.
+  await LocalStorageService.init();
   runApp(
     DevicePreview(
       // Only enable device preview in debug builds so it does not ship to
@@ -16,6 +22,7 @@ void main() {
     ),
   );
 }
+
 
 class DurianTraceApp extends StatelessWidget {
   const DurianTraceApp({super.key});

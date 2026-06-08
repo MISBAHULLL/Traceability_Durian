@@ -75,6 +75,36 @@ class Farm {
     );
   }
 
+  // [DB - Model/Entity] Serialisasi ini mengubah entitas kebun menjadi JSON
+  // lokal agar pilihan lokasi tetap tersimpan setelah aplikasi restart.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'farmerId': farmerId,
+    'name': name,
+    'province': province,
+    'city': city,
+    'district': district,
+    'village': village,
+    'address': address,
+    'latitude': latitude,
+    'longitude': longitude,
+  };
+
+  // [DB - Model/Entity] Factory ini membangun kembali entitas kebun dari JSON
+  // lokal yang dibaca oleh FarmerRepository.
+  factory Farm.fromJson(Map<String, dynamic> json) => Farm(
+    id: json['id'] as String,
+    farmerId: json['farmerId'] as String,
+    name: json['name'] as String,
+    province: json['province'] as String,
+    city: json['city'] as String,
+    district: json['district'] as String,
+    village: json['village'] as String,
+    address: json['address'] as String,
+    latitude: (json['latitude'] as num?)?.toDouble(),
+    longitude: (json['longitude'] as num?)?.toDouble(),
+  );
+
   @override
   String toString() => name;
 }

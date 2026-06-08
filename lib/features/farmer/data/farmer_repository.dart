@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/storage/local_storage_service.dart';
 import '../models/batch_event.dart';
 import '../models/farm.dart';
 import '../models/harvest_batch.dart';
@@ -23,11 +24,54 @@ import '../models/harvest_batch.dart';
 /// seed data dari [FarmerMockData] akan dipindahkan sepenuhnya ke sini.
 class FarmerRepository extends ChangeNotifier {
   FarmerRepository._seed() {
-    _currentFarmerId = _kSeedFarmerId;
-    _profile = _kSeedProfile;
-    _farms = _buildSeedFarms();
-    _batches = _buildSeedBatches();
-    _batchCounter = _batches.length;
+    _loadFromLocal();
+  }
+
+  // [FE - State Management] Loader ini me-restore state mock dari
+  // SharedPreferences; jika storage kosong, repository memakai seed default.
+  void _loadFromLocal() {
+    _currentFarmerId =
+        LocalStorageService.loadString('farmer_current_id') ?? _kSeedFarmerId;
+
+    final profileJson = LocalStorageService.loadJson('farmer_profile');
+    if (profileJson != null) {
+      _profile = FarmerProfile.fromJson(profileJson);
+    } else {
+      _profile = _kSeedProfile;
+    }
+
+    final farmsJsonList = LocalStorageService.loadJsonList('farmer_farms');
+    if (farmsJsonList != null) {
+      _farms = farmsJsonList.map((e) => Farm.fromJson(e)).toList();
+    } else {
+      _farms = _buildSeedFarms();
+    }
+
+    final batchesJsonList = LocalStorageService.loadJsonList('farmer_batches');
+    if (batchesJsonList != null) {
+      _batches = batchesJsonList.map((e) => HarvestBatch.fromJson(e)).toList();
+    } else {
+      _batches = _buildSeedBatches();
+    }
+
+    _batchCounter =
+        LocalStorageService.loadInt('farmer_batch_counter') ?? _batches.length;
+  }
+
+  // [FE - State Management] Saver ini menulis semua state penting petani ke
+  // JSON lokal setiap ada mutasi agar data tetap ada setelah restart aplikasi.
+  void _saveToLocal() {
+    LocalStorageService.saveString('farmer_current_id', _currentFarmerId);
+    LocalStorageService.saveJson('farmer_profile', _profile.toJson());
+    LocalStorageService.saveJsonList(
+      'farmer_farms',
+      _farms.map((e) => e.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      'farmer_batches',
+      _batches.map((e) => e.toJson()).toList(),
+    );
+    LocalStorageService.saveInt('farmer_batch_counter', _batchCounter);
   }
 
   // [FE - State Management] Seed data dipindahkan dari FarmerMockData ke sini
@@ -35,6 +79,7 @@ class FarmerRepository extends ChangeNotifier {
   // ── Konstanta seed (dipindahkan dari FarmerMockData — task 13.3) ───────────
 
   static const String _kSeedFarmerId = 'farmer-001';
+
 
   static const FarmerProfile _kSeedProfile = FarmerProfile(
     farmerId: _kSeedFarmerId,
@@ -302,6 +347,7 @@ class FarmerRepository extends ChangeNotifier {
       notes: notes,
     );
     _batches.add(batch);
+    _saveToLocal();
     notifyListeners();
     return batch;
   }
@@ -338,6 +384,7 @@ class FarmerRepository extends ChangeNotifier {
       longitude: longitude,
     );
     _farms.add(farm);
+    _saveToLocal();
     notifyListeners();
     return farm;
   }
@@ -436,6 +483,7 @@ class FarmerRepository extends ChangeNotifier {
       notes: notes,
       photoPath: photoPath,
     );
+    _saveToLocal();
     notifyListeners();
     return true;
   }
@@ -488,6 +536,7 @@ class FarmerRepository extends ChangeNotifier {
     if (existing.status != BatchStatus.created) return false;
 
     _batches[index] = existing.copyWith(status: BatchStatus.verifiedByCollector);
+    _saveToLocal();
     notifyListeners();
     return true;
   }
@@ -668,6 +717,7 @@ class FarmerRepository extends ChangeNotifier {
 
     _currentFarmerId = id;
     _profile = profile;
+    _saveToLocal();
     notifyListeners();
     return profile;
   }
@@ -701,38 +751,27 @@ class FarmerRepository extends ChangeNotifier {
       location: location,
       email: email.trim(),
     );
+
+    _saveToLocal();
     notifyListeners();
     return _profile;
   }
 
-  // [FE - State Management] updateAvatar menyimpan path foto profil baru
-  // dan notifikasi listener agar header Profil, drawer, dan Beranda
-  // langsung menampilkan foto terbaru.
-  /// Memperbarui foto profil petani yang sedang login.
+  // [FE - State Management] updateAvatar menyimpan path foto profil petani
+  // ke profil aktif dan local storage agar avatar bertahan setelah restart.
   void updateAvatar(String? path) {
     _profile = _profile.copyWith(avatarPath: path);
+    _saveToLocal();
     notifyListeners();
   }
 
-  // [FE - State Management] logout mereset seluruh state mock ke kondisi
-  // awal seed — memastikan tidak ada data sesi yang bocor ke sesi berikutnya.
-  /// Mereset seluruh state sesi mock dan menyemai ulang data awal.
-  ///
-  /// Dipanggil saat petani menekan "Keluar" di Layar Profil.
+  // [FE - State Management] Logout mock hanya memastikan state terakhir
+  // tersimpan; reset data harus menjadi aksi terpisah agar testing tidak hilang.
   void logout() {
-    _currentFarmerId = _kSeedFarmerId;
-    _profile = _kSeedProfile;
-    _farms = _buildSeedFarms();
-    _batches = _buildSeedBatches();
-    _batchCounter = _batches.length;
+    _saveToLocal();
     notifyListeners();
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// searchAndFilterBatches — helper murni (Req 1.4, 1.5, 1.6)
-// ─────────────────────────────────────────────────────────────────────────────
-
 // [UTIL - Helper Function] searchAndFilterBatches adalah fungsi murni yang
 // memisahkan logika filter dari UI — mudah diuji secara independen (PBT P2)
 // dan dipakai ulang di mana pun daftar batch perlu difilter.

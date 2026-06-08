@@ -86,6 +86,46 @@ class CollectorProduct {
 
   /// Path/URI gambar produk (opsional). Null berarti pakai aset fallback.
   final String? imagePath;
+
+  /// Serialisasi ke Map untuk penyimpanan lokal.
+  Map<String, dynamic> toJson() => {
+    'code': code,
+    'name': name,
+    'category': category.name,
+    'weightRange': weightRange,
+    'taste': taste,
+    'fleshDescription': fleshDescription,
+    'location': location,
+    'harvestDate': harvestDate.toIso8601String(),
+    'treeOwner': treeOwner,
+    'grade': grade,
+    'maturityLevel': maturityLevel,
+    'shelfLifeEstimate': shelfLifeEstimate,
+    'storageSuggestion': storageSuggestion,
+    'imagePath': imagePath,
+  };
+
+  /// Deserialisasi dari Map.
+  factory CollectorProduct.fromJson(Map<String, dynamic> json) =>
+      CollectorProduct(
+        code: json['code'] as String,
+        name: json['name'] as String,
+        category: ProductCategory.values.firstWhere(
+          (e) => e.name == json['category'],
+          orElse: () => ProductCategory.durianSegar,
+        ),
+        weightRange: json['weightRange'] as String,
+        taste: json['taste'] as String,
+        fleshDescription: json['fleshDescription'] as String,
+        location: json['location'] as String,
+        harvestDate: DateTime.parse(json['harvestDate'] as String),
+        treeOwner: json['treeOwner'] as String,
+        grade: json['grade'] as String?,
+        maturityLevel: json['maturityLevel'] as String?,
+        shelfLifeEstimate: json['shelfLifeEstimate'] as String?,
+        storageSuggestion: json['storageSuggestion'] as String?,
+        imagePath: json['imagePath'] as String?,
+      );
 }
 
 // [DB - Model/Entity] Model ini merepresentasikan profil pengepul yang login —
@@ -127,4 +167,23 @@ class CollectorProfile {
       avatarPath: avatarPath ?? this.avatarPath,
     );
   }
+
+  /// Serialisasi ke Map untuk penyimpanan lokal.
+  Map<String, dynamic> toJson() => {
+    'collectorId': collectorId,
+    'fullName': fullName,
+    'roleLabel': roleLabel,
+    'location': location,
+    'avatarPath': avatarPath,
+  };
+
+  /// Deserialisasi dari Map.
+  factory CollectorProfile.fromJson(Map<String, dynamic> json) =>
+      CollectorProfile(
+        collectorId: json['collectorId'] as String,
+        fullName: json['fullName'] as String,
+        roleLabel: json['roleLabel'] as String,
+        location: (json['location'] as String?) ?? '',
+        avatarPath: json['avatarPath'] as String?,
+      );
 }

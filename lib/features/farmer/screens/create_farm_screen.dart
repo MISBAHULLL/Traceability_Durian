@@ -294,10 +294,7 @@ class _FormField extends StatelessWidget {
           inputFormatters: inputFormatters,
           maxLines: maxLines,
           textCapitalization: textCapitalization,
-          style: const TextStyle(
-            fontSize: 14,
-            color: AppColors.black,
-          ),
+          style: const TextStyle(fontSize: 14, color: AppColors.black),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(

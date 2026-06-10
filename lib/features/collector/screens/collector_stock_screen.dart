@@ -74,8 +74,9 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _StockCard(
                               batch: batch,
-                              shipmentCode:
-                                  _repo.shipmentForSourceBatch(batch.code)?.code,
+                              shipmentCode: _repo
+                                  .shipmentForSourceBatch(batch.code)
+                                  ?.code,
                             ),
                           ),
                         ),
@@ -140,8 +141,9 @@ class _StockOverviewPanel extends StatelessWidget {
   final CollectorStockOverview overview;
 
   String _formatWeight(double value) {
-    final text =
-        value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+    final text = value % 1 == 0
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(2);
     return '$text kg';
   }
 
@@ -252,10 +254,7 @@ class _SummaryMetricTile extends StatelessWidget {
 // [FE - Component Rendering] Section breakdown ini memecah stok berdasarkan
 // dimensi operasional seperti grade dan varietas.
 class _StockBreakdownSection extends StatelessWidget {
-  const _StockBreakdownSection({
-    required this.title,
-    required this.items,
-  });
+  const _StockBreakdownSection({required this.title, required this.items});
 
   final String title;
   final List<CollectorStockBreakdown> items;
@@ -288,8 +287,9 @@ class _StockBreakdownRow extends StatelessWidget {
   final CollectorStockBreakdown item;
 
   String _formatWeight(double value) {
-    final text =
-        value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+    final text = value % 1 == 0
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(2);
     return '$text kg';
   }
 
@@ -381,10 +381,7 @@ class _TinyCountPill extends StatelessWidget {
 // [FE - Component Rendering] Kartu stok menggabungkan data panen awal dan
 // metadata verifikasi pengepul sebagai ringkasan operasional.
 class _StockCard extends StatelessWidget {
-  const _StockCard({
-    required this.batch,
-    this.shipmentCode,
-  });
+  const _StockCard({required this.batch, this.shipmentCode});
 
   final HarvestBatch batch;
   final String? shipmentCode;
@@ -411,12 +408,14 @@ class _StockCard extends StatelessWidget {
   // ringkasan stok yang mudah dibaca di kartu pengepul.
   String _formatGradeBreakdown(HarvestBatch batch) {
     if (batch.gradeBreakdown.isEmpty) return '';
-    return batch.gradeBreakdown.map((item) {
-      final weight = item.weightKg % 1 == 0
-          ? item.weightKg.toStringAsFixed(0)
-          : item.weightKg.toStringAsFixed(2);
-      return 'Grade ${item.grade}: $weight kg / ${item.fruitCount} butir';
-    }).join('\n');
+    return batch.gradeBreakdown
+        .map((item) {
+          final weight = item.weightKg % 1 == 0
+              ? item.weightKg.toStringAsFixed(0)
+              : item.weightKg.toStringAsFixed(2);
+          return 'Grade ${item.grade}: $weight kg / ${item.fruitCount} butir';
+        })
+        .join('\n');
   }
 
   @override
@@ -643,10 +642,7 @@ class _AllocatedShipmentBox extends StatelessWidget {
 }
 
 class _InfoData {
-  const _InfoData({
-    required this.label,
-    required this.value,
-  });
+  const _InfoData({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -690,10 +686,7 @@ class _InfoTile extends StatelessWidget {
         children: [
           Text(
             data.label,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppColors.placeholder,
-            ),
+            style: const TextStyle(fontSize: 10, color: AppColors.placeholder),
           ),
           const SizedBox(height: 4),
           Text(

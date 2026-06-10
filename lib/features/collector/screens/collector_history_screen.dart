@@ -115,10 +115,12 @@ class _HistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor =
-        _isRejected ? const Color(0xFFD64545) : AppColors.primary;
+    final statusColor = _isRejected
+        ? const Color(0xFFD64545)
+        : AppColors.primary;
     final statusLabel = _isRejected ? 'Ditolak' : 'Terverifikasi';
-    final eventAt = batch.rejectedAt ??
+    final eventAt =
+        batch.rejectedAt ??
         batch.verifiedAt ??
         batch.createdAt ??
         batch.harvestDate;
@@ -177,10 +179,7 @@ class _HistoryCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             _formatDate(eventAt),
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.placeholder,
-            ),
+            style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -222,10 +221,7 @@ class _HistoryCard extends StatelessWidget {
 }
 
 class _MiniInfo extends StatelessWidget {
-  const _MiniInfo({
-    required this.label,
-    required this.value,
-  });
+  const _MiniInfo({required this.label, required this.value});
 
   final String label;
   final String value;

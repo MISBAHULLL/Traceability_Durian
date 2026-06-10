@@ -123,8 +123,9 @@ class _CollectorProfileScreenState extends State<CollectorProfileScreen> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.primaryContainer
-                                .withValues(alpha: 0.12),
+                            color: AppColors.primaryContainer.withValues(
+                              alpha: 0.12,
+                            ),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
@@ -216,8 +217,10 @@ class _CollectorProfileScreenState extends State<CollectorProfileScreen> {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: _confirmLogout,
-                  icon: const Icon(Icons.logout_rounded,
-                      color: Color(0xFFDC2626)),
+                  icon: const Icon(
+                    Icons.logout_rounded,
+                    color: Color(0xFFDC2626),
+                  ),
                   label: const Text(
                     'Keluar',
                     style: TextStyle(

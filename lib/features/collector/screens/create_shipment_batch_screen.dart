@@ -222,8 +222,9 @@ class _SelectableBatchTile extends StatelessWidget {
   final VoidCallback onTap;
 
   String _formatWeight(double value) {
-    final text =
-        value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+    final text = value % 1 == 0
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(2);
     return '$text kg';
   }
 

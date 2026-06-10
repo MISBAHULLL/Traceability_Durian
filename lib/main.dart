@@ -23,7 +23,6 @@ void main() async {
   );
 }
 
-
 class DurianTraceApp extends StatelessWidget {
   const DurianTraceApp({super.key});
 
@@ -41,10 +40,7 @@ class DurianTraceApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('id', 'ID'),
-        Locale('en', 'US'),
-      ],
+      supportedLocales: const [Locale('id', 'ID'), Locale('en', 'US')],
       theme: AppTheme.light(),
       home: const SplashScreen(),
     );

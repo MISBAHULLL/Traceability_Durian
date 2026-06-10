@@ -22,10 +22,7 @@ import '../models/collector_product.dart';
 /// Mengikuti alur Batch Validation Form (blueprint 08 sec 4.4): pilih produk
 /// (simulasi scan QR) → input receivedQuantity, grade, qualityNotes → submit.
 class AddTransactionScreen extends StatefulWidget {
-  const AddTransactionScreen({
-    super.key,
-    this.initialBatchCode,
-  });
+  const AddTransactionScreen({super.key, this.initialBatchCode});
 
   /// Kode batch hasil scan QR simulasi; jika valid, produk langsung terpilih.
   final String? initialBatchCode;
@@ -147,8 +144,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     // Validasi field wajib
     if (_selectedProduct == null) {
-      _notif.show(context, 'Pilih produk yang akan dibeli terlebih dahulu.',
-          isError: true);
+      _notif.show(
+        context,
+        'Pilih produk yang akan dibeli terlebih dahulu.',
+        isError: true,
+      );
       return;
     }
 
@@ -208,10 +208,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     // [ERROR - Exception Handling] Validasi mass balance ini memastikan total
     // hasil sortir Grade A/B/C sama dengan stok fisik yang diterima pengepul.
     final gradeBreakdown = _buildGradeBreakdown();
-    final totalGradeWeight =
-        gradeBreakdown.fold<double>(0, (sum, item) => sum + item.weightKg);
-    final totalGradeFruit =
-        gradeBreakdown.fold<int>(0, (sum, item) => sum + item.fruitCount);
+    final totalGradeWeight = gradeBreakdown.fold<double>(
+      0,
+      (sum, item) => sum + item.weightKg,
+    );
+    final totalGradeFruit = gradeBreakdown.fold<int>(
+      0,
+      (sum, item) => sum + item.fruitCount,
+    );
     final hasInvalidGrade = gradeBreakdown.any((item) {
       final hasWeight = item.weightKg > 0;
       final hasFruit = item.fruitCount > 0;
@@ -345,10 +349,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _notesCtrl.clear();
     });
 
-    _notif.show(
-      context,
-      'Batch ${selectedProduct.name} berhasil ditolak.',
-    );
+    _notif.show(context, 'Batch ${selectedProduct.name} berhasil ditolak.');
 
     await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
@@ -400,15 +401,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       fillColor: AppColors.surface,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Color(0xFFE5E7EB),
-                        ),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Color(0xFFE5E7EB),
-                        ),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -563,9 +560,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       focusNode: _fruitCountFocus,
                       keyboardType: TextInputType.number,
                       textInputAction: TextInputAction.next,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       onSubmitted: (_) =>
                           FocusScope.of(context).requestFocus(_notesFocus),
                       style: const TextStyle(
@@ -789,17 +784,16 @@ class _ProductDropdown extends StatelessWidget {
             style: TextStyle(fontSize: 14, color: AppColors.placeholder),
           ),
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-              color: AppColors.placeholder),
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: AppColors.placeholder,
+          ),
           items: products.map((p) {
             return DropdownMenuItem(
               value: p,
               child: Text(
                 p.name,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.black,
-                ),
+                style: const TextStyle(fontSize: 14, color: AppColors.black),
               ),
             );
           }).toList(),
@@ -879,22 +873,13 @@ class _ProductInfo extends StatelessWidget {
             ),
           if (product.maturityLevel != null &&
               product.maturityLevel!.isNotEmpty)
-            _InfoRow(
-              label: 'Kematangan',
-              value: product.maturityLevel!,
-            ),
+            _InfoRow(label: 'Kematangan', value: product.maturityLevel!),
           if (product.shelfLifeEstimate != null &&
               product.shelfLifeEstimate!.isNotEmpty)
-            _InfoRow(
-              label: 'Masa Simpan',
-              value: product.shelfLifeEstimate!,
-            ),
+            _InfoRow(label: 'Masa Simpan', value: product.shelfLifeEstimate!),
           if (product.storageSuggestion != null &&
               product.storageSuggestion!.isNotEmpty)
-            _InfoRow(
-              label: 'Saran Simpan',
-              value: product.storageSuggestion!,
-            ),
+            _InfoRow(label: 'Saran Simpan', value: product.storageSuggestion!),
         ],
       ),
     );
@@ -1039,10 +1024,7 @@ class _GradeNumberField extends StatelessWidget {
       ),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(
-          fontSize: 12,
-          color: AppColors.placeholder,
-        ),
+        hintStyle: const TextStyle(fontSize: 12, color: AppColors.placeholder),
         filled: true,
         fillColor: AppColors.white,
         isDense: true,

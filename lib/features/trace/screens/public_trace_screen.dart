@@ -149,12 +149,14 @@ class _TraceContent extends StatelessWidget {
               if (batch.gradeBreakdown.isNotEmpty)
                 _TraceInfoRow(
                   label: 'Komposisi Grade',
-                  value: batch.gradeBreakdown.map((item) {
-                    final weight = item.weightKg % 1 == 0
-                        ? item.weightKg.toStringAsFixed(0)
-                        : item.weightKg.toStringAsFixed(2);
-                    return '${item.grade}: $weight kg / ${item.fruitCount} butir';
-                  }).join('\n'),
+                  value: batch.gradeBreakdown
+                      .map((item) {
+                        final weight = item.weightKg % 1 == 0
+                            ? item.weightKg.toStringAsFixed(0)
+                            : item.weightKg.toStringAsFixed(2);
+                        return '${item.grade}: $weight kg / ${item.fruitCount} butir';
+                      })
+                      .join('\n'),
                 ),
               if (batch.verifiedBy != null && batch.verifiedBy!.isNotEmpty)
                 _TraceInfoRow(
@@ -245,7 +247,11 @@ class _TraceStatusHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.verified_outlined, color: batch.status.color, size: 20),
+              Icon(
+                Icons.verified_outlined,
+                color: batch.status.color,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -377,10 +383,7 @@ class _TraceTimeline extends StatelessWidget {
       title: 'Perjalanan Batch',
       children: [
         for (var i = 0; i < steps.length; i++)
-          _TimelineItem(
-            step: steps[i],
-            isLast: i == steps.length - 1,
-          ),
+          _TimelineItem(step: steps[i], isLast: i == steps.length - 1),
       ],
     );
   }
@@ -398,8 +401,8 @@ class _TraceTimeline extends StatelessWidget {
     final currentIndex = status == BatchStatus.rejected
         ? 0
         : statusIndex < 0
-            ? 0
-            : statusIndex.clamp(0, order.length - 1).toInt();
+        ? 0
+        : statusIndex.clamp(0, order.length - 1).toInt();
 
     return [
       _TraceStep(
@@ -576,10 +579,7 @@ class _TraceNotFound extends StatelessWidget {
           Text(
             batchCode,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.placeholder,
-            ),
+            style: const TextStyle(fontSize: 13, color: AppColors.placeholder),
           ),
         ],
       ),

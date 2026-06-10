@@ -51,9 +51,7 @@ class LocalStorageService {
     if (raw == null) return null;
     try {
       final decoded = jsonDecode(raw) as List<dynamic>;
-      return decoded
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+      return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     } catch (_) {
       // [ERROR - Exception Handling] List JSON lama/korup diabaikan agar
       // aplikasi tetap bisa dibuka dan memakai seed default.

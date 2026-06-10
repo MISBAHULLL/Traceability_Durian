@@ -57,13 +57,13 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
       parent: _animController,
       curve: const Interval(0.0, 0.8, curve: Curves.easeInOutCubic),
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.04),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
-    ));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _animController,
+            curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
+          ),
+        );
     _animController.forward();
 
     _searchController.addListener(() {
@@ -145,10 +145,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
             position: _slideAnim,
             child: Column(
               children: [
-                _TopBar(
-                  onProfile: _openProfile,
-                  onMenu: _openDrawer,
-                ),
+                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
                 Expanded(
                   child: CustomScrollView(
                     slivers: [
@@ -184,22 +181,20 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                           sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final batch = batches[index];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _BatchCard(
-                                    batch: batch,
-                                    onTap: () =>
-                                        _openBatchDetail(batch.code),
-                                    onShowQr: () =>
-                                        _openBatchQr(batch.code),
-                                  ),
-                                );
-                              },
-                              childCount: batches.length,
-                            ),
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              final batch = batches[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _BatchCard(
+                                  batch: batch,
+                                  onTap: () => _openBatchDetail(batch.code),
+                                  onShowQr: () => _openBatchQr(batch.code),
+                                ),
+                              );
+                            }, childCount: batches.length),
                           ),
                         ),
                     ],
@@ -515,10 +510,7 @@ class _SearchField extends StatelessWidget {
       style: const TextStyle(fontSize: 14, color: AppColors.black),
       decoration: InputDecoration(
         hintText: 'Cari kode batch / varietas',
-        hintStyle: const TextStyle(
-          fontSize: 14,
-          color: AppColors.placeholder,
-        ),
+        hintStyle: const TextStyle(fontSize: 14, color: AppColors.placeholder),
         prefixIcon: const Icon(
           Icons.search_rounded,
           color: AppColors.placeholder,
@@ -629,10 +621,7 @@ class _SectionHeader extends StatelessWidget {
         ),
         Text(
           '$count batch',
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.placeholder,
-          ),
+          style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
         ),
       ],
     );
@@ -659,8 +648,18 @@ class _BatchCard extends StatelessWidget {
 
   String _formatDate(DateTime d) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
     ];
     return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
@@ -693,8 +692,8 @@ class _BatchCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: (batch.photoPath != null &&
-                            batch.photoPath!.isNotEmpty)
+                    child:
+                        (batch.photoPath != null && batch.photoPath!.isNotEmpty)
                         ? BatchPhoto(
                             path: batch.photoPath,
                             width: 56,
@@ -748,7 +747,8 @@ class _BatchCard extends StatelessWidget {
                           children: [
                             _MetaItem(
                               icon: Icons.scale_outlined,
-                              text: '${batch.quantity.toStringAsFixed(0)} '
+                              text:
+                                  '${batch.quantity.toStringAsFixed(0)} '
                                   '${batch.unit}',
                             ),
                             _MetaItem(
@@ -829,10 +829,7 @@ class _MetaItem extends StatelessWidget {
         const SizedBox(width: 3),
         Text(
           text,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.subtitle,
-          ),
+          style: const TextStyle(fontSize: 12, color: AppColors.subtitle),
         ),
       ],
     );

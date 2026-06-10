@@ -88,13 +88,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
       parent: _animController,
       curve: Curves.easeInOutCubic,
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.04),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeOutCubic,
-    ));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+        );
     _animController.forward();
   }
 
@@ -200,7 +197,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
       return;
     }
     if (password != confirmPassword) {
-      _showTopNotification('Password dan konfirmasi tidak cocok.', isError: true);
+      _showTopNotification(
+        'Password dan konfirmasi tidak cocok.',
+        isError: true,
+      );
       return;
     }
 
@@ -213,7 +213,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     setState(() => _isLoading = false);
 
     // TODO: Ganti dengan API call saat BE siap
-    _showTopNotification('Pendaftaran berhasil! Selamat datang.', isError: false);
+    _showTopNotification(
+      'Pendaftaran berhasil! Selamat datang.',
+      isError: false,
+    );
 
     // Navigasi ke beranda sesuai role setelah sukses.
     // Saat ini role petani dan pengepul yang memiliki beranda. Role lain
@@ -310,8 +313,9 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                                 textInputAction: TextInputAction.next,
                                 keyboardType: TextInputType.name,
                                 textCapitalization: TextCapitalization.words,
-                                onSubmitted: (_) => FocusScope.of(context)
-                                    .requestFocus(_lastNameFocus),
+                                onSubmitted: (_) => FocusScope.of(
+                                  context,
+                                ).requestFocus(_lastNameFocus),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -323,8 +327,9 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                                 textInputAction: TextInputAction.next,
                                 keyboardType: TextInputType.name,
                                 textCapitalization: TextCapitalization.words,
-                                onSubmitted: (_) => FocusScope.of(context)
-                                    .requestFocus(_phoneFocus),
+                                onSubmitted: (_) => FocusScope.of(
+                                  context,
+                                ).requestFocus(_phoneFocus),
                               ),
                             ),
                           ],
@@ -345,8 +350,8 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                             FilteringTextInputFormatter.digitsOnly,
                             LengthLimitingTextInputFormatter(15),
                           ],
-                          onSubmitted: (_) => FocusScope.of(context)
-                              .requestFocus(_emailFocus),
+                          onSubmitted: (_) =>
+                              FocusScope.of(context).requestFocus(_emailFocus),
                         ),
                         const SizedBox(height: 16),
 
@@ -359,8 +364,9 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                           hintText: 'contoh@email.com',
                           textInputAction: TextInputAction.next,
                           keyboardType: TextInputType.emailAddress,
-                          onSubmitted: (_) => FocusScope.of(context)
-                              .requestFocus(_passwordFocus),
+                          onSubmitted: (_) => FocusScope.of(
+                            context,
+                          ).requestFocus(_passwordFocus),
                         ),
                         const SizedBox(height: 16),
 
@@ -373,8 +379,9 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                           hintText: 'Minimal 8 karakter',
                           obscureText: true,
                           textInputAction: TextInputAction.next,
-                          onSubmitted: (_) => FocusScope.of(context)
-                              .requestFocus(_confirmPasswordFocus),
+                          onSubmitted: (_) => FocusScope.of(
+                            context,
+                          ).requestFocus(_confirmPasswordFocus),
                         ),
                         const SizedBox(height: 16),
 
@@ -403,8 +410,9 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                           child: GestureDetector(
                             onTap: () {
                               // Kembali ke HomeScreen (pop semua sampai root)
-                              Navigator.of(context)
-                                  .popUntil((route) => route.isFirst);
+                              Navigator.of(
+                                context,
+                              ).popUntil((route) => route.isFirst);
                             },
                             behavior: HitTestBehavior.opaque,
                             child: RichText(
@@ -639,8 +647,10 @@ class _FormFieldState extends State<_FormField> {
         ),
         filled: true,
         fillColor: AppColors.surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: border,
         enabledBorder: border,
         focusedBorder: focusedBorder,
@@ -677,8 +687,9 @@ class _RegisterButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primaryContainer,
           foregroundColor: AppColors.white,
-          disabledBackgroundColor:
-              AppColors.primaryContainer.withValues(alpha: 0.6),
+          disabledBackgroundColor: AppColors.primaryContainer.withValues(
+            alpha: 0.6,
+          ),
           elevation: 0,
           shape: const StadiumBorder(),
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -689,8 +700,7 @@ class _RegisterButton extends StatelessWidget {
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(AppColors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
                 ),
               )
             : const Text(
@@ -723,8 +733,7 @@ class _TopNotificationBanner extends StatefulWidget {
   final VoidCallback onDismiss;
 
   @override
-  State<_TopNotificationBanner> createState() =>
-      _TopNotificationBannerState();
+  State<_TopNotificationBanner> createState() => _TopNotificationBannerState();
 }
 
 class _TopNotificationBannerState extends State<_TopNotificationBanner>
@@ -764,12 +773,15 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
-    final bgColor =
-        widget.isError ? const Color(0xFFFFDAD6) : const Color(0xFFDCF5DC);
-    final textColor =
-        widget.isError ? const Color(0xFF7F1D1D) : const Color(0xFF14532D);
-    final iconColor =
-        widget.isError ? const Color(0xFFB91C1C) : const Color(0xFF16A34A);
+    final bgColor = widget.isError
+        ? const Color(0xFFFFDAD6)
+        : const Color(0xFFDCF5DC);
+    final textColor = widget.isError
+        ? const Color(0xFF7F1D1D)
+        : const Color(0xFF14532D);
+    final iconColor = widget.isError
+        ? const Color(0xFFB91C1C)
+        : const Color(0xFF16A34A);
 
     return Positioned(
       top: topPadding + 12,
@@ -785,8 +797,10 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(14),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: bgColor,
                   borderRadius: BorderRadius.circular(14),

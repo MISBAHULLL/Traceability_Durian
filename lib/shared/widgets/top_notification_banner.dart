@@ -62,12 +62,15 @@ class _TopNotificationBannerState extends State<TopNotificationBanner>
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
-    final bgColor =
-        widget.isError ? const Color(0xFFFFDAD6) : const Color(0xFFDCF5DC);
-    final textColor =
-        widget.isError ? const Color(0xFF7F1D1D) : const Color(0xFF14532D);
-    final iconColor =
-        widget.isError ? const Color(0xFFB91C1C) : const Color(0xFF16A34A);
+    final bgColor = widget.isError
+        ? const Color(0xFFFFDAD6)
+        : const Color(0xFFDCF5DC);
+    final textColor = widget.isError
+        ? const Color(0xFF7F1D1D)
+        : const Color(0xFF14532D);
+    final iconColor = widget.isError
+        ? const Color(0xFFB91C1C)
+        : const Color(0xFF16A34A);
 
     return Positioned(
       top: topPadding + 12,
@@ -83,8 +86,10 @@ class _TopNotificationBannerState extends State<TopNotificationBanner>
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(14),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: bgColor,
                   borderRadius: BorderRadius.circular(14),
@@ -146,11 +151,7 @@ class TopNotification {
   OverlayEntry? _entry;
 
   /// Menampilkan banner. Banner sebelumnya (jika ada) akan dihapus dulu.
-  void show(
-    BuildContext context,
-    String message, {
-    bool isError = false,
-  }) {
+  void show(BuildContext context, String message, {bool isError = false}) {
     _entry?.remove();
     _entry = null;
 

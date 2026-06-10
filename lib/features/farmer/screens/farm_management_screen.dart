@@ -126,10 +126,7 @@ class _FarmList extends StatelessWidget {
             itemCount: farms.length,
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
-              return _FarmCard(
-                farm: farms[index],
-                selectMode: selectMode,
-              );
+              return _FarmCard(farm: farms[index], selectMode: selectMode);
             },
           ),
         ),
@@ -320,10 +317,7 @@ class _EmptyState extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 32),
-          PrimaryPillButton(
-            label: 'BUAT KEBUN',
-            onPressed: onCreateFarm,
-          ),
+          PrimaryPillButton(label: 'BUAT KEBUN', onPressed: onCreateFarm),
         ],
       ),
     );

@@ -35,7 +35,7 @@ class CollectorRepository extends ChangeNotifier {
   void _loadFromLocal() {
     _currentCollectorId =
         LocalStorageService.loadString('collector_current_id') ??
-            _kSeedCollectorId;
+        _kSeedCollectorId;
 
     final profileJson = LocalStorageService.loadJson('collector_profile');
     if (profileJson != null) {
@@ -44,8 +44,9 @@ class CollectorRepository extends ChangeNotifier {
       _profile = _kSeedProfile;
     }
 
-    final shipmentsJsonList =
-        LocalStorageService.loadJsonList('collector_shipment_batches');
+    final shipmentsJsonList = LocalStorageService.loadJsonList(
+      'collector_shipment_batches',
+    );
     if (shipmentsJsonList != null) {
       _shipmentBatches = shipmentsJsonList
           .map((e) => CollectorShipmentBatch.fromJson(e))
@@ -56,7 +57,7 @@ class CollectorRepository extends ChangeNotifier {
 
     _shipmentCounter =
         LocalStorageService.loadInt('collector_shipment_counter') ??
-            _shipmentBatches.length;
+        _shipmentBatches.length;
   }
 
   // [FE - State Management] Saver ini menulis state profil pengepul ke JSON
@@ -68,10 +69,7 @@ class CollectorRepository extends ChangeNotifier {
       'collector_shipment_batches',
       _shipmentBatches.map((e) => e.toJson()).toList(),
     );
-    LocalStorageService.saveInt(
-      'collector_shipment_counter',
-      _shipmentCounter,
-    );
+    LocalStorageService.saveInt('collector_shipment_counter', _shipmentCounter);
   }
 
   // ── Konstanta seed ─────────────────────────────────────────────────────────
@@ -96,55 +94,59 @@ class CollectorRepository extends ChangeNotifier {
   // dan Durian Bawor dengan deskripsi lengkap. Field deskriptif berasal dari
   // data panen petani (warisan, read-only bagi pengepul).
   static List<CollectorProduct> _buildSeedProducts() => [
-        CollectorProduct(
-          code: 'DRN-2026-000128',
-          name: 'Durian Montong',
-          category: ProductCategory.durianSegar,
-          weightRange: '3 - 6 Kg',
-          taste: 'Manis legit dan intens',
-          fleshDescription: 'Berwarna kuning keemasan, teksturnya lembut, '
-              'padat, creamy, dan tebal',
-          location: 'Desa Panti, Kecamatan Panti, Kabupaten Jember',
-          harvestDate: DateTime(2025, 2, 21),
-          treeOwner: 'Bapak Rusdi',
-        ),
-        CollectorProduct(
-          code: 'DRN-2026-000119',
-          name: 'Durian Bawor',
-          category: ProductCategory.durianSegar,
-          weightRange: '3 - 10 Kg',
-          taste: 'Manis legit yang khas',
-          fleshDescription: 'Berwarna oranye hingga kuning keemasan, tebal, '
-              'dengan tekstur creamy dan legit',
-          location: 'Desa Wonomulyo, Kecamatan Wonosalam, Kabupaten Jombang',
-          harvestDate: DateTime(2025, 2, 15),
-          treeOwner: 'Bapak Rustam',
-        ),
-        CollectorProduct(
-          code: 'DRN-2026-000142',
-          name: 'Lempok Durian',
-          category: ProductCategory.durianOlahan,
-          weightRange: '250 - 500 gr',
-          taste: 'Manis legit khas dodol durian',
-          fleshDescription: 'Olahan daging durian dimasak hingga kalis, '
-              'bertekstur kenyal dan padat',
-          location: 'Desa Sumberejo, Kecamatan Ambulu, Kabupaten Jember',
-          harvestDate: DateTime(2025, 2, 10),
-          treeOwner: 'Bapak Hadi',
-        ),
-        CollectorProduct(
-          code: 'DRN-2026-000156',
-          name: 'Bibit Durian Musang King',
-          category: ProductCategory.bibitDurian,
-          weightRange: '40 - 60 cm',
-          taste: '-',
-          fleshDescription: 'Bibit hasil okulasi unggul, batang kokoh, '
-              'daun hijau segar siap tanam',
-          location: 'Desa Pakis, Kecamatan Panti, Kabupaten Jember',
-          harvestDate: DateTime(2025, 1, 28),
-          treeOwner: 'Bapak Slamet',
-        ),
-      ];
+    CollectorProduct(
+      code: 'DRN-2026-000128',
+      name: 'Durian Montong',
+      category: ProductCategory.durianSegar,
+      weightRange: '3 - 6 Kg',
+      taste: 'Manis legit dan intens',
+      fleshDescription:
+          'Berwarna kuning keemasan, teksturnya lembut, '
+          'padat, creamy, dan tebal',
+      location: 'Desa Panti, Kecamatan Panti, Kabupaten Jember',
+      harvestDate: DateTime(2025, 2, 21),
+      treeOwner: 'Bapak Rusdi',
+    ),
+    CollectorProduct(
+      code: 'DRN-2026-000119',
+      name: 'Durian Bawor',
+      category: ProductCategory.durianSegar,
+      weightRange: '3 - 10 Kg',
+      taste: 'Manis legit yang khas',
+      fleshDescription:
+          'Berwarna oranye hingga kuning keemasan, tebal, '
+          'dengan tekstur creamy dan legit',
+      location: 'Desa Wonomulyo, Kecamatan Wonosalam, Kabupaten Jombang',
+      harvestDate: DateTime(2025, 2, 15),
+      treeOwner: 'Bapak Rustam',
+    ),
+    CollectorProduct(
+      code: 'DRN-2026-000142',
+      name: 'Lempok Durian',
+      category: ProductCategory.durianOlahan,
+      weightRange: '250 - 500 gr',
+      taste: 'Manis legit khas dodol durian',
+      fleshDescription:
+          'Olahan daging durian dimasak hingga kalis, '
+          'bertekstur kenyal dan padat',
+      location: 'Desa Sumberejo, Kecamatan Ambulu, Kabupaten Jember',
+      harvestDate: DateTime(2025, 2, 10),
+      treeOwner: 'Bapak Hadi',
+    ),
+    CollectorProduct(
+      code: 'DRN-2026-000156',
+      name: 'Bibit Durian Musang King',
+      category: ProductCategory.bibitDurian,
+      weightRange: '40 - 60 cm',
+      taste: '-',
+      fleshDescription:
+          'Bibit hasil okulasi unggul, batang kokoh, '
+          'daun hijau segar siap tanam',
+      location: 'Desa Pakis, Kecamatan Panti, Kabupaten Jember',
+      harvestDate: DateTime(2025, 1, 28),
+      treeOwner: 'Bapak Slamet',
+    ),
+  ];
 
   /// Singleton instance — diakses dari seluruh UI pengepul.
   static final CollectorRepository instance = CollectorRepository._seed();
@@ -306,8 +308,7 @@ class CollectorRepository extends ChangeNotifier {
   bool markShipmentSent(String code) {
     final index = _shipmentBatches.indexWhere(
       (shipment) =>
-          shipment.collectorId == _currentCollectorId &&
-          shipment.code == code,
+          shipment.collectorId == _currentCollectorId && shipment.code == code,
     );
     if (index == -1) return false;
 
@@ -328,8 +329,7 @@ class CollectorRepository extends ChangeNotifier {
   bool completeShipment(String code) {
     final index = _shipmentBatches.indexWhere(
       (shipment) =>
-          shipment.collectorId == _currentCollectorId &&
-          shipment.code == code,
+          shipment.collectorId == _currentCollectorId && shipment.code == code,
     );
     if (index == -1) return false;
 
@@ -432,7 +432,9 @@ class CollectorRepository extends ChangeNotifier {
   List<CollectorStockBreakdown> _sortedBuckets(
     Map<String, _MutableStockBucket> buckets,
   ) {
-    final values = buckets.values.map((bucket) => bucket.toBreakdown()).toList();
+    final values = buckets.values
+        .map((bucket) => bucket.toBreakdown())
+        .toList();
     values.sort((a, b) => a.label.compareTo(b.label));
     return List.unmodifiable(values);
   }
@@ -512,10 +514,7 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - Event Handler] Submit penolakan pengepul meneruskan alasan reject
   // ke FarmerRepository sebagai state utama rantai pasok.
-  bool rejectFreshBatch({
-    required String code,
-    required String reason,
-  }) {
+  bool rejectFreshBatch({required String code, required String reason}) {
     return _farmerRepo.rejectBatchByCollector(
       code: code,
       reason: reason,
@@ -626,10 +625,7 @@ class CollectorRepository extends ChangeNotifier {
 // [UTIL - Helper Function] Bucket internal ini hanya dipakai repository untuk
 // membangun DTO CollectorStockOverview dari batch stok mock.
 class _MutableStockBucket {
-  _MutableStockBucket({
-    required this.key,
-    required this.label,
-  });
+  _MutableStockBucket({required this.key, required this.label});
 
   final String key;
   final String label;
@@ -656,7 +652,8 @@ List<CollectorProduct> searchAndFilterProducts(
   final q = query.trim().toLowerCase();
   return products.where((p) {
     final matchCategory = p.category == category;
-    final matchQuery = q.isEmpty ||
+    final matchQuery =
+        q.isEmpty ||
         p.code.toLowerCase().contains(q) ||
         p.name.toLowerCase().contains(q);
     return matchCategory && matchQuery;

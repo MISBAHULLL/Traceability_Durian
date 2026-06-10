@@ -138,10 +138,10 @@ class BatchGradeBreakdown {
   bool get hasValue => weightKg > 0 || fruitCount > 0;
 
   Map<String, dynamic> toJson() => {
-        'grade': grade,
-        'weightKg': weightKg,
-        'fruitCount': fruitCount,
-      };
+    'grade': grade,
+    'weightKg': weightKg,
+    'fruitCount': fruitCount,
+  };
 
   factory BatchGradeBreakdown.fromJson(Map<String, dynamic> json) {
     return BatchGradeBreakdown(
@@ -398,9 +398,10 @@ class HarvestBatch {
     verifiedGrade: json['verifiedGrade'] as String?,
     gradeBreakdown: ((json['gradeBreakdown'] as List<dynamic>?) ?? [])
         .whereType<Map>()
-        .map((item) => BatchGradeBreakdown.fromJson(
-              Map<String, dynamic>.from(item),
-            ))
+        .map(
+          (item) =>
+              BatchGradeBreakdown.fromJson(Map<String, dynamic>.from(item)),
+        )
         .toList(),
     qualityNotes: json['qualityNotes'] as String?,
     verifiedBy: json['verifiedBy'] as String?,

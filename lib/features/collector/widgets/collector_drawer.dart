@@ -170,8 +170,9 @@ class _DrawerHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subtitle =
-        profile.businessName.isEmpty ? profile.roleLabel : profile.businessName;
+    final subtitle = profile.businessName.isEmpty
+        ? profile.roleLabel
+        : profile.businessName;
 
     return GestureDetector(
       onTap: onTap,

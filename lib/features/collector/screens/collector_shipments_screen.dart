@@ -125,17 +125,15 @@ class _EmptyShipment extends StatelessWidget {
 // [FE - Component Rendering] Kartu ini menampilkan satu batch agregat beserta
 // provenance tree sederhana berupa daftar kode batch petani asal.
 class _ShipmentCard extends StatelessWidget {
-  const _ShipmentCard({
-    required this.shipment,
-    required this.onQr,
-  });
+  const _ShipmentCard({required this.shipment, required this.onQr});
 
   final CollectorShipmentBatch shipment;
   final VoidCallback onQr;
 
   String _formatWeight(double value) {
-    final text =
-        value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+    final text = value % 1 == 0
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(2);
     return '$text kg';
   }
 
@@ -222,10 +220,7 @@ class _ShipmentCard extends StatelessWidget {
                 label: 'Berat',
                 value: _formatWeight(shipment.totalWeightKg),
               ),
-              _MiniInfo(
-                label: 'Butir',
-                value: '${shipment.totalFruitCount}',
-              ),
+              _MiniInfo(label: 'Butir', value: '${shipment.totalFruitCount}'),
               _MiniInfo(
                 label: 'Dikemas',
                 value: _formatDate(shipment.packagedAt),
@@ -297,10 +292,12 @@ class _ShipmentCard extends StatelessWidget {
   }
 
   String _formatBreakdown(List<CollectorStockBreakdown> items) {
-    return items.map((item) {
-      return '${item.label}: ${_formatWeight(item.totalWeightKg)} / '
-          '${item.totalFruitCount} butir';
-    }).join('\n');
+    return items
+        .map((item) {
+          return '${item.label}: ${_formatWeight(item.totalWeightKg)} / '
+              '${item.totalFruitCount} butir';
+        })
+        .join('\n');
   }
 }
 
@@ -330,10 +327,7 @@ class _StatusPill extends StatelessWidget {
 }
 
 class _MiniInfo extends StatelessWidget {
-  const _MiniInfo({
-    required this.label,
-    required this.value,
-  });
+  const _MiniInfo({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -359,10 +353,7 @@ class _MiniInfo extends StatelessWidget {
 }
 
 class _BreakdownText extends StatelessWidget {
-  const _BreakdownText({
-    required this.title,
-    required this.text,
-  });
+  const _BreakdownText({required this.title, required this.text});
 
   final String title;
   final String text;

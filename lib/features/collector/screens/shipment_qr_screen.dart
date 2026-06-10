@@ -94,10 +94,7 @@ class _ShipmentQrScreenState extends State<ShipmentQrScreen> {
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
                       children: [
-                        _ShipmentQrCard(
-                          shipment: shipment,
-                          payload: payload,
-                        ),
+                        _ShipmentQrCard(shipment: shipment, payload: payload),
                         const SizedBox(height: 16),
                         _ShipmentInfoCard(shipment: shipment),
                         const SizedBox(height: 20),
@@ -138,10 +135,7 @@ class _MissingShipment extends StatelessWidget {
         child: Text(
           'Batch pengiriman tidak ditemukan.',
           textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 13,
-            color: AppColors.placeholder,
-          ),
+          style: TextStyle(fontSize: 13, color: AppColors.placeholder),
         ),
       ),
     );
@@ -151,10 +145,7 @@ class _MissingShipment extends StatelessWidget {
 // [FE - Component Rendering] Card ini menjadi representasi QR yang akan
 // discan distributor saat handover fisik.
 class _ShipmentQrCard extends StatelessWidget {
-  const _ShipmentQrCard({
-    required this.shipment,
-    required this.payload,
-  });
+  const _ShipmentQrCard({required this.shipment, required this.payload});
 
   final CollectorShipmentBatch shipment;
   final String payload;
@@ -217,8 +208,9 @@ class _ShipmentInfoCard extends StatelessWidget {
   final CollectorShipmentBatch shipment;
 
   String _formatWeight(double value) {
-    final text =
-        value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+    final text = value % 1 == 0
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(2);
     return '$text kg';
   }
 
@@ -251,10 +243,7 @@ class _ShipmentInfoCard extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-  });
+  const _InfoRow({required this.label, required this.value});
 
   final String label;
   final String value;

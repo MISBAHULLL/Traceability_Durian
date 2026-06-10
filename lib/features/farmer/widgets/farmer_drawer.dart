@@ -154,10 +154,7 @@ class FarmerDrawer extends StatelessWidget {
 
 /// Header drawer berisi avatar foto/inisial, nama, dan label peran petani.
 class _DrawerHeader extends StatelessWidget {
-  const _DrawerHeader({
-    required this.profile,
-    required this.onTap,
-  });
+  const _DrawerHeader({required this.profile, required this.onTap});
 
   final FarmerProfile profile;
   final VoidCallback onTap;

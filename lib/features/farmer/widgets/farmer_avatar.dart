@@ -91,29 +91,32 @@ class FarmerAvatar extends StatelessWidget {
           children: [
             const SizedBox(height: 8),
             ListTile(
-              leading: const Icon(Icons.photo_camera_outlined,
-                  color: AppColors.primary),
+              leading: const Icon(
+                Icons.photo_camera_outlined,
+                color: AppColors.primary,
+              ),
               title: const Text('Ambil dari Kamera'),
-              onTap: () =>
-                  Navigator.pop(sheetCtx, _AvatarAction.camera),
+              onTap: () => Navigator.pop(sheetCtx, _AvatarAction.camera),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined,
-                  color: AppColors.primary),
+              leading: const Icon(
+                Icons.photo_library_outlined,
+                color: AppColors.primary,
+              ),
               title: const Text('Pilih dari Galeri'),
-              onTap: () =>
-                  Navigator.pop(sheetCtx, _AvatarAction.gallery),
+              onTap: () => Navigator.pop(sheetCtx, _AvatarAction.gallery),
             ),
             if (hasPhoto)
               ListTile(
-                leading: const Icon(Icons.delete_outline,
-                    color: Color(0xFFDC2626)),
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: Color(0xFFDC2626),
+                ),
                 title: const Text(
                   'Hapus Foto Profil',
                   style: TextStyle(color: Color(0xFFDC2626)),
                 ),
-                onTap: () =>
-                    Navigator.pop(sheetCtx, _AvatarAction.remove),
+                onTap: () => Navigator.pop(sheetCtx, _AvatarAction.remove),
               ),
             const SizedBox(height: 8),
           ],
@@ -152,11 +155,17 @@ class FarmerAvatar extends StatelessWidget {
   static Widget _photoAvatar(String path, double size) {
     Widget img;
     if (kIsWeb) {
-      img = Image.network(path, fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => const SizedBox.shrink());
+      img = Image.network(
+        path,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+      );
     } else {
-      img = Image.file(File(path), fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => const SizedBox.shrink());
+      img = Image.file(
+        File(path),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+      );
     }
     return ClipOval(
       child: SizedBox(width: size, height: size, child: img),

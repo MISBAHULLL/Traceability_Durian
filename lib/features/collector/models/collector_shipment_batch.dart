@@ -73,19 +73,19 @@ class CollectorShipmentBatch {
   }
 
   Map<String, dynamic> toJson() => {
-        'code': code,
-        'collectorId': collectorId,
-        'sourceBatchCodes': sourceBatchCodes,
-        'totalWeightKg': totalWeightKg,
-        'totalFruitCount': totalFruitCount,
-        'gradeBreakdown': gradeBreakdown.map((e) => e.toJson()).toList(),
-        'varietyBreakdown': varietyBreakdown.map((e) => e.toJson()).toList(),
-        'packagedAt': packagedAt.toIso8601String(),
-        'status': status.name,
-        'warehouseNote': warehouseNote,
-        'sentAt': sentAt?.toIso8601String(),
-        'completedAt': completedAt?.toIso8601String(),
-      };
+    'code': code,
+    'collectorId': collectorId,
+    'sourceBatchCodes': sourceBatchCodes,
+    'totalWeightKg': totalWeightKg,
+    'totalFruitCount': totalFruitCount,
+    'gradeBreakdown': gradeBreakdown.map((e) => e.toJson()).toList(),
+    'varietyBreakdown': varietyBreakdown.map((e) => e.toJson()).toList(),
+    'packagedAt': packagedAt.toIso8601String(),
+    'status': status.name,
+    'warehouseNote': warehouseNote,
+    'sentAt': sentAt?.toIso8601String(),
+    'completedAt': completedAt?.toIso8601String(),
+  };
 
   factory CollectorShipmentBatch.fromJson(Map<String, dynamic> json) {
     return CollectorShipmentBatch(
@@ -98,15 +98,19 @@ class CollectorShipmentBatch {
       totalFruitCount: (json['totalFruitCount'] as num).toInt(),
       gradeBreakdown: ((json['gradeBreakdown'] as List<dynamic>?) ?? [])
           .whereType<Map>()
-          .map((item) => CollectorStockBreakdown.fromJson(
-                Map<String, dynamic>.from(item),
-              ))
+          .map(
+            (item) => CollectorStockBreakdown.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
           .toList(),
       varietyBreakdown: ((json['varietyBreakdown'] as List<dynamic>?) ?? [])
           .whereType<Map>()
-          .map((item) => CollectorStockBreakdown.fromJson(
-                Map<String, dynamic>.from(item),
-              ))
+          .map(
+            (item) => CollectorStockBreakdown.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
           .toList(),
       packagedAt: DateTime.parse(json['packagedAt'] as String),
       status: CollectorShipmentStatus.values.firstWhere(

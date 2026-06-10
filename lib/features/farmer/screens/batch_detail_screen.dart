@@ -33,10 +33,7 @@ String _formatRemaining(Duration d) {
 /// Bila [batchCode] tidak ditemukan di repository, layar menampilkan
 /// state "Batch tidak ditemukan" dengan tombol kembali.
 class BatchDetailScreen extends StatefulWidget {
-  const BatchDetailScreen({
-    super.key,
-    required this.batchCode,
-  });
+  const BatchDetailScreen({super.key, required this.batchCode});
 
   /// Kode batch yang akan ditampilkan detailnya.
   final String batchCode;
@@ -67,10 +64,7 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
   // ── Navigasi ───────────────────────────────────────────────────────────────
 
   void _openQr() {
-    FarmerRoutes.push(
-      context,
-      BatchQrScreen(batchCode: widget.batchCode),
-    );
+    FarmerRoutes.push(context, BatchQrScreen(batchCode: widget.batchCode));
   }
 
   Future<void> _openEdit() async {
@@ -242,10 +236,7 @@ class _BatchDetailContent extends StatelessWidget {
           const SizedBox(height: 24),
 
           // ── Aksi Utama → QR (Req 3.7) ─────────────────────────────────────
-          PrimaryPillButton(
-            label: 'LIHAT QR CODE',
-            onPressed: onOpenQr,
-          ),
+          PrimaryPillButton(label: 'LIHAT QR CODE', onPressed: onOpenQr),
 
           // ── Aksi Ubah Data — selama jendela koreksi terbuka (Req 3.8) ────
           // Tampil bila batch masih dapat diubah (DRAFT, atau CREATED dalam
@@ -305,8 +296,9 @@ class _FarmerProfileSection extends StatelessWidget {
       if (profile.district.isNotEmpty) 'Kec. ${profile.district}',
       if (profile.city.isNotEmpty) profile.city,
     ];
-    final address =
-        addressParts.isNotEmpty ? addressParts.join(', ') : 'Alamat belum dilengkapi';
+    final address = addressParts.isNotEmpty
+        ? addressParts.join(', ')
+        : 'Alamat belum dilengkapi';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -492,11 +484,7 @@ class _BatchCodeRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(
-          Icons.qr_code_rounded,
-          size: 18,
-          color: AppColors.primary,
-        ),
+        const Icon(Icons.qr_code_rounded, size: 18, color: AppColors.primary),
         const SizedBox(width: 8),
         const Text(
           'Kode Batch:',
@@ -642,12 +630,14 @@ class _ProductInfoCard extends StatelessWidget {
             _InfoRow(
               icon: Icons.grading_outlined,
               label: 'Komposisi Grade',
-              value: batch.gradeBreakdown.map((item) {
-                final weight = item.weightKg % 1 == 0
-                    ? item.weightKg.toStringAsFixed(0)
-                    : item.weightKg.toStringAsFixed(2);
-                return '${item.grade}: $weight kg / ${item.fruitCount} butir';
-              }).join('\n'),
+              value: batch.gradeBreakdown
+                  .map((item) {
+                    final weight = item.weightKg % 1 == 0
+                        ? item.weightKg.toStringAsFixed(0)
+                        : item.weightKg.toStringAsFixed(2);
+                    return '${item.grade}: $weight kg / ${item.fruitCount} butir';
+                  })
+                  .join('\n'),
             ),
           ],
           if (batch.verifiedBy != null && batch.verifiedBy!.isNotEmpty) ...[
@@ -768,10 +758,7 @@ class _InfoRow extends StatelessWidget {
           width: 100,
           child: Text(
             label,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.placeholder,
-            ),
+            style: const TextStyle(fontSize: 13, color: AppColors.placeholder),
           ),
         ),
         Expanded(
@@ -887,20 +874,14 @@ class _BatchTimeline extends StatelessWidget {
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Text(
               'Belum ada riwayat untuk batch ini.',
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.placeholder,
-              ),
+              style: TextStyle(fontSize: 13, color: AppColors.placeholder),
             ),
           )
         else
           ...List.generate(events.length, (index) {
             final event = events[index];
             final isLast = index == events.length - 1;
-            return _TimelineItem(
-              event: event,
-              isLast: isLast,
-            );
+            return _TimelineItem(event: event, isLast: isLast);
           }),
       ],
     );
@@ -908,10 +889,7 @@ class _BatchTimeline extends StatelessWidget {
 }
 
 class _TimelineItem extends StatelessWidget {
-  const _TimelineItem({
-    required this.event,
-    required this.isLast,
-  });
+  const _TimelineItem({required this.event, required this.isLast});
 
   final BatchEvent event;
   final bool isLast;
@@ -955,10 +933,7 @@ class _TimelineItem extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: event.status.color,
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.white,
-                      width: 2,
-                    ),
+                    border: Border.all(color: AppColors.white, width: 2),
                     boxShadow: [
                       BoxShadow(
                         color: event.status.color.withValues(alpha: 0.3),
@@ -1099,20 +1074,14 @@ class _RejectionInfoCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Ditolak oleh: $rejectedBy',
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.subtitle,
-              ),
+              style: const TextStyle(fontSize: 12, color: AppColors.subtitle),
             ),
           ],
           if (batch.rejectedAt != null) ...[
             const SizedBox(height: 4),
             Text(
               'Waktu: ${_formatDateTime(batch.rejectedAt!)}',
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.subtitle,
-              ),
+              style: const TextStyle(fontSize: 12, color: AppColors.subtitle),
             ),
           ],
         ],

@@ -38,8 +38,9 @@ class AboutScreen extends StatelessWidget {
                           width: 88,
                           height: 88,
                           decoration: BoxDecoration(
-                            color: AppColors.primaryContainer
-                                .withValues(alpha: 0.12),
+                            color: AppColors.primaryContainer.withValues(
+                              alpha: 0.12,
+                            ),
                             borderRadius: BorderRadius.circular(22),
                           ),
                           alignment: Alignment.center,

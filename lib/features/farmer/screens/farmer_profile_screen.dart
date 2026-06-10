@@ -52,13 +52,13 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
       parent: _animController,
       curve: const Interval(0.0, 0.8, curve: Curves.easeInOutCubic),
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.04),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
-    ));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _animController,
+            curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
+          ),
+        );
     _animController.forward();
     // Dengarkan perubahan repo agar profil ter-refresh setelah diedit.
     _repo.addListener(_onRepoChanged);
@@ -185,11 +185,7 @@ class _ProfileHeader extends StatelessWidget {
     return Row(
       children: [
         // Avatar foto/inisial dengan tombol edit kamera
-        FarmerAvatar(
-          profile: profile,
-          size: 72,
-          showEditButton: true,
-        ),
+        FarmerAvatar(profile: profile, size: 72, showEditButton: true),
 
         const SizedBox(width: 16),
 
@@ -386,10 +382,7 @@ class _InfoRow extends StatelessWidget {
 /// Menggunakan [PrimaryPillButton] sebagai referensi pola, namun dengan
 /// warna merah untuk memberi sinyal destruktif (Req 6.3, 8.2).
 class _LogoutButton extends StatelessWidget {
-  const _LogoutButton({
-    required this.isLoading,
-    required this.onPressed,
-  });
+  const _LogoutButton({required this.isLoading, required this.onPressed});
 
   final bool isLoading;
   final VoidCallback onPressed;
@@ -402,8 +395,9 @@ class _LogoutButton extends StatelessWidget {
         onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFDC2626),
-          disabledBackgroundColor:
-              const Color(0xFFDC2626).withValues(alpha: 0.55),
+          disabledBackgroundColor: const Color(
+            0xFFDC2626,
+          ).withValues(alpha: 0.55),
           foregroundColor: AppColors.white,
           disabledForegroundColor: AppColors.white.withValues(alpha: 0.7),
           elevation: 0,

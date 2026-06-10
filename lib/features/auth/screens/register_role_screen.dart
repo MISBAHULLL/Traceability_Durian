@@ -79,13 +79,10 @@ class _RegisterRoleScreenState extends State<RegisterRoleScreen>
       parent: _animController,
       curve: Curves.easeInOutCubic,
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.04),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeOutCubic,
-    ));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+        );
     _animController.forward();
   }
 
@@ -132,8 +129,7 @@ class _RegisterRoleScreenState extends State<RegisterRoleScreen>
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 400),
-        pageBuilder: (_, _, _) =>
-            RegisterFormScreen(role: _selectedRole!),
+        pageBuilder: (_, _, _) => RegisterFormScreen(role: _selectedRole!),
         transitionsBuilder: (_, animation, _, child) => FadeTransition(
           opacity: CurvedAnimation(
             parent: animation,
@@ -176,17 +172,11 @@ class _RegisterRoleScreenState extends State<RegisterRoleScreen>
                         const SizedBox(height: 16),
 
                         // 3 baris membagi ruang vertikal secara proporsional
-                        Expanded(
-                          child: _twoColRow(_roles[0], _roles[1]),
-                        ),
+                        Expanded(child: _twoColRow(_roles[0], _roles[1])),
                         const SizedBox(height: 12),
-                        Expanded(
-                          child: _twoColRow(_roles[2], _roles[3]),
-                        ),
+                        Expanded(child: _twoColRow(_roles[2], _roles[3])),
                         const SizedBox(height: 12),
-                        Expanded(
-                          child: _oneColCenter(_roles[4]),
-                        ),
+                        Expanded(child: _oneColCenter(_roles[4])),
                       ],
                     ),
                   ),
@@ -220,19 +210,16 @@ class _RegisterRoleScreenState extends State<RegisterRoleScreen>
     final screenW = MediaQuery.of(context).size.width;
     final colW = (screenW - 48 - gap) / 2;
     return Center(
-      child: SizedBox(
-        width: colW,
-        child: _buildCard(role),
-      ),
+      child: SizedBox(width: colW, child: _buildCard(role)),
     );
   }
 
   /// Card builder — tanpa SizedBox tinggi, biar Expanded yang atur tinggi.
   Widget _buildCard(_RoleOption role) => _RoleCard(
-        role: role,
-        isSelected: _selectedRole == role.value,
-        onTap: () => setState(() => _selectedRole = role.value),
-      );
+    role: role,
+    isSelected: _selectedRole == role.value,
+    onTap: () => setState(() => _selectedRole = role.value),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -425,8 +412,7 @@ class _TopNotificationBanner extends StatefulWidget {
   final VoidCallback onDismiss;
 
   @override
-  State<_TopNotificationBanner> createState() =>
-      _TopNotificationBannerState();
+  State<_TopNotificationBanner> createState() => _TopNotificationBannerState();
 }
 
 class _TopNotificationBannerState extends State<_TopNotificationBanner>
@@ -467,12 +453,15 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
-    final bgColor =
-        widget.isError ? const Color(0xFFFFDAD6) : const Color(0xFFDCF5DC);
-    final textColor =
-        widget.isError ? const Color(0xFF7F1D1D) : const Color(0xFF14532D);
-    final iconColor =
-        widget.isError ? const Color(0xFFB91C1C) : const Color(0xFF16A34A);
+    final bgColor = widget.isError
+        ? const Color(0xFFFFDAD6)
+        : const Color(0xFFDCF5DC);
+    final textColor = widget.isError
+        ? const Color(0xFF7F1D1D)
+        : const Color(0xFF14532D);
+    final iconColor = widget.isError
+        ? const Color(0xFFB91C1C)
+        : const Color(0xFF16A34A);
 
     return Positioned(
       top: topPadding + 12,
@@ -488,8 +477,10 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(14),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: bgColor,
                   borderRadius: BorderRadius.circular(14),

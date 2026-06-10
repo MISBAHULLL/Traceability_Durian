@@ -66,11 +66,7 @@ class BatchPhoto extends StatelessWidget {
       height: height,
       color: AppColors.surface,
       alignment: Alignment.center,
-      child: const Icon(
-        Icons.eco_outlined,
-        color: AppColors.primary,
-        size: 28,
-      ),
+      child: const Icon(Icons.eco_outlined, color: AppColors.primary, size: 28),
     );
   }
 }

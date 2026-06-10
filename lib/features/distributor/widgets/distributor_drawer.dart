@@ -6,7 +6,7 @@ import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
 import '../models/distributor_profile.dart';
 import '../screens/distributor_history_screen.dart';
-import '../screens/edit_distributor_profile_screen.dart';
+import '../screens/distributor_profile_screen.dart';
 import 'distributor_avatar.dart';
 
 // [FE - Component Rendering] DistributorDrawer adalah navigation drawer utama
@@ -27,7 +27,7 @@ class DistributorDrawer extends StatelessWidget {
           children: [
             _DrawerHeader(
               profile: profile,
-              onTap: () => _go(context, const EditDistributorProfileScreen()),
+              onTap: () => _go(context, const DistributorProfileScreen()),
             ),
             const Divider(height: 1, color: Color(0xFFE5E7EB)),
             Expanded(
@@ -55,8 +55,7 @@ class DistributorDrawer extends StatelessWidget {
                   _DrawerItem(
                     icon: Icons.person_outline_rounded,
                     label: 'Profil',
-                    onTap: () =>
-                        _go(context, const EditDistributorProfileScreen()),
+                    onTap: () => _go(context, const DistributorProfileScreen()),
                   ),
                   const Divider(
                     height: 18,

@@ -7,8 +7,8 @@ import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
 import '../models/distributor_profile.dart';
 import '../widgets/distributor_drawer.dart';
+import 'distributor_profile_screen.dart';
 import 'distributor_shipment_detail_screen.dart';
-import 'edit_distributor_profile_screen.dart';
 
 // [FE - Component Rendering] DistributorHomeScreen mengikuti pola layout
 // yang identik dengan FarmerHomeScreen dan CollectorHomeScreen:
@@ -67,7 +67,7 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
   void _openDrawer() => _scaffoldKey.currentState?.openEndDrawer();
 
   Future<void> _openProfile() async {
-    await DistributorRoutes.push(context, const EditDistributorProfileScreen());
+    await DistributorRoutes.push(context, const DistributorProfileScreen());
   }
 
   void _openQrSimulation() {

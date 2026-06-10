@@ -31,6 +31,8 @@ class CollectorShipmentBatch {
     required this.packagedAt,
     required this.status,
     this.warehouseNote,
+    this.sentAt,
+    this.completedAt,
   });
 
   final String code;
@@ -43,6 +45,32 @@ class CollectorShipmentBatch {
   final DateTime packagedAt;
   final CollectorShipmentStatus status;
   final String? warehouseNote;
+  final DateTime? sentAt;
+  final DateTime? completedAt;
+
+  // [DB - Model/Entity] copyWith dipakai repository untuk mengubah status
+  // pengiriman tanpa membuat UI tahu detail struktur model.
+  CollectorShipmentBatch copyWith({
+    CollectorShipmentStatus? status,
+    String? warehouseNote,
+    DateTime? sentAt,
+    DateTime? completedAt,
+  }) {
+    return CollectorShipmentBatch(
+      code: code,
+      collectorId: collectorId,
+      sourceBatchCodes: sourceBatchCodes,
+      totalWeightKg: totalWeightKg,
+      totalFruitCount: totalFruitCount,
+      gradeBreakdown: gradeBreakdown,
+      varietyBreakdown: varietyBreakdown,
+      packagedAt: packagedAt,
+      status: status ?? this.status,
+      warehouseNote: warehouseNote ?? this.warehouseNote,
+      sentAt: sentAt ?? this.sentAt,
+      completedAt: completedAt ?? this.completedAt,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'code': code,
@@ -55,6 +83,8 @@ class CollectorShipmentBatch {
         'packagedAt': packagedAt.toIso8601String(),
         'status': status.name,
         'warehouseNote': warehouseNote,
+        'sentAt': sentAt?.toIso8601String(),
+        'completedAt': completedAt?.toIso8601String(),
       };
 
   factory CollectorShipmentBatch.fromJson(Map<String, dynamic> json) {
@@ -84,6 +114,12 @@ class CollectorShipmentBatch {
         orElse: () => CollectorShipmentStatus.readyToShip,
       ),
       warehouseNote: json['warehouseNote'] as String?,
+      sentAt: json['sentAt'] == null
+          ? null
+          : DateTime.parse(json['sentAt'] as String),
+      completedAt: json['completedAt'] == null
+          ? null
+          : DateTime.parse(json['completedAt'] as String),
     );
   }
 }

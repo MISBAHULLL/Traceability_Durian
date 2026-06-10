@@ -222,6 +222,22 @@ class CollectorRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
+  // [FE - State Management] Lookup ini dipakai layar QR pengiriman untuk
+  // membaca batch PGL yang dipilih pengepul.
+  CollectorShipmentBatch? findShipmentBatch(String code) {
+    try {
+      return shipmentBatches.firstWhere((shipment) => shipment.code == code);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // [UTIL - Helper Function] Payload QR ini menjadi kontrak FE sementara
+  // untuk distributor; nanti endpoint/URL diganti oleh backend.
+  String shipmentQrPayload(String code) {
+    return 'https://duriantrace.id/shipments/$code';
+  }
+
   // [FE - State Management] Lookup ini mencari batch pengiriman yang memakai
   // sebuah source batch petani agar UI stok bisa menandai alokasi provenance.
   CollectorShipmentBatch? shipmentForSourceBatch(String sourceBatchCode) {
@@ -283,6 +299,50 @@ class CollectorRepository extends ChangeNotifier {
     _saveToLocal();
     notifyListeners();
     return shipment;
+  }
+
+  // [FE - Event Handler] Mutasi ini mensimulasikan distributor men-scan QR
+  // dan mengonfirmasi bahwa batch pengiriman mulai dibawa/diserahkan.
+  bool markShipmentSent(String code) {
+    final index = _shipmentBatches.indexWhere(
+      (shipment) =>
+          shipment.collectorId == _currentCollectorId &&
+          shipment.code == code,
+    );
+    if (index == -1) return false;
+
+    final existing = _shipmentBatches[index];
+    if (existing.status != CollectorShipmentStatus.readyToShip) return false;
+
+    _shipmentBatches[index] = existing.copyWith(
+      status: CollectorShipmentStatus.sent,
+      sentAt: DateTime.now(),
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  // [FE - Event Handler] Mutasi ini mensimulasikan konfirmasi final dari
+  // distributor bahwa batch pengiriman sudah diterima/selesai.
+  bool completeShipment(String code) {
+    final index = _shipmentBatches.indexWhere(
+      (shipment) =>
+          shipment.collectorId == _currentCollectorId &&
+          shipment.code == code,
+    );
+    if (index == -1) return false;
+
+    final existing = _shipmentBatches[index];
+    if (existing.status != CollectorShipmentStatus.sent) return false;
+
+    _shipmentBatches[index] = existing.copyWith(
+      status: CollectorShipmentStatus.completed,
+      completedAt: DateTime.now(),
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
   }
 
   // [UTIL - Helper Function] Generator ini membuat kode batch pengiriman

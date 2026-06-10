@@ -8,6 +8,7 @@ import '../data/collector_repository.dart';
 import '../models/collector_shipment_batch.dart';
 import '../models/collector_stock_summary.dart';
 import 'create_shipment_batch_screen.dart';
+import 'shipment_qr_screen.dart';
 
 // [FE - Component Rendering] Screen ini menampilkan batch pengiriman agregat
 // milik pengepul sebagai tahap sebelum generate QR pengiriman.
@@ -48,6 +49,12 @@ class _CollectorShipmentsScreenState extends State<CollectorShipmentsScreen> {
     if (mounted && created == true) setState(() {});
   }
 
+  // [FE - Event Handler] Navigasi ini membuka QR handover untuk batch PGL
+  // yang akan discan dan dikonfirmasi oleh distributor.
+  Future<void> _openShipmentQr(String code) async {
+    await CollectorRoutes.push(context, ShipmentQrScreen(shipmentCode: code));
+  }
+
   @override
   Widget build(BuildContext context) {
     final shipments = _repo.shipmentBatches;
@@ -73,7 +80,10 @@ class _CollectorShipmentsScreenState extends State<CollectorShipmentsScreen> {
                     ...shipments.map(
                       (shipment) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _ShipmentCard(shipment: shipment),
+                        child: _ShipmentCard(
+                          shipment: shipment,
+                          onQr: () => _openShipmentQr(shipment.code),
+                        ),
                       ),
                     ),
                 ],
@@ -115,9 +125,13 @@ class _EmptyShipment extends StatelessWidget {
 // [FE - Component Rendering] Kartu ini menampilkan satu batch agregat beserta
 // provenance tree sederhana berupa daftar kode batch petani asal.
 class _ShipmentCard extends StatelessWidget {
-  const _ShipmentCard({required this.shipment});
+  const _ShipmentCard({
+    required this.shipment,
+    required this.onQr,
+  });
 
   final CollectorShipmentBatch shipment;
+  final VoidCallback onQr;
 
   String _formatWeight(double value) {
     final text =
@@ -216,6 +230,16 @@ class _ShipmentCard extends StatelessWidget {
                 label: 'Dikemas',
                 value: _formatDate(shipment.packagedAt),
               ),
+              if (shipment.sentAt != null)
+                _MiniInfo(
+                  label: 'Dikirim',
+                  value: _formatDate(shipment.sentAt!),
+                ),
+              if (shipment.completedAt != null)
+                _MiniInfo(
+                  label: 'Selesai',
+                  value: _formatDate(shipment.completedAt!),
+                ),
             ],
           ),
           const SizedBox(height: 12),
@@ -245,6 +269,28 @@ class _ShipmentCard extends StatelessWidget {
               text: shipment.warehouseNote!,
             ),
           ],
+          const SizedBox(height: 12),
+          // [FE - Component Rendering] Tombol ini membuka QR pengiriman yang
+          // menjadi media handover data dari pengepul ke distributor.
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onQr,
+              icon: const Icon(Icons.qr_code_2_rounded),
+              label: const Text('QR PENGIRIMAN'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primaryContainer),
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -5,6 +5,7 @@ import '../../auth/screens/home_screen.dart';
 import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
 import '../models/distributor_profile.dart';
+import '../screens/distributor_history_screen.dart';
 import '../screens/edit_distributor_profile_screen.dart';
 import 'distributor_avatar.dart';
 
@@ -49,10 +50,7 @@ class DistributorDrawer extends StatelessWidget {
                   _DrawerItem(
                     icon: Icons.history_rounded,
                     label: 'Riwayat Pengiriman',
-                    onTap: () {
-                      Navigator.pop(context);
-                      // TODO: buka screen riwayat
-                    },
+                    onTap: () => _go(context, const DistributorHistoryScreen()),
                   ),
                   _DrawerItem(
                     icon: Icons.person_outline_rounded,

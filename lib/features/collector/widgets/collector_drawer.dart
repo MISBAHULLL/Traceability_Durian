@@ -11,6 +11,7 @@ import '../screens/collector_help_screen.dart';
 import '../screens/collector_history_screen.dart';
 import '../screens/collector_profile_screen.dart';
 import '../screens/collector_scan_qr_screen.dart';
+import '../screens/collector_shipments_screen.dart';
 import '../screens/collector_stock_screen.dart';
 import 'collector_avatar.dart';
 
@@ -58,6 +59,11 @@ class CollectorDrawer extends StatelessWidget {
                     icon: Icons.inventory_2_outlined,
                     label: 'Stok Saya',
                     onTap: () => _go(context, const CollectorStockScreen()),
+                  ),
+                  _DrawerItem(
+                    icon: Icons.local_shipping_outlined,
+                    label: 'Batch Pengiriman',
+                    onTap: () => _go(context, const CollectorShipmentsScreen()),
                   ),
                   _DrawerItem(
                     icon: Icons.history_rounded,

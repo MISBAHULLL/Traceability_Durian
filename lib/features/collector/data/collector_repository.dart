@@ -4,6 +4,7 @@ import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../models/collector_product.dart';
+import '../models/collector_shipment_batch.dart';
 import '../models/collector_stock_summary.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,6 +43,20 @@ class CollectorRepository extends ChangeNotifier {
     } else {
       _profile = _kSeedProfile;
     }
+
+    final shipmentsJsonList =
+        LocalStorageService.loadJsonList('collector_shipment_batches');
+    if (shipmentsJsonList != null) {
+      _shipmentBatches = shipmentsJsonList
+          .map((e) => CollectorShipmentBatch.fromJson(e))
+          .toList();
+    } else {
+      _shipmentBatches = [];
+    }
+
+    _shipmentCounter =
+        LocalStorageService.loadInt('collector_shipment_counter') ??
+            _shipmentBatches.length;
   }
 
   // [FE - State Management] Saver ini menulis state profil pengepul ke JSON
@@ -49,6 +64,14 @@ class CollectorRepository extends ChangeNotifier {
   void _saveToLocal() {
     LocalStorageService.saveString('collector_current_id', _currentCollectorId);
     LocalStorageService.saveJson('collector_profile', _profile.toJson());
+    LocalStorageService.saveJsonList(
+      'collector_shipment_batches',
+      _shipmentBatches.map((e) => e.toJson()).toList(),
+    );
+    LocalStorageService.saveInt(
+      'collector_shipment_counter',
+      _shipmentCounter,
+    );
   }
 
   // ── Konstanta seed ─────────────────────────────────────────────────────────
@@ -131,6 +154,8 @@ class CollectorRepository extends ChangeNotifier {
   late String _currentCollectorId;
   late CollectorProfile _profile;
   late List<CollectorProduct> _products;
+  late List<CollectorShipmentBatch> _shipmentBatches;
+  late int _shipmentCounter;
   final FarmerRepository _farmerRepo = FarmerRepository.instance;
 
   // ── Identitas sesi ──────────────────────────────────────────────────────────
@@ -178,10 +203,88 @@ class CollectorRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
+  // [FE - State Management] Batch tersedia untuk agregasi mengecualikan
+  // source batch yang sudah pernah masuk batch pengiriman pengepul.
+  List<HarvestBatch> get availableStockBatches {
+    final allocatedCodes = _allocatedSourceBatchCodes;
+    return List.unmodifiable(
+      stockBatches.where((batch) => !allocatedCodes.contains(batch.code)),
+    );
+  }
+
+  // [FE - State Management] Daftar batch pengiriman adalah hasil agregasi
+  // stok pengepul dan menjadi calon data untuk QR pengiriman ke distributor.
+  List<CollectorShipmentBatch> get shipmentBatches {
+    final items = _shipmentBatches
+        .where((batch) => batch.collectorId == _currentCollectorId)
+        .toList();
+    items.sort((a, b) => b.packagedAt.compareTo(a.packagedAt));
+    return List.unmodifiable(items);
+  }
+
+  Set<String> get _allocatedSourceBatchCodes {
+    return _shipmentBatches
+        .where((batch) => batch.collectorId == _currentCollectorId)
+        .expand((batch) => batch.sourceBatchCodes)
+        .toSet();
+  }
+
   // [FE - State Management] Overview stok ini menjadi DTO mock untuk dashboard
   // gudang; nantinya bisa diganti langsung oleh response backend.
-  CollectorStockOverview get stockOverview {
-    final batches = stockBatches;
+  CollectorStockOverview get stockOverview => _overviewForBatches(stockBatches);
+
+  // [FE - Event Handler] Mutasi ini membuat batch pengiriman agregat dari
+  // beberapa batch petani terverifikasi tanpa menyentuh blockchain/backend.
+  CollectorShipmentBatch? createShipmentBatch({
+    required List<String> sourceBatchCodes,
+    String? warehouseNote,
+  }) {
+    final cleanCodes = sourceBatchCodes.toSet().toList();
+    if (cleanCodes.length < 2) return null;
+
+    final availableByCode = {
+      for (final batch in availableStockBatches) batch.code: batch,
+    };
+    final selectedBatches = cleanCodes
+        .map((code) => availableByCode[code])
+        .whereType<HarvestBatch>()
+        .toList();
+    if (selectedBatches.length != cleanCodes.length) return null;
+
+    final overview = _overviewForBatches(selectedBatches);
+    final shipment = CollectorShipmentBatch(
+      code: _generateShipmentCode(),
+      collectorId: _currentCollectorId,
+      sourceBatchCodes: cleanCodes,
+      totalWeightKg: overview.totalWeightKg,
+      totalFruitCount: overview.totalFruitCount,
+      gradeBreakdown: overview.gradeBreakdown,
+      varietyBreakdown: overview.varietyBreakdown,
+      packagedAt: DateTime.now(),
+      status: CollectorShipmentStatus.readyToShip,
+      warehouseNote: warehouseNote?.trim().isEmpty == true
+          ? null
+          : warehouseNote?.trim(),
+    );
+
+    _shipmentBatches.add(shipment);
+    _saveToLocal();
+    notifyListeners();
+    return shipment;
+  }
+
+  // [UTIL - Helper Function] Generator ini membuat kode batch pengiriman
+  // monotetik agar FE mock mendekati pola ID yang nanti dibuat backend.
+  String _generateShipmentCode() {
+    _shipmentCounter++;
+    final year = DateTime.now().year;
+    final seq = _shipmentCounter.toString().padLeft(6, '0');
+    return 'PGL-$year-$seq';
+  }
+
+  // [UTIL - Helper Function] Helper ini menghitung overview dari kumpulan
+  // batch tertentu, dipakai oleh dashboard stok dan pembuatan batch agregat.
+  CollectorStockOverview _overviewForBatches(List<HarvestBatch> batches) {
     final gradeBuckets = <String, _MutableStockBucket>{};
     final varietyBuckets = <String, _MutableStockBucket>{};
     var totalWeightKg = 0.0;

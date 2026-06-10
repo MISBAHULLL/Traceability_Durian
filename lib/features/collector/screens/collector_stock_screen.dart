@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/primary_pill_button.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../collector_routes.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_stock_summary.dart';
+import 'collector_shipments_screen.dart';
 
 // [FE - Component Rendering] Screen ini menampilkan stok durian pengepul
 // yang berasal dari batch petani setelah berhasil diverifikasi.
@@ -34,6 +37,12 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
     if (mounted) setState(() {});
   }
 
+  // [FE - Event Handler] Shortcut ini membawa pengepul dari stok gudang ke
+  // layar batch pengiriman sebagai langkah operasional berikutnya.
+  Future<void> _openShipments() async {
+    await CollectorRoutes.push(context, const CollectorShipmentsScreen());
+  }
+
   @override
   Widget build(BuildContext context) {
     final stocks = _repo.stockBatches;
@@ -52,6 +61,11 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
                       padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                       children: [
                         _StockOverviewPanel(overview: overview),
+                        const SizedBox(height: 14),
+                        PrimaryPillButton(
+                          label: 'BUAT BATCH PENGIRIMAN',
+                          onPressed: _openShipments,
+                        ),
                         const SizedBox(height: 18),
                         const _SectionHeader(title: 'Batch Aktif'),
                         const SizedBox(height: 10),

@@ -4,6 +4,9 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'register_role_screen.dart';
+import '../../farmer/screens/farmer_home_screen.dart';
+import '../../collector/screens/collector_home_screen.dart';
+import '../../distributor/screens/distributor_home_screen.dart';
 
 /// Landing + login screen for DurianTrace.
 ///
@@ -185,7 +188,35 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showTopNotification('Form siap dikirim ke backend.', isError: false);
+
+      Widget? destination;
+      final query = identifier.toLowerCase().trim();
+      if (query.contains('petani')) {
+        destination = const FarmerHomeScreen();
+      } else if (query.contains('pengepul')) {
+        destination = const CollectorHomeScreen();
+      } else if (query.contains('distributor') || query.contains('andi')) {
+        destination = const DistributorHomeScreen();
+      }
+
+      if (destination != null) {
+        _showTopNotification('Masuk berhasil!', isError: false);
+        await Future.delayed(const Duration(milliseconds: 600));
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 400),
+            pageBuilder: (_, _, _) => destination!,
+            transitionsBuilder: (_, animation, _, child) => FadeTransition(
+              opacity: CurvedAnimation(parent: animation, curve: Curves.easeInOutCubic),
+              child: child,
+            ),
+          ),
+          (route) => false,
+        );
+      } else {
+        _showTopNotification('Form siap dikirim ke backend.', isError: false);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);

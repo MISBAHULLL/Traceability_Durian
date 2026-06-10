@@ -52,7 +52,8 @@ class CollectorRepository extends ChangeNotifier {
           .map((e) => CollectorShipmentBatch.fromJson(e))
           .toList();
     } else {
-      _shipmentBatches = [];
+      _shipmentBatches = _buildSeedShipmentBatches();
+      _saveToLocal();
     }
 
     _shipmentCounter =
@@ -326,7 +327,7 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - Event Handler] Mutasi ini mensimulasikan konfirmasi final dari
   // distributor bahwa batch pengiriman sudah diterima/selesai.
-  bool completeShipment(String code) {
+  bool completeShipment(String code, {String? warehouseNote}) {
     final index = _shipmentBatches.indexWhere(
       (shipment) =>
           shipment.collectorId == _currentCollectorId && shipment.code == code,
@@ -339,6 +340,7 @@ class CollectorRepository extends ChangeNotifier {
     _shipmentBatches[index] = existing.copyWith(
       status: CollectorShipmentStatus.completed,
       completedAt: DateTime.now(),
+      warehouseNote: warehouseNote,
     );
     _saveToLocal();
     notifyListeners();
@@ -601,6 +603,52 @@ class CollectorRepository extends ChangeNotifier {
   void logout() {
     _saveToLocal();
     notifyListeners();
+  }
+
+  static List<CollectorShipmentBatch> _buildSeedShipmentBatches() {
+    final now = DateTime.now();
+    return [
+      // 1 Transit shipment
+      CollectorShipmentBatch(
+        code: 'BATCH-PGL-001',
+        collectorId: 'collector-001',
+        sourceBatchCodes: const ['DRN-2026-000128', 'DRN-2026-000119'],
+        totalWeightKg: 158.0,
+        totalFruitCount: 38,
+        gradeBreakdown: const [
+          CollectorStockBreakdown(key: 'A', label: 'Grade A', totalWeightKg: 100.0, totalFruitCount: 24, batchCount: 1),
+          CollectorStockBreakdown(key: 'B', label: 'Grade B', totalWeightKg: 58.0, totalFruitCount: 14, batchCount: 1),
+        ],
+        varietyBreakdown: const [
+          CollectorStockBreakdown(key: 'montong', label: 'Durian Montong', totalWeightKg: 90.0, totalFruitCount: 20, batchCount: 1),
+          CollectorStockBreakdown(key: 'bawor', label: 'Durian Bawor', totalWeightKg: 68.0, totalFruitCount: 18, batchCount: 1),
+        ],
+        packagedAt: now.subtract(const Duration(hours: 4)),
+        sentAt: now.subtract(const Duration(hours: 3)),
+        status: CollectorShipmentStatus.sent,
+        warehouseNote: 'Pengiriman via truk pendingin JNE Logistics',
+      ),
+      // 11 Completed shipments
+      for (int i = 1; i <= 11; i++)
+        CollectorShipmentBatch(
+          code: 'PGL-2026-${(100 + i).toString()}',
+          collectorId: 'collector-001',
+          sourceBatchCodes: const ['DRN-2026-000142'],
+          totalWeightKg: 120.0 + (i * 12),
+          totalFruitCount: 30 + i,
+          gradeBreakdown: [
+            CollectorStockBreakdown(key: 'A', label: 'Grade A', totalWeightKg: 120.0 + (i * 12), totalFruitCount: 30 + i, batchCount: 1),
+          ],
+          varietyBreakdown: [
+            CollectorStockBreakdown(key: 'lempok', label: 'Lempok Durian', totalWeightKg: 120.0 + (i * 12), totalFruitCount: 30 + i, batchCount: 1),
+          ],
+          packagedAt: now.subtract(Duration(days: i + 1)),
+          sentAt: now.subtract(Duration(days: i + 1, hours: 2)),
+          completedAt: now.subtract(Duration(days: i, hours: 23)),
+          status: CollectorShipmentStatus.completed,
+          warehouseNote: 'Selesai diantar ke hub distributor $i',
+        ),
+    ];
   }
 }
 

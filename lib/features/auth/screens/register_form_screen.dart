@@ -6,6 +6,8 @@ import '../../collector/data/collector_repository.dart';
 import '../../collector/screens/collector_home_screen.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/screens/farmer_home_screen.dart';
+import '../../distributor/data/distributor_repository.dart';
+import '../../distributor/screens/distributor_home_screen.dart';
 
 /// Label tampilan per nilai role.
 const Map<String, String> _roleLabels = {
@@ -244,6 +246,16 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
         email: email,
       );
       destination = const CollectorHomeScreen();
+    } else if (widget.role == 'distributor') {
+      // [FE - Event Handler] Aktifkan akun distributor baru di repository dengan
+      // data registrasi sebelum membuka Beranda Distributor.
+      DistributorRepository.instance.registerDistributor(
+        firstName: firstName,
+        lastName: lastName,
+        phone: phone,
+        email: email,
+      );
+      destination = const DistributorHomeScreen();
     }
 
     if (destination == null) return;

@@ -590,10 +590,276 @@ class _ProvenanceItem extends StatelessWidget {
                           color: AppColors.placeholder,
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      // [FE - Component Rendering] Detail provenance ini
+                      // menampilkan warisan data dari petani dan validasi
+                      // pengepul di dalam satu source batch DRN.
+                      _SourceTraceDetails(batch: resolvedBatch),
                     ],
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SourceTraceDetails extends StatelessWidget {
+  const _SourceTraceDetails({required this.batch});
+
+  final HarvestBatch batch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // [FE - Component Rendering] Blok ini adalah data asal dari petani
+        // yang diwariskan ke distributor melalui provenance source batch.
+        _TraceDetailBlock(
+          title: 'Data dari Petani',
+          icon: Icons.agriculture_outlined,
+          children: [
+            _TraceDetailLine(label: 'Varietas', value: batch.variety),
+            _TraceDetailLine(label: 'Kebun', value: batch.farmName),
+            _TraceDetailLine(
+              label: 'Tanggal Panen',
+              value: _formatShortDate(batch.harvestDate),
+            ),
+            _TraceDetailLine(
+              label: 'Jumlah Awal',
+              value:
+                  '${_formatWeight(batch.quantity)} • ${batch.fruitCount ?? 0} butir',
+            ),
+            _TraceDetailLine(
+              label: 'Grade Awal',
+              value: 'Grade ${batch.grade}',
+            ),
+            _TraceDetailLine(
+              label: 'Metode Panen',
+              value: _valueOrDash(batch.harvestMethod),
+            ),
+            _TraceDetailLine(
+              label: 'Pupuk',
+              value: _valueOrDash(batch.fertilizer),
+            ),
+            _TraceDetailLine(
+              label: 'Kematangan',
+              value: _valueOrDash(batch.maturityLevel),
+            ),
+            _TraceDetailLine(
+              label: 'Estimasi Simpan',
+              value: _valueOrDash(batch.shelfLifeEstimate),
+            ),
+            _TraceDetailLine(
+              label: 'Foto Durian',
+              value: batch.photoPath == null ? 'Tidak ada' : 'Tersimpan',
+            ),
+            if (batch.notes != null && batch.notes!.trim().isNotEmpty)
+              _TraceDetailLine(label: 'Catatan', value: batch.notes!),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // [FE - Component Rendering] Blok ini adalah hasil validasi pengepul
+        // sehingga distributor tahu data mana yang sudah dikoreksi secara fisik.
+        _TraceDetailBlock(
+          title: 'Verifikasi Pengepul',
+          icon: Icons.fact_check_outlined,
+          children: [
+            _TraceDetailLine(
+              label: 'Berat Diterima',
+              value: batch.receivedQuantity == null
+                  ? '-'
+                  : _formatWeight(batch.receivedQuantity!),
+            ),
+            _TraceDetailLine(
+              label: 'Butir Diterima',
+              value: batch.receivedFruitCount == null
+                  ? '-'
+                  : '${batch.receivedFruitCount} butir',
+            ),
+            _TraceDetailLine(
+              label: 'Grade Riil',
+              value: batch.verifiedGrade == null
+                  ? '-'
+                  : 'Grade ${batch.verifiedGrade}',
+            ),
+            _TraceDetailLine(
+              label: 'Diverifikasi Oleh',
+              value: _valueOrDash(batch.verifiedBy),
+            ),
+            _TraceDetailLine(
+              label: 'Waktu Verifikasi',
+              value: batch.verifiedAt == null
+                  ? '-'
+                  : _formatDateTime(batch.verifiedAt!),
+            ),
+            if (batch.gradeBreakdown.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Breakdown Grade',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.placeholder,
+                ),
+              ),
+              const SizedBox(height: 6),
+              ...batch.gradeBreakdown.map(
+                (item) => _TraceGradeLine(item: item),
+              ),
+            ],
+            if (batch.qualityNotes != null &&
+                batch.qualityNotes!.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _TraceNotice(text: batch.qualityNotes!),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _TraceDetailBlock extends StatelessWidget {
+  const _TraceDetailBlock({
+    required this.title,
+    required this.icon,
+    required this.children,
+  });
+
+  final String title;
+  final IconData icon;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 17, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.black,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _TraceDetailLine extends StatelessWidget {
+  const _TraceDetailLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 112,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.placeholder,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+                color: AppColors.subtitle,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TraceGradeLine extends StatelessWidget {
+  const _TraceGradeLine({required this.item});
+
+  final BatchGradeBreakdown item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Grade ${item.grade}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: AppColors.subtitle,
+              ),
+            ),
+          ),
+          Text(
+            '${_formatWeight(item.weightKg)} • ${item.fruitCount} butir',
+            style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TraceNotice extends StatelessWidget {
+  const _TraceNotice({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 12,
+          height: 1.4,
+          color: AppColors.subtitle,
+        ),
       ),
     );
   }
@@ -821,6 +1087,11 @@ String _formatWeight(double value) {
       ? value.toStringAsFixed(0)
       : value.toStringAsFixed(2);
   return '$text kg';
+}
+
+String _valueOrDash(String? value) {
+  final cleanValue = value?.trim() ?? '';
+  return cleanValue.isEmpty ? '-' : cleanValue;
 }
 
 String _formatShortDate(DateTime date) {

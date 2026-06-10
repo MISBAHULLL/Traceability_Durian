@@ -41,10 +41,12 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
       curve: const Interval(0.0, 0.8, curve: Curves.easeInOutCubic),
     );
     _slideAnim = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
-        .animate(CurvedAnimation(
-          parent: _animController,
-          curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
-        ));
+        .animate(
+          CurvedAnimation(
+            parent: _animController,
+            curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
+          ),
+        );
     _animController.forward();
     _repo.addListener(_onRepoChanged);
   }
@@ -84,79 +86,136 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
         builder: (context, scrollCtrl) => Column(
           children: [
             const SizedBox(height: 12),
-            Container(width: 40, height: 4, decoration: BoxDecoration(
-              color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2),
-            )),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5E7EB),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             const SizedBox(height: 16),
-            const Icon(Icons.qr_code_scanner_rounded, size: 64, color: AppColors.primary),
+            const Icon(
+              Icons.qr_code_scanner_rounded,
+              size: 64,
+              color: AppColors.primary,
+            ),
             const SizedBox(height: 12),
-            const Text('Simulasi Scan QR Pengiriman',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.black)),
+            const Text(
+              'Simulasi Scan QR Pengiriman',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.black,
+              ),
+            ),
             const SizedBox(height: 4),
-            const Text('Pilih batch pengepul yang siap diambil',
-              style: TextStyle(fontSize: 12, color: AppColors.placeholder)),
+            const Text(
+              'Pilih batch pengepul yang siap diambil',
+              style: TextStyle(fontSize: 12, color: AppColors.placeholder),
+            ),
             const SizedBox(height: 16),
             const Divider(height: 1, color: Color(0xFFE5E7EB)),
             Expanded(
               child: readyShipments.isEmpty
-                ? const Center(child: Text('Tidak ada pengiriman baru dari pengepul.',
-                    style: TextStyle(fontSize: 13, color: AppColors.placeholder)))
-                : ListView.builder(
-                    controller: scrollCtrl,
-                    padding: const EdgeInsets.all(20),
-                    itemCount: readyShipments.length,
-                    itemBuilder: (context, i) {
-                      final s = readyShipments[i];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ? const Center(
+                      child: Text(
+                        'Tidak ada pengiriman baru dari pengepul.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.placeholder,
                         ),
-                        child: Row(children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryContainer.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.local_shipping_rounded,
-                              color: AppColors.primary, size: 24),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.all(20),
+                      itemCount: readyShipments.length,
+                      itemBuilder: (context, i) {
+                        final s = readyShipments[i];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE5E7EB)),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: [
-                              Text(s.code, style: const TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.black)),
-                              const SizedBox(height: 2),
-                              Text('${s.totalWeightKg} kg • ${s.totalFruitCount} butir',
-                                style: const TextStyle(fontSize: 11, color: AppColors.placeholder)),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryContainer.withValues(
+                                    alpha: 0.15,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.local_shipping_rounded,
+                                  color: AppColors.primary,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      s.code,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.black,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${s.totalWeightKg} kg • ${s.totalFruitCount} butir',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.placeholder,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primaryContainer,
+                                  foregroundColor: AppColors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  final ok = _repo.takeShipment(s.code);
+                                  Navigator.pop(sheetCtx);
+                                  _notif.show(
+                                    context,
+                                    ok
+                                        ? 'Berhasil mengambil ${s.code}!'
+                                        : 'Gagal memproses QR Code.',
+                                  );
+                                },
+                                child: const Text(
+                                  'Ambil',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
                             ],
-                          )),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryContainer,
-                              foregroundColor: AppColors.white, elevation: 0,
-                              padding: const EdgeInsets.symmetric(horizontal: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            onPressed: () {
-                              final ok = _repo.takeShipment(s.code);
-                              Navigator.pop(sheetCtx);
-                              _notif.show(context, ok
-                                ? 'Berhasil mengambil ${s.code}!'
-                                : 'Gagal memproses QR Code.');
-                            },
-                            child: const Text('Ambil', style: TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w700)),
                           ),
-                        ]),
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -171,41 +230,81 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
       builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppColors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Konfirmasi Tiba: ${shipment.code}',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('Apakah pengiriman ini sudah sampai di gudang tujuan?',
-            style: TextStyle(fontSize: 13, height: 1.4, color: AppColors.subtitle)),
-          const SizedBox(height: 12),
-          TextField(
-            controller: noteCtrl, maxLines: 2,
-            style: const TextStyle(fontSize: 13),
-            decoration: InputDecoration(
-              hintText: 'Catatan penerimaan (opsional)...',
-              hintStyle: const TextStyle(color: AppColors.placeholder),
-              contentPadding: const EdgeInsets.all(10),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.primaryContainer)),
+        title: Text(
+          'Konfirmasi Tiba: ${shipment.code}',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Apakah pengiriman ini sudah sampai di gudang tujuan?',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: AppColors.subtitle,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteCtrl,
+              maxLines: 2,
+              style: const TextStyle(fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Catatan penerimaan (opsional)...',
+                hintStyle: const TextStyle(color: AppColors.placeholder),
+                contentPadding: const EdgeInsets.all(10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: AppColors.primaryContainer,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text(
+              'Batal',
+              style: TextStyle(color: AppColors.placeholder),
             ),
           ),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Batal', style: TextStyle(color: AppColors.placeholder))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary, foregroundColor: AppColors.white,
-              elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
             onPressed: () {
               final note = noteCtrl.text.trim();
-              final ok = _repo.completeShipment(shipment.code,
-                warehouseNote: note.isEmpty ? null : note);
+              final ok = _repo.completeShipment(
+                shipment.code,
+                warehouseNote: note.isEmpty ? null : note,
+              );
               Navigator.pop(dialogCtx);
-              if (ok) _notif.show(context, '${shipment.code} berhasil ditandai Tiba!');
+              // [FE - Event Handler] Feedback ini memberi tahu distributor
+              // bahwa konfirmasi tiba berhasil mengubah status shipment.
+              if (ok) {
+                _notif.show(
+                  context,
+                  '${shipment.code} berhasil ditandai Tiba!',
+                );
+              }
             },
-            child: const Text('Konfirmasi Tiba', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: const Text(
+              'Konfirmasi Tiba',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -226,50 +325,72 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
           opacity: _fadeAnim,
           child: SlideTransition(
             position: _slideAnim,
-            child: Column(children: [
-              _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
-              Expanded(
-                child: CustomScrollView(slivers: [
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                    sliver: SliverList(delegate: SliverChildListDelegate([
-                      _GreetingBlock(profile: profile),
-                      const SizedBox(height: 16),
-                      _StatRow(repo: _repo),
-                      const SizedBox(height: 16),
-                      _CtaCard(onTap: _openQrSimulation),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Pengiriman Aktif', style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.black)),
-                          Text('${activeShipments.length} transit', style: const TextStyle(
-                            fontSize: 12, color: AppColors.placeholder)),
-                        ],
+            child: Column(
+              children: [
+                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
+                Expanded(
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate([
+                            _GreetingBlock(profile: profile),
+                            const SizedBox(height: 16),
+                            _StatRow(repo: _repo),
+                            const SizedBox(height: 16),
+                            _CtaCard(onTap: _openQrSimulation),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Pengiriman Aktif',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.black,
+                                  ),
+                                ),
+                                Text(
+                                  '${activeShipments.length} transit',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.placeholder,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                          ]),
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                    ])),
+                      if (activeShipments.isEmpty)
+                        const SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: _EmptyState(),
+                        )
+                      else
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate((context, i) {
+                              final s = activeShipments[i];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _ShipmentCard(
+                                  shipment: s,
+                                  onArrive: () => _markAsArrived(s),
+                                ),
+                              );
+                            }, childCount: activeShipments.length),
+                          ),
+                        ),
+                    ],
                   ),
-                  if (activeShipments.isEmpty)
-                    const SliverFillRemaining(hasScrollBody: false, child: _EmptyState())
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                      sliver: SliverList(delegate: SliverChildBuilderDelegate(
-                        (context, i) {
-                          final s = activeShipments[i];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _ShipmentCard(shipment: s, onArrive: () => _markAsArrived(s)),
-                          );
-                        },
-                        childCount: activeShipments.length,
-                      )),
-                    ),
-                ]),
-              ),
-            ]),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -288,18 +409,38 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
-      child: Row(children: [
-        const Text('Beranda', style: TextStyle(
-          fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.black)),
-        const Spacer(),
-        IconButton(onPressed: onProfile,
-          icon: const Icon(Icons.person_outline_rounded, color: AppColors.black, size: 24),
-          splashRadius: 22),
-        const SizedBox(width: 4),
-        IconButton(onPressed: onMenu,
-          icon: const Icon(Icons.menu_rounded, color: AppColors.black, size: 24),
-          splashRadius: 22),
-      ]),
+      child: Row(
+        children: [
+          const Text(
+            'Beranda',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.black,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            onPressed: onProfile,
+            icon: const Icon(
+              Icons.person_outline_rounded,
+              color: AppColors.black,
+              size: 24,
+            ),
+            splashRadius: 22,
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            onPressed: onMenu,
+            icon: const Icon(
+              Icons.menu_rounded,
+              color: AppColors.black,
+              size: 24,
+            ),
+            splashRadius: 22,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -315,20 +456,49 @@ class _GreetingBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Halo, ${profile.fullName}', style: const TextStyle(
-          fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.black)),
+        Text(
+          'Halo, ${profile.fullName}',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: AppColors.black,
+          ),
+        ),
         const SizedBox(height: 2),
-        Row(children: [
-          const Icon(Icons.local_shipping_rounded, size: 15, color: AppColors.primary),
-          const SizedBox(width: 4),
-          Text(profile.roleLabel, style: const TextStyle(
-            fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.primary)),
-          if (profile.location.isNotEmpty) ...[
-            const Text('  •  ', style: TextStyle(fontSize: 13, color: AppColors.placeholder)),
-            Flexible(child: Text(profile.location, style: const TextStyle(
-              fontSize: 12, color: AppColors.placeholder), overflow: TextOverflow.ellipsis)),
+        Row(
+          children: [
+            const Icon(
+              Icons.local_shipping_rounded,
+              size: 15,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              profile.roleLabel,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.primary,
+              ),
+            ),
+            if (profile.location.isNotEmpty) ...[
+              const Text(
+                '  •  ',
+                style: TextStyle(fontSize: 13, color: AppColors.placeholder),
+              ),
+              Flexible(
+                child: Text(
+                  profile.location,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.placeholder,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ],
-        ]),
+        ),
       ],
     );
   }
@@ -342,22 +512,46 @@ class _StatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(children: [
-      Expanded(child: _StatCard(value: '${repo.totalKirim}', label: 'Total Kirim',
-        icon: Icons.inventory_2_outlined, color: AppColors.primary)),
-      const SizedBox(width: 10),
-      Expanded(child: _StatCard(value: '${repo.transit}', label: 'Transit',
-        icon: Icons.pending_actions_outlined, color: const Color(0xFFB45309))),
-      const SizedBox(width: 10),
-      Expanded(child: _StatCard(value: '${repo.tiba}', label: 'Tiba',
-        icon: Icons.verified_outlined, color: const Color(0xFF3F8F27))),
-    ]);
+    return Row(
+      children: [
+        Expanded(
+          child: _StatCard(
+            value: '${repo.totalKirim}',
+            label: 'Total Kirim',
+            icon: Icons.inventory_2_outlined,
+            color: AppColors.primary,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatCard(
+            value: '${repo.transit}',
+            label: 'Transit',
+            icon: Icons.pending_actions_outlined,
+            color: const Color(0xFFB45309),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatCard(
+            value: '${repo.tiba}',
+            label: 'Tiba',
+            icon: Icons.verified_outlined,
+            color: const Color(0xFF3F8F27),
+          ),
+        ),
+      ],
+    );
   }
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.value, required this.label,
-    required this.icon, required this.color});
+  const _StatCard({
+    required this.value,
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
   final String value;
   final String label;
   final IconData icon;
@@ -372,15 +566,31 @@ class _StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(height: 8),
-        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
-          color: color, height: 1.0)),
-        const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 11,
-          color: AppColors.placeholder, fontWeight: FontWeight.w500)),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: color,
+              height: 1.0,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.placeholder,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -402,26 +612,48 @@ class _CtaCard extends StatelessWidget {
           color: AppColors.primaryContainer,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Row(children: [
-          const Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Ambil Pengiriman', style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.white)),
-              SizedBox(height: 4),
-              Text('Scan QR batch pengepul untuk mulai kirim', style: TextStyle(
-                fontSize: 12, color: Color(0xFFEAF7E5), height: 1.3)),
-            ],
-          )),
-          const SizedBox(width: 12),
-          Container(
-            width: 40, height: 40,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF3B23C), shape: BoxShape.circle),
-            child: const Icon(Icons.qr_code_scanner_rounded,
-              color: AppColors.white, size: 24),
-          ),
-        ]),
+        child: Row(
+          children: [
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Ambil Pengiriman',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.white,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Scan QR batch pengepul untuk mulai kirim',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFFEAF7E5),
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF3B23C),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.qr_code_scanner_rounded,
+                color: AppColors.white,
+                size: 24,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -443,77 +675,151 @@ class _ShipmentCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF3C7),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.local_shipping_outlined,
-                color: Color(0xFFB45309), size: 24),
-            ),
-            const SizedBox(width: 14),
-            Expanded(child: Column(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text(shipment.code, style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.black)),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3C7),
-                      borderRadius: BorderRadius.circular(99)),
-                    child: const Text('Transit', style: TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFB45309))),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                ]),
-                const SizedBox(height: 6),
-                const Text('Asal: Gudang Pak Risqi', style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.subtitle)),
-                const SizedBox(height: 4),
-                Row(children: [
-                  const Icon(Icons.scale_outlined, size: 13, color: AppColors.placeholder),
-                  const SizedBox(width: 4),
-                  Text('${shipment.totalWeightKg.toStringAsFixed(0)} Kg',
-                    style: const TextStyle(fontSize: 11, color: AppColors.placeholder)),
-                  const SizedBox(width: 14),
-                  const Icon(Icons.eco_outlined, size: 13, color: AppColors.placeholder),
-                  const SizedBox(width: 4),
-                  Text('${shipment.totalFruitCount} butir',
-                    style: const TextStyle(fontSize: 11, color: AppColors.placeholder)),
-                ]),
+                  child: const Icon(
+                    Icons.local_shipping_outlined,
+                    color: Color(0xFFB45309),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            shipment.code,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.black,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: const Text(
+                              'Transit',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFB45309),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Asal: Gudang Pak Risqi',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.subtitle,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.scale_outlined,
+                            size: 13,
+                            color: AppColors.placeholder,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${shipment.totalWeightKg.toStringAsFixed(0)} Kg',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.placeholder,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Icon(
+                            Icons.eco_outlined,
+                            size: 13,
+                            color: AppColors.placeholder,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${shipment.totalFruitCount} butir',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.placeholder,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ],
-            )),
-          ]),
-        ),
-        const Divider(height: 1, color: Color(0xFFF0F0F0)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Row(children: [
-            const Icon(Icons.timer_outlined, size: 14, color: AppColors.placeholder),
-            const SizedBox(width: 4),
-            const Text('Dalam perjalanan', style: TextStyle(
-              fontSize: 11, color: AppColors.placeholder)),
-            const Spacer(),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary, foregroundColor: AppColors.white,
-                elevation: 0, padding: const EdgeInsets.symmetric(horizontal: 12),
-                minimumSize: const Size(0, 32),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))),
-              onPressed: onArrive,
-              icon: const Icon(Icons.check_circle_outline_rounded, size: 14),
-              label: const Text('Tandai Tiba', style: TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w700)),
             ),
-          ]),
-        ),
-      ]),
+          ),
+          const Divider(height: 1, color: Color(0xFFF0F0F0)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.timer_outlined,
+                  size: 14,
+                  color: AppColors.placeholder,
+                ),
+                const SizedBox(width: 4),
+                const Text(
+                  'Dalam perjalanan',
+                  style: TextStyle(fontSize: 11, color: AppColors.placeholder),
+                ),
+                const Spacer(),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    minimumSize: const Size(0, 32),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  onPressed: onArrive,
+                  icon: const Icon(
+                    Icons.check_circle_outline_rounded,
+                    size: 14,
+                  ),
+                  label: const Text(
+                    'Tandai Tiba',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -528,12 +834,21 @@ class _EmptyState extends StatelessWidget {
     return const Center(
       child: Padding(
         padding: EdgeInsets.symmetric(vertical: 40),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.local_shipping_outlined, size: 48, color: Color(0xFFCBD5E1)),
-          SizedBox(height: 12),
-          Text('Tidak ada pengiriman aktif saat ini.',
-            style: TextStyle(color: AppColors.placeholder)),
-        ]),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.local_shipping_outlined,
+              size: 48,
+              color: Color(0xFFCBD5E1),
+            ),
+            SizedBox(height: 12),
+            Text(
+              'Tidak ada pengiriman aktif saat ini.',
+              style: TextStyle(color: AppColors.placeholder),
+            ),
+          ],
+        ),
       ),
     );
   }

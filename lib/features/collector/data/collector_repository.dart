@@ -27,6 +27,7 @@ class CollectorRepository extends ChangeNotifier {
   CollectorRepository._seed() {
     _loadFromLocal();
     _products = _buildSeedProducts();
+    _syncDistributedSourceBatches();
     _farmerRepo.addListener(_onFarmerRepoChanged);
   }
 
@@ -53,12 +54,17 @@ class CollectorRepository extends ChangeNotifier {
           .toList();
     } else {
       _shipmentBatches = _buildSeedShipmentBatches();
-      _saveToLocal();
     }
 
     _shipmentCounter =
         LocalStorageService.loadInt('collector_shipment_counter') ??
         _shipmentBatches.length;
+
+    // [FE - State Management] Seed pengiriman baru disimpan setelah counter
+    // siap agar fresh install tidak membaca late field yang belum diinisialisasi.
+    if (shipmentsJsonList == null) {
+      _saveToLocal();
+    }
   }
 
   // [FE - State Management] Saver ini menulis state profil pengepul ke JSON
@@ -71,6 +77,24 @@ class CollectorRepository extends ChangeNotifier {
       _shipmentBatches.map((e) => e.toJson()).toList(),
     );
     LocalStorageService.saveInt('collector_shipment_counter', _shipmentCounter);
+  }
+
+  // [FE - State Management] Sinkronisasi ini menjaga data lama/local storage:
+  // shipment yang sudah dikirim/selesai harus ikut menaikkan status batch
+  // sumber petani ke IN_DISTRIBUTION agar rantai traceability tidak putus.
+  void _syncDistributedSourceBatches() {
+    final distributedSourceCodes = _shipmentBatches
+        .where(
+          (shipment) =>
+              shipment.status == CollectorShipmentStatus.sent ||
+              shipment.status == CollectorShipmentStatus.completed,
+        )
+        .expand((shipment) => shipment.sourceBatchCodes)
+        .toSet();
+
+    _farmerRepo.markBatchesInDistribution(
+      sourceBatchCodes: distributedSourceCodes,
+    );
   }
 
   // ── Konstanta seed ─────────────────────────────────────────────────────────
@@ -320,6 +344,12 @@ class CollectorRepository extends ChangeNotifier {
       status: CollectorShipmentStatus.sent,
       sentAt: DateTime.now(),
     );
+    // [FE - State Management] Saat distributor mengambil shipment, source
+    // batch petani ikut naik status ke IN_DISTRIBUTION sebagai kontrak FE
+    // sementara sebelum mutasi ini dipindahkan ke backend/smart contract.
+    _farmerRepo.markBatchesInDistribution(
+      sourceBatchCodes: existing.sourceBatchCodes,
+    );
     _saveToLocal();
     notifyListeners();
     return true;
@@ -341,6 +371,12 @@ class CollectorRepository extends ChangeNotifier {
       status: CollectorShipmentStatus.completed,
       completedAt: DateTime.now(),
       warehouseNote: warehouseNote,
+    );
+    // [FE - State Management] Complete shipment tetap memastikan source batch
+    // berada di IN_DISTRIBUTION; status RECEIVED_BY_UMKM sengaja menunggu
+    // aksi role UMKM agar alur bisnis tidak lompat melewati penerima akhir.
+    _farmerRepo.markBatchesInDistribution(
+      sourceBatchCodes: existing.sourceBatchCodes,
     );
     _saveToLocal();
     notifyListeners();
@@ -616,12 +652,36 @@ class CollectorRepository extends ChangeNotifier {
         totalWeightKg: 158.0,
         totalFruitCount: 38,
         gradeBreakdown: const [
-          CollectorStockBreakdown(key: 'A', label: 'Grade A', totalWeightKg: 100.0, totalFruitCount: 24, batchCount: 1),
-          CollectorStockBreakdown(key: 'B', label: 'Grade B', totalWeightKg: 58.0, totalFruitCount: 14, batchCount: 1),
+          CollectorStockBreakdown(
+            key: 'A',
+            label: 'Grade A',
+            totalWeightKg: 100.0,
+            totalFruitCount: 24,
+            batchCount: 1,
+          ),
+          CollectorStockBreakdown(
+            key: 'B',
+            label: 'Grade B',
+            totalWeightKg: 58.0,
+            totalFruitCount: 14,
+            batchCount: 1,
+          ),
         ],
         varietyBreakdown: const [
-          CollectorStockBreakdown(key: 'montong', label: 'Durian Montong', totalWeightKg: 90.0, totalFruitCount: 20, batchCount: 1),
-          CollectorStockBreakdown(key: 'bawor', label: 'Durian Bawor', totalWeightKg: 68.0, totalFruitCount: 18, batchCount: 1),
+          CollectorStockBreakdown(
+            key: 'montong',
+            label: 'Durian Montong',
+            totalWeightKg: 90.0,
+            totalFruitCount: 20,
+            batchCount: 1,
+          ),
+          CollectorStockBreakdown(
+            key: 'bawor',
+            label: 'Durian Bawor',
+            totalWeightKg: 68.0,
+            totalFruitCount: 18,
+            batchCount: 1,
+          ),
         ],
         packagedAt: now.subtract(const Duration(hours: 4)),
         sentAt: now.subtract(const Duration(hours: 3)),
@@ -637,10 +697,22 @@ class CollectorRepository extends ChangeNotifier {
           totalWeightKg: 120.0 + (i * 12),
           totalFruitCount: 30 + i,
           gradeBreakdown: [
-            CollectorStockBreakdown(key: 'A', label: 'Grade A', totalWeightKg: 120.0 + (i * 12), totalFruitCount: 30 + i, batchCount: 1),
+            CollectorStockBreakdown(
+              key: 'A',
+              label: 'Grade A',
+              totalWeightKg: 120.0 + (i * 12),
+              totalFruitCount: 30 + i,
+              batchCount: 1,
+            ),
           ],
           varietyBreakdown: [
-            CollectorStockBreakdown(key: 'lempok', label: 'Lempok Durian', totalWeightKg: 120.0 + (i * 12), totalFruitCount: 30 + i, batchCount: 1),
+            CollectorStockBreakdown(
+              key: 'lempok',
+              label: 'Lempok Durian',
+              totalWeightKg: 120.0 + (i * 12),
+              totalFruitCount: 30 + i,
+              batchCount: 1,
+            ),
           ],
           packagedAt: now.subtract(Duration(days: i + 1)),
           sentAt: now.subtract(Duration(days: i + 1, hours: 2)),

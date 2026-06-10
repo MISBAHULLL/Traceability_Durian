@@ -208,7 +208,10 @@ class _HomeScreenState extends State<HomeScreen>
             transitionDuration: const Duration(milliseconds: 400),
             pageBuilder: (_, _, _) => destination!,
             transitionsBuilder: (_, animation, _, child) => FadeTransition(
-              opacity: CurvedAnimation(parent: animation, curve: Curves.easeInOutCubic),
+              opacity: CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeInOutCubic,
+              ),
               child: child,
             ),
           ),

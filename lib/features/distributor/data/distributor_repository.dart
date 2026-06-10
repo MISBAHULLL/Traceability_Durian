@@ -62,7 +62,10 @@ class DistributorRepository extends ChangeNotifier {
   }
 
   void _saveToLocal() {
-    LocalStorageService.saveString('distributor_current_id', _currentDistributorId);
+    LocalStorageService.saveString(
+      'distributor_current_id',
+      _currentDistributorId,
+    );
     LocalStorageService.saveJson('distributor_profile', _profile.toJson());
   }
 
@@ -132,32 +135,46 @@ class DistributorRepository extends ChangeNotifier {
       CollectorRepository.instance.shipmentBatches;
 
   /// Metrik 1: Total Kirim (Transit + Tiba)
-  int get totalKirim =>
-      allShipments.where((e) =>
-          e.status == CollectorShipmentStatus.sent ||
-          e.status == CollectorShipmentStatus.completed).length;
+  int get totalKirim => allShipments
+      .where(
+        (e) =>
+            e.status == CollectorShipmentStatus.sent ||
+            e.status == CollectorShipmentStatus.completed,
+      )
+      .length;
 
   /// Metrik 2: Transit (Sedang Dikirim)
-  int get transit =>
-      allShipments.where((e) => e.status == CollectorShipmentStatus.sent).length;
+  int get transit => allShipments
+      .where((e) => e.status == CollectorShipmentStatus.sent)
+      .length;
 
   /// Metrik 3: Tiba (Selesai Dikirim)
-  int get tiba =>
-      allShipments.where((e) => e.status == CollectorShipmentStatus.completed).length;
+  int get tiba => allShipments
+      .where((e) => e.status == CollectorShipmentStatus.completed)
+      .length;
 
   /// Daftar pengiriman aktif (Status = Transit / Sent)
   List<CollectorShipmentBatch> get activeShipments =>
-      allShipments.where((e) => e.status == CollectorShipmentStatus.sent).toList()
+      allShipments
+          .where((e) => e.status == CollectorShipmentStatus.sent)
+          .toList()
         ..sort((a, b) => b.sentAt?.compareTo(a.sentAt ?? DateTime.now()) ?? 0);
 
   /// Daftar pengiriman yang sudah selesai (Status = Completed)
   List<CollectorShipmentBatch> get historyShipments =>
-      allShipments.where((e) => e.status == CollectorShipmentStatus.completed).toList()
-        ..sort((a, b) => b.completedAt?.compareTo(a.completedAt ?? DateTime.now()) ?? 0);
+      allShipments
+          .where((e) => e.status == CollectorShipmentStatus.completed)
+          .toList()
+        ..sort(
+          (a, b) =>
+              b.completedAt?.compareTo(a.completedAt ?? DateTime.now()) ?? 0,
+        );
 
   /// Daftar pengiriman dari pengepul yang siap diambil (Status = ReadyToShip)
   List<CollectorShipmentBatch> get readyToPickShipments =>
-      allShipments.where((e) => e.status == CollectorShipmentStatus.readyToShip).toList()
+      allShipments
+          .where((e) => e.status == CollectorShipmentStatus.readyToShip)
+          .toList()
         ..sort((a, b) => b.packagedAt.compareTo(a.packagedAt));
 
   /// Menandai shipment batch sebagai "Sent" (Handover pengiriman diambil).
@@ -177,7 +194,8 @@ class DistributorRepository extends ChangeNotifier {
     try {
       final success = CollectorRepository.instance.completeShipment(
         code,
-        warehouseNote: warehouseNote ?? 'Diterima dengan baik oleh distributor.',
+        warehouseNote:
+            warehouseNote ?? 'Diterima dengan baik oleh distributor.',
       );
       if (success) {
         notifyListeners();

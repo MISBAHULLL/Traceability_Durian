@@ -7,6 +7,7 @@ import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
 import '../models/distributor_profile.dart';
 import '../widgets/distributor_drawer.dart';
+import 'distributor_shipment_detail_screen.dart';
 import 'edit_distributor_profile_screen.dart';
 
 // [FE - Component Rendering] DistributorHomeScreen mengikuti pola layout
@@ -223,6 +224,15 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
     );
   }
 
+  // [FE - Event Handler] Navigasi ini membuka detail pengiriman agar
+  // distributor bisa melihat agregat, timeline, dan provenance tree.
+  Future<void> _openShipmentDetail(CollectorShipmentBatch shipment) async {
+    await DistributorRoutes.push(
+      context,
+      DistributorShipmentDetailScreen(shipmentCode: shipment.code),
+    );
+  }
+
   void _markAsArrived(CollectorShipmentBatch shipment) {
     final noteCtrl = TextEditingController();
     showDialog(
@@ -380,6 +390,7 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: _ShipmentCard(
                                   shipment: s,
+                                  onDetail: () => _openShipmentDetail(s),
                                   onArrive: () => _markAsArrived(s),
                                 ),
                               );
@@ -661,9 +672,17 @@ class _CtaCard extends StatelessWidget {
 
 // ── Shipment Card ────────────────────────────────────────────────────────────
 
+// [FE - Component Rendering] Kartu ini menampilkan ringkasan shipment; aksi
+// navigasi dan konfirmasi dipisah agar area klik tidak terasa ambigu.
 class _ShipmentCard extends StatelessWidget {
-  const _ShipmentCard({required this.shipment, required this.onArrive});
+  const _ShipmentCard({
+    required this.shipment,
+    required this.onDetail,
+    required this.onArrive,
+  });
+
   final CollectorShipmentBatch shipment;
+  final VoidCallback onDetail;
   final VoidCallback onArrive;
 
   @override
@@ -794,6 +813,25 @@ class _ShipmentCard extends StatelessWidget {
                   style: TextStyle(fontSize: 11, color: AppColors.placeholder),
                 ),
                 const Spacer(),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  onPressed: onDetail,
+                  icon: const Icon(Icons.visibility_outlined, size: 14),
+                  label: const Text(
+                    'Detail',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -823,7 +861,6 @@ class _ShipmentCard extends StatelessWidget {
     );
   }
 }
-
 // ── Empty State ──────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {

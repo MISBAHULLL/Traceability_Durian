@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../collector/data/collector_repository.dart';
 import '../../collector/models/collector_shipment_batch.dart';
+import '../../farmer/data/farmer_repository.dart';
+import '../../farmer/models/harvest_batch.dart';
 import '../models/distributor_profile.dart';
 
 // [FE - State Management] DistributorRepository mengelola profil distributor,
@@ -133,6 +135,26 @@ class DistributorRepository extends ChangeNotifier {
   /// Mengambil semua shipment batch dari CollectorRepository.
   List<CollectorShipmentBatch> get allShipments =>
       CollectorRepository.instance.shipmentBatches;
+
+  // [FE - State Management] Lookup ini menjadi jembatan detail distributor
+  // dari kode shipment PGL ke data agregat pengepul yang sedang dipilih.
+  CollectorShipmentBatch? findShipment(String code) {
+    try {
+      return allShipments.firstWhere((shipment) => shipment.code == code);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // [FE - State Management] Resolver provenance ini menghubungkan batch
+  // pengiriman pengepul dengan batch panen petani asal untuk detail trace.
+  List<HarvestBatch> sourceBatchesForShipment(CollectorShipmentBatch shipment) {
+    final farmerRepo = FarmerRepository.instance;
+    return shipment.sourceBatchCodes
+        .map(farmerRepo.findPublicBatch)
+        .whereType<HarvestBatch>()
+        .toList();
+  }
 
   /// Metrik 1: Total Kirim (Transit + Tiba)
   int get totalKirim => allShipments

@@ -72,7 +72,11 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
                         ...stocks.map(
                           (batch) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: _StockCard(batch: batch),
+                            child: _StockCard(
+                              batch: batch,
+                              shipmentCode:
+                                  _repo.shipmentForSourceBatch(batch.code)?.code,
+                            ),
                           ),
                         ),
                       ],
@@ -377,9 +381,13 @@ class _TinyCountPill extends StatelessWidget {
 // [FE - Component Rendering] Kartu stok menggabungkan data panen awal dan
 // metadata verifikasi pengepul sebagai ringkasan operasional.
 class _StockCard extends StatelessWidget {
-  const _StockCard({required this.batch});
+  const _StockCard({
+    required this.batch,
+    this.shipmentCode,
+  });
 
   final HarvestBatch batch;
+  final String? shipmentCode;
 
   String _formatDate(DateTime d) {
     const months = [
@@ -471,7 +479,11 @@ class _StockCard extends StatelessWidget {
                   ],
                 ),
               ),
-              _StatusPill(label: 'Siap Distribusi'),
+              _StatusPill(
+                label: shipmentCode == null
+                    ? 'Siap Digabung'
+                    : 'Masuk $shipmentCode',
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -502,6 +514,12 @@ class _StockCard extends StatelessWidget {
           if (gradeBreakdownText.isNotEmpty) ...[
             const SizedBox(height: 12),
             _GradeBreakdownBox(text: gradeBreakdownText),
+          ],
+          if (shipmentCode != null) ...[
+            const SizedBox(height: 12),
+            // [FE - Component Rendering] Penanda ini menjelaskan bahwa stok
+            // sudah menjadi source batch pengiriman dan tidak bisa dipilih ulang.
+            _AllocatedShipmentBox(code: shipmentCode!),
           ],
           if (batch.qualityNotes != null && batch.qualityNotes!.isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -577,6 +595,48 @@ class _GradeBreakdownBox extends StatelessWidget {
           fontWeight: FontWeight.w700,
           color: AppColors.subtitle,
         ),
+      ),
+    );
+  }
+}
+
+// [FE - Component Rendering] Box ini menandai source batch yang sudah masuk
+// batch pengiriman agar pengepul tidak mengira stoknya masih bebas dipilih.
+class _AllocatedShipmentBox extends StatelessWidget {
+  const _AllocatedShipmentBox({required this.code});
+
+  final String code;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7E6),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFF3D19E)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.account_tree_outlined,
+            size: 18,
+            color: Color(0xFFB45309),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Sudah masuk batch pengiriman $code',
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.35,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF92400E),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

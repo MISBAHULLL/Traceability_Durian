@@ -222,6 +222,18 @@ class CollectorRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
+  // [FE - State Management] Lookup ini mencari batch pengiriman yang memakai
+  // sebuah source batch petani agar UI stok bisa menandai alokasi provenance.
+  CollectorShipmentBatch? shipmentForSourceBatch(String sourceBatchCode) {
+    try {
+      return shipmentBatches.firstWhere(
+        (shipment) => shipment.sourceBatchCodes.contains(sourceBatchCode),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Set<String> get _allocatedSourceBatchCodes {
     return _shipmentBatches
         .where((batch) => batch.collectorId == _currentCollectorId)

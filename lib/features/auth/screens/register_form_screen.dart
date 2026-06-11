@@ -36,6 +36,16 @@ const Map<String, IconData> _roleIcons = {
   'konsumen': Icons.people_rounded,
 };
 
+const Set<String> _disposableEmailDomains = {
+  '10minutemail.com',
+  'guerrillamail.com',
+  'mailinator.com',
+  'temp-mail.org',
+  'tempmail.com',
+  'throwawaymail.com',
+  'yopmail.com',
+};
+
 /// Halaman form pendaftaran akun baru.
 ///
 /// Layout:
@@ -74,6 +84,13 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
 
   bool _isLoading = false;
   OverlayEntry? _overlayEntry;
+  String? _firstNameError;
+  String? _lastNameError;
+  String? _phoneError;
+  String? _emailError;
+  String? _passwordError;
+  String? _confirmPasswordError;
+  bool _showPasswordRequirements = false;
 
   late final AnimationController _animController;
   late final Animation<double> _fadeAnim;
@@ -94,6 +111,12 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
         .animate(
           CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
         );
+    _phoneCtrl.addListener(_handlePhoneChanged);
+    _emailCtrl.addListener(_handleEmailChanged);
+    _emailFocus.addListener(_handleEmailFocusChanged);
+    _passwordCtrl.addListener(_handlePasswordChanged);
+    _passwordFocus.addListener(_handlePasswordFocusChanged);
+    _confirmPasswordCtrl.addListener(_handleConfirmPasswordChanged);
     _animController.forward();
   }
 
@@ -102,6 +125,12 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     _overlayEntry?.remove();
     _overlayEntry = null;
     _animController.dispose();
+    _phoneCtrl.removeListener(_handlePhoneChanged);
+    _emailCtrl.removeListener(_handleEmailChanged);
+    _emailFocus.removeListener(_handleEmailFocusChanged);
+    _passwordCtrl.removeListener(_handlePasswordChanged);
+    _passwordFocus.removeListener(_handlePasswordFocusChanged);
+    _confirmPasswordCtrl.removeListener(_handleConfirmPasswordChanged);
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _phoneCtrl.dispose();
@@ -142,70 +171,202 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
   // [UTIL - Helper Function] Normalisasi ini menjaga nomor HP register tetap
   // konsisten untuk profil mock dan nanti mudah dipetakan ke payload API.
   String _normalizeIndonesianPhone(String value) {
-    final digits = value.replaceAll(RegExp(r'\D'), '');
-    if (digits.startsWith('0')) return digits.substring(1);
+    var digits = value.replaceAll(RegExp(r'\D'), '');
+    while (digits.startsWith('0')) {
+      digits = digits.substring(1);
+    }
+    while (digits.startsWith('62')) {
+      digits = digits.substring(2);
+    }
+    if (digits.length > 13) return digits.substring(0, 13);
     return digits;
+  }
+
+  String _normalizeEmail(String value) => value.trim().toLowerCase();
+
+  void _setControllerText(TextEditingController controller, String text) {
+    if (controller.text == text) return;
+    controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  void _handlePhoneChanged() {
+    if (_phoneError == null) return;
+    final phone = _normalizeIndonesianPhone(_phoneCtrl.text);
+    final error = _phoneValidationError(phone);
+    if (_phoneError == error) return;
+    setState(() => _phoneError = error);
+  }
+
+  void _handleEmailChanged() {
+    if (_emailError == null) return;
+    final email = _normalizeEmail(_emailCtrl.text);
+    final error = _emailValidationError(email);
+    if (_emailError == error) return;
+    setState(() => _emailError = error);
+  }
+
+  void _handleEmailFocusChanged() {
+    if (_emailFocus.hasFocus) return;
+    final email = _normalizeEmail(_emailCtrl.text);
+    _setControllerText(_emailCtrl, email);
+    if (_emailError != null) {
+      setState(() => _emailError = _emailValidationError(email));
+    }
+  }
+
+  void _handlePasswordChanged() {
+    final password = _passwordCtrl.text;
+    final shouldShow = _passwordFocus.hasFocus || password.isNotEmpty;
+    final error = _passwordError == null
+        ? null
+        : _passwordValidationError(password);
+    setState(() {
+      _showPasswordRequirements = shouldShow || _passwordError != null;
+      _passwordError = error;
+      if (_confirmPasswordError != null) {
+        _confirmPasswordError = _confirmPasswordValidationError(
+          _confirmPasswordCtrl.text,
+          password,
+        );
+      }
+    });
+  }
+
+  void _handlePasswordFocusChanged() {
+    setState(() {
+      _showPasswordRequirements =
+          _passwordFocus.hasFocus ||
+          _passwordCtrl.text.isNotEmpty ||
+          _passwordError != null;
+    });
+  }
+
+  void _handleConfirmPasswordChanged() {
+    if (_confirmPasswordError == null) return;
+    final error = _confirmPasswordValidationError(
+      _confirmPasswordCtrl.text,
+      _passwordCtrl.text,
+    );
+    if (_confirmPasswordError == error) return;
+    setState(() => _confirmPasswordError = error);
+  }
+
+  String? _phoneValidationError(String phone) {
+    if (phone.isEmpty) return 'Nomor HP wajib diisi.';
+    if (!phone.startsWith('8')) {
+      return 'Nomor HP wajib diawali angka 8 setelah +62.';
+    }
+    if (phone.length < 7 || phone.length > 13) {
+      return 'Nomor HP harus 7-13 digit setelah +62.';
+    }
+    return null;
+  }
+
+  String? _emailValidationError(String email) {
+    if (email.isEmpty) return 'Email wajib diisi.';
+    final emailRegex = RegExp(
+      r'^[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}$',
+      caseSensitive: false,
+    );
+    if (!emailRegex.hasMatch(email)) return 'Format email tidak valid';
+    final domain = email.split('@').last;
+    final isDisposable = _disposableEmailDomains.any(
+      (blocked) => domain == blocked || domain.endsWith('.$blocked'),
+    );
+    if (isDisposable) return 'Gunakan email aktif, bukan email sementara.';
+    return null;
+  }
+
+  bool _hasPasswordLength(String password) => password.length >= 8;
+  bool _hasPasswordUppercase(String password) =>
+      RegExp(r'[A-Z]').hasMatch(password);
+  bool _hasPasswordNumber(String password) => RegExp(r'\d').hasMatch(password);
+  bool _hasPasswordSymbol(String password) =>
+      RegExp(r'[^A-Za-z0-9]').hasMatch(password);
+
+  List<String> _missingPasswordRequirements(String password) {
+    return [
+      if (!_hasPasswordLength(password)) 'minimal 8 karakter',
+      if (!_hasPasswordUppercase(password)) 'huruf kapital',
+      if (!_hasPasswordNumber(password)) 'angka',
+      if (!_hasPasswordSymbol(password)) 'simbol',
+    ];
+  }
+
+  String? _passwordValidationError(String password) {
+    if (password.isEmpty) return 'Password wajib diisi.';
+    final missing = _missingPasswordRequirements(password);
+    if (missing.isEmpty) return null;
+    return 'Lengkapi password: ${missing.join(', ')}.';
+  }
+
+  String? _confirmPasswordValidationError(
+    String confirmPassword,
+    String password,
+  ) {
+    if (confirmPassword.isEmpty) return 'Konfirmasi password wajib diisi.';
+    if (confirmPassword != password) {
+      return 'Password dan konfirmasi tidak cocok.';
+    }
+    return null;
+  }
+
+  bool _validateRegisterFields() {
+    final phone = _normalizeIndonesianPhone(_phoneCtrl.text);
+    final email = _normalizeEmail(_emailCtrl.text);
+    _setControllerText(_phoneCtrl, phone);
+    _setControllerText(_emailCtrl, email);
+
+    final password = _passwordCtrl.text;
+    final firstNameError = _firstNameCtrl.text.trim().isEmpty
+        ? 'Nama depan wajib diisi.'
+        : null;
+    final lastNameError = _lastNameCtrl.text.trim().isEmpty
+        ? 'Nama belakang wajib diisi.'
+        : null;
+    final phoneError = _phoneValidationError(phone);
+    final emailError = _emailValidationError(email);
+    final passwordError = _passwordValidationError(password);
+    final confirmPasswordError = _confirmPasswordValidationError(
+      _confirmPasswordCtrl.text,
+      password,
+    );
+
+    setState(() {
+      _firstNameError = firstNameError;
+      _lastNameError = lastNameError;
+      _phoneError = phoneError;
+      _emailError = emailError;
+      _passwordError = passwordError;
+      _confirmPasswordError = confirmPasswordError;
+      _showPasswordRequirements =
+          _showPasswordRequirements ||
+          passwordError != null ||
+          password.isNotEmpty;
+    });
+
+    return [
+      firstNameError,
+      lastNameError,
+      phoneError,
+      emailError,
+      passwordError,
+      confirmPasswordError,
+    ].every((error) => error == null);
   }
 
   void _handleRegister() async {
     FocusScope.of(context).unfocus();
 
+    if (!_validateRegisterFields()) return;
+
     final firstName = _firstNameCtrl.text.trim();
     final lastName = _lastNameCtrl.text.trim();
     final phone = _normalizeIndonesianPhone(_phoneCtrl.text);
-    final email = _emailCtrl.text.trim();
-    final password = _passwordCtrl.text;
-    final confirmPassword = _confirmPasswordCtrl.text;
-
-    // ── Validasi ──────────────────────────────────────────────────────────
-    if (firstName.isEmpty) {
-      _showTopNotification('Nama depan wajib diisi.', isError: true);
-      return;
-    }
-    if (lastName.isEmpty) {
-      _showTopNotification('Nama belakang wajib diisi.', isError: true);
-      return;
-    }
-    if (phone.isEmpty) {
-      _showTopNotification('Nomor HP wajib diisi.', isError: true);
-      return;
-    }
-    if (phone.length < 9 || phone.length > 13) {
-      _showTopNotification(
-        'Nomor HP tidak valid (9-13 digit setelah +62).',
-        isError: true,
-      );
-      return;
-    }
-    if (email.isEmpty) {
-      _showTopNotification('Email wajib diisi.', isError: true);
-      return;
-    }
-    final emailRegex = RegExp(r'^[\w\.\+\-]+@[\w\-]+\.[a-zA-Z]{2,}$');
-    if (!emailRegex.hasMatch(email)) {
-      _showTopNotification('Format email tidak valid.', isError: true);
-      return;
-    }
-    if (password.isEmpty) {
-      _showTopNotification('Password wajib diisi.', isError: true);
-      return;
-    }
-    if (password.length < 8) {
-      _showTopNotification('Password minimal 8 karakter.', isError: true);
-      return;
-    }
-    if (confirmPassword.isEmpty) {
-      _showTopNotification('Konfirmasi password wajib diisi.', isError: true);
-      return;
-    }
-    if (password != confirmPassword) {
-      _showTopNotification(
-        'Password dan konfirmasi tidak cocok.',
-        isError: true,
-      );
-      return;
-    }
-
+    final email = _normalizeEmail(_emailCtrl.text);
     setState(() => _isLoading = true);
 
     // Simulasi delay — ganti dengan API call saat BE siap
@@ -283,6 +444,11 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     final roleLabel = _roleLabels[widget.role] ?? widget.role;
     final roleColor = _roleColors[widget.role] ?? AppColors.primary;
     final roleIcon = _roleIcons[widget.role] ?? Icons.person_rounded;
+    final password = _passwordCtrl.text;
+    final showPasswordRequirements =
+        _showPasswordRequirements ||
+        _passwordFocus.hasFocus ||
+        password.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -318,30 +484,68 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                         Row(
                           children: [
                             Expanded(
-                              child: _FormField(
-                                controller: _firstNameCtrl,
-                                focusNode: _firstNameFocus,
-                                hintText: 'Nama depan',
-                                textInputAction: TextInputAction.next,
-                                keyboardType: TextInputType.name,
-                                textCapitalization: TextCapitalization.words,
-                                onSubmitted: (_) => FocusScope.of(
-                                  context,
-                                ).requestFocus(_lastNameFocus),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _FormField(
+                                    controller: _firstNameCtrl,
+                                    focusNode: _firstNameFocus,
+                                    hintText: 'Nama depan',
+                                    textInputAction: TextInputAction.next,
+                                    keyboardType: TextInputType.name,
+                                    textCapitalization:
+                                        TextCapitalization.words,
+                                    onChanged: (_) {
+                                      if (_firstNameError == null) return;
+                                      setState(() {
+                                        _firstNameError =
+                                            _firstNameCtrl.text.trim().isEmpty
+                                            ? 'Nama depan wajib diisi.'
+                                            : null;
+                                      });
+                                    },
+                                    onSubmitted: (_) => FocusScope.of(
+                                      context,
+                                    ).requestFocus(_lastNameFocus),
+                                  ),
+                                  _InlineFieldMessage(
+                                    message: _firstNameError,
+                                    isError: true,
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: _FormField(
-                                controller: _lastNameCtrl,
-                                focusNode: _lastNameFocus,
-                                hintText: 'Nama belakang',
-                                textInputAction: TextInputAction.next,
-                                keyboardType: TextInputType.name,
-                                textCapitalization: TextCapitalization.words,
-                                onSubmitted: (_) => FocusScope.of(
-                                  context,
-                                ).requestFocus(_phoneFocus),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _FormField(
+                                    controller: _lastNameCtrl,
+                                    focusNode: _lastNameFocus,
+                                    hintText: 'Nama belakang',
+                                    textInputAction: TextInputAction.next,
+                                    keyboardType: TextInputType.name,
+                                    textCapitalization:
+                                        TextCapitalization.words,
+                                    onChanged: (_) {
+                                      if (_lastNameError == null) return;
+                                      setState(() {
+                                        _lastNameError =
+                                            _lastNameCtrl.text.trim().isEmpty
+                                            ? 'Nama belakang wajib diisi.'
+                                            : null;
+                                      });
+                                    },
+                                    onSubmitted: (_) => FocusScope.of(
+                                      context,
+                                    ).requestFocus(_phoneFocus),
+                                  ),
+                                  _InlineFieldMessage(
+                                    message: _lastNameError,
+                                    isError: true,
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -359,11 +563,18 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                           textInputAction: TextInputAction.next,
                           keyboardType: TextInputType.phone,
                           inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(15),
+                            _IndonesianPhoneTextInputFormatter(),
                           ],
                           onSubmitted: (_) =>
                               FocusScope.of(context).requestFocus(_emailFocus),
+                        ),
+                        const _InlineFieldMessage(
+                          message: 'Masukkan nomor tanpa angka 0 di depan',
+                          icon: Icons.error_outline_rounded,
+                        ),
+                        _InlineFieldMessage(
+                          message: _phoneError,
+                          isError: true,
                         ),
                         const SizedBox(height: 16),
 
@@ -380,6 +591,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                             context,
                           ).requestFocus(_passwordFocus),
                         ),
+                        _InlineFieldMessage(
+                          message: _emailError,
+                          isError: true,
+                        ),
                         const SizedBox(height: 16),
 
                         // ── Password ──────────────────────────────────────
@@ -395,6 +610,14 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                             context,
                           ).requestFocus(_confirmPasswordFocus),
                         ),
+                        if (showPasswordRequirements)
+                          _PasswordRequirementPanel(
+                            errorMessage: _passwordError,
+                            hasLength: _hasPasswordLength(password),
+                            hasUppercase: _hasPasswordUppercase(password),
+                            hasNumber: _hasPasswordNumber(password),
+                            hasSymbol: _hasPasswordSymbol(password),
+                          ),
                         const SizedBox(height: 16),
 
                         // ── Konfirmasi Password ───────────────────────────
@@ -407,6 +630,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                           obscureText: true,
                           textInputAction: TextInputAction.done,
                           onSubmitted: (_) => _handleRegister(),
+                        ),
+                        _InlineFieldMessage(
+                          message: _confirmPasswordError,
+                          isError: true,
                         ),
                         const SizedBox(height: 32),
 
@@ -598,6 +825,7 @@ class _FormField extends StatefulWidget {
     this.textCapitalization = TextCapitalization.none,
     this.prefixText,
     this.inputFormatters,
+    this.onChanged,
     this.onSubmitted,
   });
 
@@ -610,6 +838,7 @@ class _FormField extends StatefulWidget {
   final TextCapitalization textCapitalization;
   final String? prefixText;
   final List<TextInputFormatter>? inputFormatters;
+  final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
 
   @override
@@ -646,6 +875,7 @@ class _FormFieldState extends State<_FormField> {
       textInputAction: widget.textInputAction,
       textCapitalization: widget.textCapitalization,
       inputFormatters: widget.inputFormatters,
+      onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
       style: const TextStyle(fontSize: 14, color: AppColors.black),
       decoration: InputDecoration(
@@ -678,6 +908,147 @@ class _FormFieldState extends State<_FormField> {
                 ),
               )
             : null,
+      ),
+    );
+  }
+}
+
+class _IndonesianPhoneTextInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    var digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    while (digits.startsWith('0')) {
+      digits = digits.substring(1);
+    }
+    while (digits.startsWith('62')) {
+      digits = digits.substring(2);
+    }
+    if (digits.length > 13) {
+      digits = digits.substring(0, 13);
+    }
+    return TextEditingValue(
+      text: digits,
+      selection: TextSelection.collapsed(offset: digits.length),
+    );
+  }
+}
+
+class _InlineFieldMessage extends StatelessWidget {
+  const _InlineFieldMessage({
+    required this.message,
+    this.isError = false,
+    this.icon,
+  });
+
+  final String? message;
+  final bool isError;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    if (message == null || message!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final color = isError ? const Color(0xFFDC2626) : AppColors.placeholder;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon ?? Icons.error_outline_rounded, size: 14, color: color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              message!,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PasswordRequirementPanel extends StatelessWidget {
+  const _PasswordRequirementPanel({
+    required this.hasLength,
+    required this.hasUppercase,
+    required this.hasNumber,
+    required this.hasSymbol,
+    this.errorMessage,
+  });
+
+  final bool hasLength;
+  final bool hasUppercase;
+  final bool hasNumber;
+  final bool hasSymbol;
+  final String? errorMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _InlineFieldMessage(message: errorMessage, isError: true),
+          const SizedBox(height: 8),
+          _PasswordRequirementItem(
+            text: 'Minimal 8 karakter',
+            isMet: hasLength,
+          ),
+          _PasswordRequirementItem(
+            text: 'Gunakan huruf kapital',
+            isMet: hasUppercase,
+          ),
+          _PasswordRequirementItem(text: 'Masukkan angka', isMet: hasNumber),
+          _PasswordRequirementItem(text: 'Masukkan simbol', isMet: hasSymbol),
+        ],
+      ),
+    );
+  }
+}
+
+class _PasswordRequirementItem extends StatelessWidget {
+  const _PasswordRequirementItem({required this.text, required this.isMet});
+
+  final String text;
+  final bool isMet;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isMet ? const Color(0xFF58A835) : AppColors.placeholder;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        children: [
+          Icon(
+            Icons.check_circle_outline_rounded,
+            size: 14,
+            color: color,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: isMet ? FontWeight.w600 : FontWeight.w500,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

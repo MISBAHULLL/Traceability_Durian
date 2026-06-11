@@ -112,6 +112,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
           CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
         );
     _phoneCtrl.addListener(_handlePhoneChanged);
+    _phoneFocus.addListener(_handlePhoneFocusChanged);
     _emailCtrl.addListener(_handleEmailChanged);
     _emailFocus.addListener(_handleEmailFocusChanged);
     _passwordCtrl.addListener(_handlePasswordChanged);
@@ -126,6 +127,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     _overlayEntry = null;
     _animController.dispose();
     _phoneCtrl.removeListener(_handlePhoneChanged);
+    _phoneFocus.removeListener(_handlePhoneFocusChanged);
     _emailCtrl.removeListener(_handleEmailChanged);
     _emailFocus.removeListener(_handleEmailFocusChanged);
     _passwordCtrl.removeListener(_handlePasswordChanged);
@@ -193,11 +195,15 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
   }
 
   void _handlePhoneChanged() {
-    if (_phoneError == null) return;
     final phone = _normalizeIndonesianPhone(_phoneCtrl.text);
     final error = _phoneValidationError(phone);
-    if (_phoneError == error) return;
-    setState(() => _phoneError = error);
+    setState(() {
+      if (_phoneError != null) _phoneError = error;
+    });
+  }
+
+  void _handlePhoneFocusChanged() {
+    setState(() {});
   }
 
   void _handleEmailChanged() {
@@ -449,6 +455,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
         _showPasswordRequirements ||
         _passwordFocus.hasFocus ||
         password.isNotEmpty;
+    final showPhoneHelper = _phoneFocus.hasFocus || _phoneError != null;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -559,7 +566,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                           controller: _phoneCtrl,
                           focusNode: _phoneFocus,
                           hintText: 'Contoh: 8123456789',
-                          prefixText: '+62  ',
+                          prefixText:
+                              _phoneFocus.hasFocus || _phoneCtrl.text.isNotEmpty
+                              ? '+62  '
+                              : null,
                           textInputAction: TextInputAction.next,
                           keyboardType: TextInputType.phone,
                           inputFormatters: [
@@ -568,10 +578,11 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                           onSubmitted: (_) =>
                               FocusScope.of(context).requestFocus(_emailFocus),
                         ),
-                        const _InlineFieldMessage(
-                          message: 'Masukkan nomor tanpa angka 0 di depan',
-                          icon: Icons.error_outline_rounded,
-                        ),
+                        if (showPhoneHelper)
+                          const _InlineFieldMessage(
+                            message: 'Masukkan nomor tanpa angka 0 di depan',
+                            icon: Icons.error_outline_rounded,
+                          ),
                         _InlineFieldMessage(
                           message: _phoneError,
                           isError: true,

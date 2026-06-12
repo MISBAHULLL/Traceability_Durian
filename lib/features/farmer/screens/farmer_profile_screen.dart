@@ -105,7 +105,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
     final profile = _repo.profile;
 
     return Scaffold(
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.surface, // Background surface agar card putih menonjol
       body: SafeArea(
         child: FadeTransition(
           opacity: _fadeAnim,
@@ -115,16 +115,23 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
               children: [
                 // Top bar dengan tombol back + aksi ubah profil (Req 6.2)
                 AppTopBar(
-                  title: 'Profil',
+                  title: 'Profil Saya',
                   actions: [
-                    IconButton(
-                      onPressed: _openEditProfile,
-                      icon: const Icon(
-                        Icons.edit_outlined,
-                        color: AppColors.black,
-                        size: 22,
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        shape: BoxShape.circle,
                       ),
-                      tooltip: 'Ubah Profil',
+                      child: IconButton(
+                        onPressed: _openEditProfile,
+                        icon: const Icon(
+                          Icons.edit_rounded,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
+                        tooltip: 'Ubah Profil',
+                      ),
                     ),
                   ],
                 ),
@@ -132,28 +139,21 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
                 // Konten utama
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                    physics: const BouncingScrollPhysics(),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 8),
-
-                        // ── Header profil (Req 6.1) ──────────────────────
+                        // ── Header profil (Center-aligned Premium) ────────
                         _ProfileHeader(profile: profile),
 
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 32),
 
-                        // ── Divider ──────────────────────────────────────
-                        const Divider(color: Color(0xFFE5E7EB)),
-
-                        const SizedBox(height: 24),
-
-                        // ── Detail info ──────────────────────────────────
+                        // ── Detail info (Card Based) ──────────────────────
                         _ProfileInfoSection(profile: profile),
 
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 48),
 
-                        // ── Tombol Keluar (Req 6.3) ──────────────────────
+                        // ── Tombol Keluar (Outlined Premium) ──────────────
                         _LogoutButton(
                           isLoading: _isLoggingOut,
                           onPressed: _handleLogout,
@@ -172,7 +172,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Header profil — avatar, nama, label peran
+// Header profil — avatar, nama, label peran (Center Aligned)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ProfileHeader extends StatelessWidget {
@@ -182,44 +182,64 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        // Avatar foto/inisial dengan tombol edit kamera
-        FarmerAvatar(profile: profile, size: 72, showEditButton: true),
-
-        const SizedBox(width: 16),
-
-        // Nama + label peran
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                profile.fullName,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.black,
-                ),
+        // Avatar foto/inisial dengan shadow memancar
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 4),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withOpacity(0.15),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
               ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.agriculture_rounded,
-                    size: 14,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    profile.roleLabel,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ],
+            ],
+          ),
+          child: FarmerAvatar(profile: profile, size: 100, showEditButton: true),
+        ),
+        
+        const SizedBox(height: 20),
+
+        // Nama
+        Text(
+          profile.fullName,
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            color: AppColors.black,
+            letterSpacing: -0.5,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        
+        const SizedBox(height: 8),
+
+        // Label peran bergaya lencana (badge)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.primaryContainer.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.agriculture_rounded,
+                size: 16,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                profile.roleLabel,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
               ),
             ],
           ),
@@ -230,68 +250,83 @@ class _ProfileHeader extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Seksi detail info — lokasi dan kontak
+// Seksi detail info — lokasi dan kontak (Card Layout)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ProfileInfoSection extends StatelessWidget {
   const _ProfileInfoSection({required this.profile});
 
   final FarmerProfile profile;
+  
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Informasi Akun',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: AppColors.placeholder,
-            letterSpacing: 0.5,
+        const Padding(
+          padding: EdgeInsets.only(left: 8, bottom: 12),
+          child: Text(
+            'Informasi Akun',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppColors.subtitle,
+              letterSpacing: 0.2,
+            ),
           ),
         ),
-        const SizedBox(height: 16),
-
-        // [UTIL - Helper Function] Alamat dirakit hanya dari komponen yang
-        // terisi; bila kosong (petani baru) ditampilkan penanda yang jelas.
-        // Lokasi (Req 6.1)
-        _InfoRow(
-          icon: Icons.place_outlined,
-          label: 'Lokasi',
-          value: _composeAddress(profile),
-          isEmpty: _composeAddress(profile) == _kNotSet,
-        ),
-
-        const SizedBox(height: 14),
-
-        // [FE - Component Rendering] Nomor HP ditampilkan terpisah dari email
-        // agar identitas akun petani mudah dipakai oleh flow lintas role.
-        _InfoRow(
-          icon: Icons.phone_outlined,
-          label: 'Nomor HP',
-          value: profile.contact.isEmpty ? _kNotSet : profile.contact,
-          isEmpty: profile.contact.isEmpty,
-        ),
-
-        const SizedBox(height: 14),
-
-        // [FE - Component Rendering] Email akun ditampilkan sebagai kontak
-        // digital yang berbeda dari nomor HP untuk kesiapan integrasi auth/API.
-        _InfoRow(
-          icon: Icons.email_outlined,
-          label: 'Email',
-          value: profile.emailValue.isEmpty ? _kNotSet : profile.emailValue,
-          isEmpty: profile.emailValue.isEmpty,
+        
+        // Card melengkung dengan bayangan halus
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFFF3F4F6), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Lokasi
+              _InfoRow(
+                icon: Icons.place_rounded,
+                label: 'Lokasi Kebun',
+                value: _composeAddress(profile),
+                isEmpty: _composeAddress(profile) == _kNotSet,
+              ),
+              
+              const Divider(height: 1, color: Color(0xFFF3F4F6), indent: 68),
+              
+              // Nomor HP
+              _InfoRow(
+                icon: Icons.phone_rounded,
+                label: 'Nomor HP',
+                value: profile.contact.isEmpty ? _kNotSet : profile.contact,
+                isEmpty: profile.contact.isEmpty,
+              ),
+              
+              const Divider(height: 1, color: Color(0xFFF3F4F6), indent: 68),
+              
+              // Email
+              _InfoRow(
+                icon: Icons.email_rounded,
+                label: 'Alamat Email',
+                value: profile.emailValue.isEmpty ? _kNotSet : profile.emailValue,
+                isEmpty: profile.emailValue.isEmpty,
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
   /// Merakit alamat dari komponen non-kosong (desa, kecamatan, kabupaten).
-  ///
-  /// Mengembalikan [_kNotSet] bila seluruh komponen kosong — terjadi pada
-  /// petani yang baru mendaftar dan belum melengkapi profil.
   static String _composeAddress(FarmerProfile p) {
     final parts = <String>[
       if (p.village.isNotEmpty) 'Desa ${p.village}',
@@ -315,72 +350,67 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-
-  /// Bila `true`, nilai ditampilkan sebagai placeholder abu (belum dilengkapi).
   final bool isEmpty;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Ikon
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(8),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Ikon di dalam lingkaran transparan
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.08),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 22, color: AppColors.primary),
           ),
-          alignment: Alignment.center,
-          child: Icon(icon, size: 18, color: AppColors.primary),
-        ),
-
-        const SizedBox(width: 12),
-
-        // Label + nilai
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.placeholder,
+          
+          const SizedBox(width: 16),
+          
+          // Label + nilai
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.placeholder,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isEmpty ? AppColors.placeholder : AppColors.black,
-                  fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
-                  height: 1.3,
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: isEmpty ? AppColors.placeholder : AppColors.black,
+                    fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
+                    height: 1.3,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tombol Keluar
+// Tombol Keluar (Outlined Premium)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// [FE - Component Rendering] _LogoutButton menggunakan warna merah untuk
-// memberi sinyal visual bahwa ini adalah aksi destruktif (logout),
-// berbeda dari tombol aksi utama hijau di layar lain.
-/// Tombol logout dengan gaya pill merah agar berbeda dari aksi utama hijau.
-///
-/// Menggunakan [PrimaryPillButton] sebagai referensi pola, namun dengan
-/// warna merah untuk memberi sinyal destruktif (Req 6.3, 8.2).
+/// Tombol logout dengan gaya outlined merah elegan.
 class _LogoutButton extends StatelessWidget {
   const _LogoutButton({required this.isLoading, required this.onPressed});
 
@@ -391,40 +421,37 @@ class _LogoutButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      child: ElevatedButton(
+      child: OutlinedButton(
         onPressed: isLoading ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFDC2626),
-          disabledBackgroundColor: const Color(
-            0xFFDC2626,
-          ).withValues(alpha: 0.55),
-          foregroundColor: AppColors.white,
-          disabledForegroundColor: AppColors.white.withValues(alpha: 0.7),
-          elevation: 0,
-          shape: const StadiumBorder(),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Color(0xFFDC2626), width: 1.5),
+          foregroundColor: const Color(0xFFDC2626),
+          disabledForegroundColor: const Color(0xFFDC2626).withValues(alpha: 0.5),
           padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         child: isLoading
             ? const SizedBox(
-                width: 20,
-                height: 20,
+                width: 22,
+                height: 22,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFDC2626)),
                 ),
               )
             : const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.logout_rounded, size: 18),
-                  SizedBox(width: 8),
+                  Icon(Icons.power_settings_new_rounded, size: 22),
+                  SizedBox(width: 10),
                   Text(
-                    'KELUAR',
+                    'Keluar Akun',
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.5,
-                      color: AppColors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ],

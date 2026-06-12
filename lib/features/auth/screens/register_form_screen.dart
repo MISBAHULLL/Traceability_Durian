@@ -449,7 +449,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
               children: [
                 // ── Header Custom ────────────────────────────────────────────
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 38),
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 44),
                   child: Row(
                     children: [
                       GestureDetector(
@@ -521,7 +521,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                       ),
                     ),
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(24, 28, 24, 40),
+                      padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -535,6 +535,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _FormField(
+                                      hasError: _firstNameError != null,
                                       controller: _firstNameCtrl,
                                       focusNode: _firstNameFocus,
                                       hintText: 'Nama depan',
@@ -569,6 +570,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _FormField(
+                                      hasError: _lastNameError != null,
                                       controller: _lastNameCtrl,
                                       focusNode: _lastNameFocus,
                                       hintText: 'Nama belakang',
@@ -599,12 +601,13 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                               ),
                             ],
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 18),
 
                           // ── No. HP ────────────────────────────────────────
                           _SectionLabel(label: 'Nomor HP'),
                           const SizedBox(height: 8),
                           _FormField(
+                            hasError: _phoneError != null,
                             controller: _phoneCtrl,
                             focusNode: _phoneFocus,
                             hintText: 'Contoh: 8123456789',
@@ -632,12 +635,13 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                             message: _phoneError,
                             isError: true,
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 18),
 
                           // ── Email ─────────────────────────────────────────
                           _SectionLabel(label: 'Email'),
                           const SizedBox(height: 8),
                           _FormField(
+                            hasError: _emailError != null,
                             controller: _emailCtrl,
                             focusNode: _emailFocus,
                             hintText: 'contoh@email.com',
@@ -652,12 +656,13 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                             message: _emailError,
                             isError: true,
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 18),
 
                           // ── Password ──────────────────────────────────────
                           _SectionLabel(label: 'Password'),
                           const SizedBox(height: 8),
                           _FormField(
+                            hasError: _passwordError != null,
                             controller: _passwordCtrl,
                             focusNode: _passwordFocus,
                             hintText: 'Minimal 8 karakter',
@@ -676,12 +681,13 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                               hasNumber: _hasPasswordNumber(password),
                               hasSymbol: _hasPasswordSymbol(password),
                             ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 18),
 
                           // ── Konfirmasi Password ───────────────────────────
                           _SectionLabel(label: 'Konfirmasi Password'),
                           const SizedBox(height: 8),
                           _FormField(
+                            hasError: _confirmPasswordError != null,
                             controller: _confirmPasswordCtrl,
                             focusNode: _confirmPasswordFocus,
                             hintText: 'Ulangi password',
@@ -694,7 +700,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                             message: _confirmPasswordError,
                             isError: true,
                           ),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 24),
 
                           // ── Tombol DAFTAR ─────────────────────────────────
                           _RegisterButton(
@@ -795,7 +801,7 @@ class RegisterTopAppBar extends StatelessWidget {
   }
 }
 
-/// Label section di atas setiap field.
+/// Label section di atas setiap field dengan dot indicator hijau.
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel({required this.label});
   final String label;
@@ -822,6 +828,7 @@ class _FormField extends StatefulWidget {
     required this.controller,
     required this.focusNode,
     required this.hintText,
+    this.hasError = false,
     this.obscureText = false,
     this.keyboardType,
     this.textInputAction,
@@ -836,6 +843,7 @@ class _FormField extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final String hintText;
+  final bool hasError;
   final bool obscureText;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
@@ -871,6 +879,15 @@ class _FormFieldState extends State<_FormField> {
       borderRadius: radius,
       borderSide: const BorderSide(color: AppColors.primaryContainer, width: 2),
     );
+    final errorBorder = OutlineInputBorder(
+      borderRadius: radius,
+      borderSide: const BorderSide(color: Color(0xFFDC2626), width: 1.5),
+    );
+
+    final effectiveBorder = widget.hasError ? errorBorder : border;
+    final iconColor = widget.hasError
+        ? const Color(0xFFDC2626)
+        : const Color(0xFF94A3B8);
 
     return TextField(
       controller: widget.controller,
@@ -896,7 +913,7 @@ class _FormFieldState extends State<_FormField> {
         ),
         prefixText: widget.prefixText,
         prefixIcon: widget.prefixIcon != null
-            ? Icon(widget.prefixIcon, color: const Color(0xFF94A3B8), size: 20)
+            ? Icon(widget.prefixIcon, color: iconColor, size: 20)
             : null,
         prefixIconConstraints: const BoxConstraints(
           minWidth: 44,
@@ -908,14 +925,16 @@ class _FormFieldState extends State<_FormField> {
           fontWeight: FontWeight.w600,
         ),
         filled: true,
-        fillColor: const Color(0xFFF8FAFC),
+        fillColor: widget.hasError
+            ? const Color(0xFFFEF2F2)
+            : const Color(0xFFF8FAFC),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 13,
         ),
-        border: border,
-        enabledBorder: border,
-        focusedBorder: focusedBorder,
+        border: effectiveBorder,
+        enabledBorder: effectiveBorder,
+        focusedBorder: widget.hasError ? errorBorder : focusedBorder,
         suffixIcon: widget.obscureText
             ? SizedBox(
                 width: 44,

@@ -3,6 +3,10 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
+import '../../umkm/umkm_routes.dart';
+import '../../umkm/screens/umkm_home_screen.dart';
+import '../../umkm/screens/umkm_add_product_screen.dart';
+import '../../../shared/widgets/primary_pill_button.dart';
 import '../consumer_routes.dart';
 import '../data/consumer_repository.dart';
 import '../models/consumer_product.dart';
@@ -94,6 +98,14 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
     await ConsumerRoutes.push(context, const ConsumerProfileScreen());
   }
 
+  Future<void> _openBuyStock() async {
+    UmkmRoutes.push(context, const UmkmHomeScreen());
+  }
+
+  Future<void> _openAddProduct() async {
+    UmkmRoutes.push(context, const UmkmAddProductScreen());
+  }
+
   Future<void> _openCamera() async {
     try {
       final picker = ImagePicker();
@@ -152,8 +164,28 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
                               _SearchField(controller: _searchController),
                               const SizedBox(height: 14),
                             ],
-                            _ScannerCard(onTap: _openCamera),
-                            const SizedBox(height: 16),
+                            _PrimaryActionCard(onTap: _openBuyStock),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: PrimaryPillButton(
+                                    label: 'Tambahkan Produk',
+                                    onPressed: _openAddProduct,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (_activeTab == _DashboardTab.products) ...[
+                              _UmkmCard(
+                                count: uniqueUmkm,
+                                onTap: () {
+                                  UmkmRoutes.push(context, const UmkmHomeScreen());
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                            ],
                             _DashboardTabs(
                               active: _activeTab,
                               onChanged: (tab) => setState(() {
@@ -351,6 +383,17 @@ class _ScannerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return const SizedBox.shrink();
+  }
+}
+
+class _PrimaryActionCard extends StatelessWidget {
+  const _PrimaryActionCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: onTap,
@@ -358,7 +401,7 @@ class _ScannerCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
         decoration: BoxDecoration(
-          color: AppColors.primaryContainer,
+          color: AppColors.primary,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
@@ -372,8 +415,8 @@ class _ScannerCard extends StatelessWidget {
               ),
               alignment: Alignment.center,
               child: const Icon(
-                Icons.camera_alt_outlined,
-                color: AppColors.primaryContainer,
+                Icons.add_rounded,
+                color: AppColors.primary,
                 size: 26,
               ),
             ),
@@ -383,7 +426,7 @@ class _ScannerCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
                   Text(
-                    'Scan QR',
+                    'Beli Stok Durian',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -392,7 +435,7 @@ class _ScannerCard extends StatelessWidget {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Buka kamera untuk memindai QR batch',
+                    'Pilih produk durian yang ingin Anda beli untuk menambah stok.',
                     style: TextStyle(
                       fontSize: 12,
                       color: Color(0xFFEAF7E5),
@@ -405,6 +448,76 @@ class _ScannerCard extends StatelessWidget {
             const Icon(
               Icons.chevron_right_rounded,
               color: AppColors.white,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UmkmCard extends StatelessWidget {
+  const _UmkmCard({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.storefront_outlined,
+                color: AppColors.primary,
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'UMKM Terdaftar',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$count UMKM aktif di katalog',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.subtitle,
             ),
           ],
         ),

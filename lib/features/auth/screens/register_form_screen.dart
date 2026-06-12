@@ -8,6 +8,8 @@ import '../../consumer/data/consumer_repository.dart';
 import '../../consumer/screens/consumer_home_screen.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/screens/farmer_home_screen.dart';
+import '../../umkm/screens/umkm_home_screen.dart';
+import '../../umkm/umkm_routes.dart';
 
 /// Label tampilan per nilai role.
 const Map<String, String> _roleLabels = {
@@ -243,6 +245,11 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
         email: email,
       );
       destination = const CollectorHomeScreen();
+    } else if (widget.role == 'umkm') {
+      // [FE - Event Handler] Aktifkan akun UMKM baru di repository sebelum
+      // membuka halaman UMKM.
+      // TODO: Tambahkan UMKM repository jika data UMKM harus disimpan.
+      destination = const UmkmHomeScreen();
     } else if (widget.role == 'konsumen') {
       // [FE - Event Handler] Aktifkan akun konsumen baru di repository
       // sebelum membuka beranda konsumen.

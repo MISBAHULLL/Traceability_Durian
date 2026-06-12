@@ -18,24 +18,6 @@ const Map<String, String> _roleLabels = {
   'konsumen': 'Konsumen Durian',
 };
 
-/// Warna aksen badge per role.
-const Map<String, Color> _roleColors = {
-  'petani': Color(0xFF296C11),
-  'pengepul': Color(0xFF58A835),
-  'distributor': Color(0xFF1D6FA4),
-  'umkm': Color(0xFFB45309),
-  'konsumen': Color(0xFF6B21A8),
-};
-
-/// Ikon badge per role.
-const Map<String, IconData> _roleIcons = {
-  'petani': Icons.agriculture_rounded,
-  'pengepul': Icons.inventory_2_rounded,
-  'distributor': Icons.local_shipping_rounded,
-  'umkm': Icons.storefront_rounded,
-  'konsumen': Icons.people_rounded,
-};
-
 const Set<String> _disposableEmailDomains = {
   '10minutemail.com',
   'guerrillamail.com',
@@ -49,8 +31,7 @@ const Set<String> _disposableEmailDomains = {
 /// Halaman form pendaftaran akun baru.
 ///
 /// Layout:
-/// - TopAppBar: tombol back + judul "Pendaftaran Akun Baru"
-/// - Badge role (read-only, dari screen sebelumnya)
+/// - Header: tombol back + judul "Pendaftaran Akun Baru" + role terpilih
 /// - Form: Nama Depan, Nama Belakang, No. HP, Email, Password, Konfirmasi Password
 /// - Tombol DAFTAR
 /// - Link "Sudah punya akun? Masuk"
@@ -448,8 +429,6 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
   @override
   Widget build(BuildContext context) {
     final roleLabel = _roleLabels[widget.role] ?? widget.role;
-    final roleColor = _roleColors[widget.role] ?? AppColors.primary;
-    final roleIcon = _roleIcons[widget.role] ?? Icons.person_rounded;
     final password = _passwordCtrl.text;
     final showPasswordRequirements =
         _showPasswordRequirements ||
@@ -458,7 +437,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     final showPhoneHelper = _phoneFocus.hasFocus || _phoneError != null;
 
     return Scaffold(
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.primaryContainer,
       body: SafeArea(
         bottom: false,
         child: FadeTransition(
@@ -466,231 +445,301 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
           child: SlideTransition(
             position: _slideAnim,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── TopAppBar ────────────────────────────────────────────
-                _TopAppBar(onBack: () => Navigator.maybePop(context)),
-
-                // ── Form scrollable ──────────────────────────────────────
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Badge role — read only
-                        _RoleBadge(
-                          label: roleLabel,
-                          color: roleColor,
-                          icon: roleIcon,
+                // ── Header Custom ────────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 38),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.maybePop(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
-                        const SizedBox(height: 24),
-
-                        // ── Nama ──────────────────────────────────────────
-                        _SectionLabel(label: 'Nama Lengkap'),
-                        const SizedBox(height: 8),
-                        Row(
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _FormField(
-                                    controller: _firstNameCtrl,
-                                    focusNode: _firstNameFocus,
-                                    hintText: 'Nama depan',
-                                    textInputAction: TextInputAction.next,
-                                    keyboardType: TextInputType.name,
-                                    textCapitalization:
-                                        TextCapitalization.words,
-                                    onChanged: (_) {
-                                      if (_firstNameError == null) return;
-                                      setState(() {
-                                        _firstNameError =
-                                            _firstNameCtrl.text.trim().isEmpty
-                                            ? 'Nama depan wajib diisi.'
-                                            : null;
-                                      });
-                                    },
-                                    onSubmitted: (_) => FocusScope.of(
-                                      context,
-                                    ).requestFocus(_lastNameFocus),
-                                  ),
-                                  _InlineFieldMessage(
-                                    message: _firstNameError,
-                                    isError: true,
-                                  ),
-                                ],
+                            const Text(
+                              'Daftar Akun Baru',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: -0.5,
+                                height: 1.05,
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _FormField(
-                                    controller: _lastNameCtrl,
-                                    focusNode: _lastNameFocus,
-                                    hintText: 'Nama belakang',
-                                    textInputAction: TextInputAction.next,
-                                    keyboardType: TextInputType.name,
-                                    textCapitalization:
-                                        TextCapitalization.words,
-                                    onChanged: (_) {
-                                      if (_lastNameError == null) return;
-                                      setState(() {
-                                        _lastNameError =
-                                            _lastNameCtrl.text.trim().isEmpty
-                                            ? 'Nama belakang wajib diisi.'
-                                            : null;
-                                      });
-                                    },
-                                    onSubmitted: (_) => FocusScope.of(
-                                      context,
-                                    ).requestFocus(_phoneFocus),
-                                  ),
-                                  _InlineFieldMessage(
-                                    message: _lastNameError,
-                                    isError: true,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // ── No. HP ────────────────────────────────────────
-                        _SectionLabel(label: 'Nomor HP'),
-                        const SizedBox(height: 8),
-                        _FormField(
-                          controller: _phoneCtrl,
-                          focusNode: _phoneFocus,
-                          hintText: 'Contoh: 8123456789',
-                          prefixText:
-                              _phoneFocus.hasFocus || _phoneCtrl.text.isNotEmpty
-                              ? '+62  '
-                              : null,
-                          textInputAction: TextInputAction.next,
-                          keyboardType: TextInputType.phone,
-                          inputFormatters: [
-                            _IndonesianPhoneTextInputFormatter(),
-                          ],
-                          onSubmitted: (_) =>
-                              FocusScope.of(context).requestFocus(_emailFocus),
-                        ),
-                        if (showPhoneHelper)
-                          const _InlineFieldMessage(
-                            message: 'Masukkan nomor tanpa angka 0 di depan',
-                            icon: Icons.error_outline_rounded,
-                          ),
-                        _InlineFieldMessage(
-                          message: _phoneError,
-                          isError: true,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // ── Email ─────────────────────────────────────────
-                        _SectionLabel(label: 'Email'),
-                        const SizedBox(height: 8),
-                        _FormField(
-                          controller: _emailCtrl,
-                          focusNode: _emailFocus,
-                          hintText: 'contoh@email.com',
-                          textInputAction: TextInputAction.next,
-                          keyboardType: TextInputType.emailAddress,
-                          onSubmitted: (_) => FocusScope.of(
-                            context,
-                          ).requestFocus(_passwordFocus),
-                        ),
-                        _InlineFieldMessage(
-                          message: _emailError,
-                          isError: true,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // ── Password ──────────────────────────────────────
-                        _SectionLabel(label: 'Password'),
-                        const SizedBox(height: 8),
-                        _FormField(
-                          controller: _passwordCtrl,
-                          focusNode: _passwordFocus,
-                          hintText: 'Minimal 8 karakter',
-                          obscureText: true,
-                          textInputAction: TextInputAction.next,
-                          onSubmitted: (_) => FocusScope.of(
-                            context,
-                          ).requestFocus(_confirmPasswordFocus),
-                        ),
-                        if (showPasswordRequirements)
-                          _PasswordRequirementPanel(
-                            errorMessage: _passwordError,
-                            hasLength: _hasPasswordLength(password),
-                            hasUppercase: _hasPasswordUppercase(password),
-                            hasNumber: _hasPasswordNumber(password),
-                            hasSymbol: _hasPasswordSymbol(password),
-                          ),
-                        const SizedBox(height: 16),
-
-                        // ── Konfirmasi Password ───────────────────────────
-                        _SectionLabel(label: 'Konfirmasi Password'),
-                        const SizedBox(height: 8),
-                        _FormField(
-                          controller: _confirmPasswordCtrl,
-                          focusNode: _confirmPasswordFocus,
-                          hintText: 'Ulangi password',
-                          obscureText: true,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => _handleRegister(),
-                        ),
-                        _InlineFieldMessage(
-                          message: _confirmPasswordError,
-                          isError: true,
-                        ),
-                        const SizedBox(height: 32),
-
-                        // ── Tombol DAFTAR ─────────────────────────────────
-                        _RegisterButton(
-                          onPressed: _handleRegister,
-                          isLoading: _isLoading,
-                        ),
-                        const SizedBox(height: 20),
-
-                        // ── Link masuk ────────────────────────────────────
-                        Center(
-                          child: GestureDetector(
-                            onTap: () {
-                              // Kembali ke HomeScreen (pop semua sampai root)
-                              Navigator.of(
-                                context,
-                              ).popUntil((route) => route.isFirst);
-                            },
-                            behavior: HitTestBehavior.opaque,
-                            child: RichText(
-                              text: const TextSpan(
+                            const SizedBox(height: 8),
+                            RichText(
+                              text: TextSpan(
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: AppColors.placeholder,
+                                  color: Colors.white.withValues(alpha: 0.76),
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.25,
                                 ),
                                 children: [
-                                  TextSpan(text: 'Sudah punya akun? '),
+                                  const TextSpan(text: 'Mendaftar sebagai '),
                                   TextSpan(
-                                    text: 'Masuk',
-                                    style: TextStyle(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w700,
-                                      decoration: TextDecoration.underline,
+                                    text: roleLabel,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
+                // ── Form scrollable ──────────────────────────────────────
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(32),
+                        topRight: Radius.circular(32),
+                      ),
+                    ),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 28, 24, 40),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ── Nama ──────────────────────────────────────────
+                          _SectionLabel(label: 'Nama Lengkap'),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _FormField(
+                                      controller: _firstNameCtrl,
+                                      focusNode: _firstNameFocus,
+                                      hintText: 'Nama depan',
+                                      prefixIcon: Icons.person_outline_rounded,
+                                      textInputAction: TextInputAction.next,
+                                      keyboardType: TextInputType.name,
+                                      textCapitalization:
+                                          TextCapitalization.words,
+                                      onChanged: (_) {
+                                        if (_firstNameError == null) return;
+                                        setState(() {
+                                          _firstNameError =
+                                              _firstNameCtrl.text.trim().isEmpty
+                                              ? 'Nama depan wajib diisi.'
+                                              : null;
+                                        });
+                                      },
+                                      onSubmitted: (_) => FocusScope.of(
+                                        context,
+                                      ).requestFocus(_lastNameFocus),
+                                    ),
+                                    _InlineFieldMessage(
+                                      message: _firstNameError,
+                                      isError: true,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _FormField(
+                                      controller: _lastNameCtrl,
+                                      focusNode: _lastNameFocus,
+                                      hintText: 'Nama belakang',
+                                      prefixIcon: Icons.person_outline_rounded,
+                                      textInputAction: TextInputAction.next,
+                                      keyboardType: TextInputType.name,
+                                      textCapitalization:
+                                          TextCapitalization.words,
+                                      onChanged: (_) {
+                                        if (_lastNameError == null) return;
+                                        setState(() {
+                                          _lastNameError =
+                                              _lastNameCtrl.text.trim().isEmpty
+                                              ? 'Nama belakang wajib diisi.'
+                                              : null;
+                                        });
+                                      },
+                                      onSubmitted: (_) => FocusScope.of(
+                                        context,
+                                      ).requestFocus(_phoneFocus),
+                                    ),
+                                    _InlineFieldMessage(
+                                      message: _lastNameError,
+                                      isError: true,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+
+                          // ── No. HP ────────────────────────────────────────
+                          _SectionLabel(label: 'Nomor HP'),
+                          const SizedBox(height: 8),
+                          _FormField(
+                            controller: _phoneCtrl,
+                            focusNode: _phoneFocus,
+                            hintText: 'Contoh: 8123456789',
+                            prefixIcon: Icons.phone_outlined,
+                            prefixText:
+                                _phoneFocus.hasFocus ||
+                                    _phoneCtrl.text.isNotEmpty
+                                ? '+62  '
+                                : null,
+                            textInputAction: TextInputAction.next,
+                            keyboardType: TextInputType.phone,
+                            inputFormatters: [
+                              _IndonesianPhoneTextInputFormatter(),
+                            ],
+                            onSubmitted: (_) => FocusScope.of(
+                              context,
+                            ).requestFocus(_emailFocus),
+                          ),
+                          if (showPhoneHelper)
+                            const _InlineFieldMessage(
+                              message: 'Masukkan nomor tanpa angka 0 di depan',
+                              icon: Icons.error_outline_rounded,
+                            ),
+                          _InlineFieldMessage(
+                            message: _phoneError,
+                            isError: true,
+                          ),
+                          const SizedBox(height: 14),
+
+                          // ── Email ─────────────────────────────────────────
+                          _SectionLabel(label: 'Email'),
+                          const SizedBox(height: 8),
+                          _FormField(
+                            controller: _emailCtrl,
+                            focusNode: _emailFocus,
+                            hintText: 'contoh@email.com',
+                            prefixIcon: Icons.email_outlined,
+                            textInputAction: TextInputAction.next,
+                            keyboardType: TextInputType.emailAddress,
+                            onSubmitted: (_) => FocusScope.of(
+                              context,
+                            ).requestFocus(_passwordFocus),
+                          ),
+                          _InlineFieldMessage(
+                            message: _emailError,
+                            isError: true,
+                          ),
+                          const SizedBox(height: 14),
+
+                          // ── Password ──────────────────────────────────────
+                          _SectionLabel(label: 'Password'),
+                          const SizedBox(height: 8),
+                          _FormField(
+                            controller: _passwordCtrl,
+                            focusNode: _passwordFocus,
+                            hintText: 'Minimal 8 karakter',
+                            prefixIcon: Icons.lock_outline_rounded,
+                            obscureText: true,
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: (_) => FocusScope.of(
+                              context,
+                            ).requestFocus(_confirmPasswordFocus),
+                          ),
+                          if (showPasswordRequirements)
+                            _PasswordRequirementPanel(
+                              errorMessage: _passwordError,
+                              hasLength: _hasPasswordLength(password),
+                              hasUppercase: _hasPasswordUppercase(password),
+                              hasNumber: _hasPasswordNumber(password),
+                              hasSymbol: _hasPasswordSymbol(password),
+                            ),
+                          const SizedBox(height: 14),
+
+                          // ── Konfirmasi Password ───────────────────────────
+                          _SectionLabel(label: 'Konfirmasi Password'),
+                          const SizedBox(height: 8),
+                          _FormField(
+                            controller: _confirmPasswordCtrl,
+                            focusNode: _confirmPasswordFocus,
+                            hintText: 'Ulangi password',
+                            prefixIcon: Icons.lock_outline_rounded,
+                            obscureText: true,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _handleRegister(),
+                          ),
+                          _InlineFieldMessage(
+                            message: _confirmPasswordError,
+                            isError: true,
+                          ),
+                          const SizedBox(height: 28),
+
+                          // ── Tombol DAFTAR ─────────────────────────────────
+                          _RegisterButton(
+                            onPressed: _handleRegister,
+                            isLoading: _isLoading,
+                          ),
+                          const SizedBox(height: 20),
+
+                          // ── Link masuk ────────────────────────────────────
+                          Center(
+                            child: GestureDetector(
+                              onTap: () {
+                                // Kembali ke HomeScreen (pop semua sampai root)
+                                Navigator.of(
+                                  context,
+                                ).popUntil((route) => route.isFirst);
+                              },
+                              behavior: HitTestBehavior.opaque,
+                              child: RichText(
+                                text: const TextSpan(
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.placeholder,
+                                  ),
+                                  children: [
+                                    TextSpan(text: 'Sudah punya akun? '),
+                                    TextSpan(
+                                      text: 'Masuk',
+                                      style: TextStyle(
+                                        color: Color.fromARGB(255, 86, 149, 63),
+                                        fontWeight: FontWeight.w700,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -705,8 +754,8 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// TopAppBar dengan tombol back dan judul terpusat.
-class _TopAppBar extends StatelessWidget {
-  const _TopAppBar({required this.onBack});
+class RegisterTopAppBar extends StatelessWidget {
+  const RegisterTopAppBar({super.key, required this.onBack});
   final VoidCallback onBack;
 
   @override
@@ -734,103 +783,13 @@ class _TopAppBar extends StatelessWidget {
           const Text(
             'Pendaftaran Akun Baru',
             style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
               color: AppColors.black,
+              letterSpacing: -0.5,
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Badge role yang dipilih — read only, ditampilkan di atas form.
-class _RoleBadge extends StatelessWidget {
-  const _RoleBadge({
-    required this.label,
-    required this.color,
-    required this.icon,
-  });
-
-  final String label;
-  final Color color;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4FBF1),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.18), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.10),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            Container(width: 6, color: color),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(icon, size: 21, color: color),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Mendaftar sebagai',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.placeholder,
-                              fontWeight: FontWeight.w600,
-                              height: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: color,
-                              height: 1.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -843,12 +802,15 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: AppColors.subtitle,
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF334155),
+        ),
       ),
     );
   }
@@ -865,6 +827,7 @@ class _FormField extends StatefulWidget {
     this.textInputAction,
     this.textCapitalization = TextCapitalization.none,
     this.prefixText,
+    this.prefixIcon,
     this.inputFormatters,
     this.onChanged,
     this.onSubmitted,
@@ -878,6 +841,7 @@ class _FormField extends StatefulWidget {
   final TextInputAction? textInputAction;
   final TextCapitalization textCapitalization;
   final String? prefixText;
+  final IconData? prefixIcon;
   final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
@@ -901,65 +865,81 @@ class _FormFieldState extends State<_FormField> {
 
     final border = OutlineInputBorder(
       borderRadius: radius,
-      borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1),
+      borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1.3),
     );
     final focusedBorder = OutlineInputBorder(
       borderRadius: radius,
-      borderSide: BorderSide(color: AppColors.primaryContainer, width: 2),
+      borderSide: const BorderSide(color: AppColors.primaryContainer, width: 2),
     );
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.16),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
+    return TextField(
+      controller: widget.controller,
+      focusNode: widget.focusNode,
+      obscureText: _obscure,
+      keyboardType: widget.keyboardType,
+      textInputAction: widget.textInputAction,
+      textCapitalization: widget.textCapitalization,
+      inputFormatters: widget.inputFormatters,
+      onChanged: widget.onChanged,
+      onSubmitted: widget.onSubmitted,
+      style: const TextStyle(
+        fontSize: 14,
+        color: AppColors.black,
+        fontWeight: FontWeight.w500,
       ),
-      child: TextField(
-        controller: widget.controller,
-        focusNode: widget.focusNode,
-        obscureText: _obscure,
-        keyboardType: widget.keyboardType,
-        textInputAction: widget.textInputAction,
-        textCapitalization: widget.textCapitalization,
-        inputFormatters: widget.inputFormatters,
-        onChanged: widget.onChanged,
-        onSubmitted: widget.onSubmitted,
-        style: const TextStyle(fontSize: 14, color: AppColors.black),
-        decoration: InputDecoration(
-          hintText: widget.hintText,
-          hintStyle: const TextStyle(fontSize: 14, color: AppColors.placeholder),
-          prefixText: widget.prefixText,
-          prefixStyle: const TextStyle(
-            fontSize: 14,
-            color: AppColors.subtitle,
-            fontWeight: FontWeight.w500,
-          ),
-          filled: true,
-          fillColor: AppColors.surface,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-          border: border,
-          enabledBorder: border,
-          focusedBorder: focusedBorder,
-          suffixIcon: widget.obscureText
-              ? IconButton(
+      decoration: InputDecoration(
+        hintText: widget.hintText,
+        hintStyle: const TextStyle(
+          fontSize: 14,
+          color: Color(0xFF94A3B8),
+          fontWeight: FontWeight.w400,
+        ),
+        prefixText: widget.prefixText,
+        prefixIcon: widget.prefixIcon != null
+            ? Icon(widget.prefixIcon, color: const Color(0xFF94A3B8), size: 20)
+            : null,
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 44,
+          minHeight: 40,
+        ),
+        prefixStyle: const TextStyle(
+          fontSize: 14,
+          color: AppColors.black,
+          fontWeight: FontWeight.w600,
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 13,
+        ),
+        border: border,
+        enabledBorder: border,
+        focusedBorder: focusedBorder,
+        suffixIcon: widget.obscureText
+            ? SizedBox(
+                width: 44,
+                height: 40,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 40,
+                  ),
                   onPressed: () => setState(() => _obscure = !_obscure),
                   icon: Icon(
                     _obscure
                         ? Icons.visibility_off_outlined
                         : Icons.visibility_outlined,
-                    color: AppColors.placeholder,
+                    color: const Color(0xFF94A3B8),
                     size: 20,
                   ),
-                )
-              : null,
+                ),
+              )
+            : null,
+        suffixIconConstraints: const BoxConstraints(
+          minWidth: 44,
+          minHeight: 40,
         ),
       ),
     );
@@ -1084,11 +1064,7 @@ class _PasswordRequirementItem extends StatelessWidget {
       padding: const EdgeInsets.only(top: 4),
       child: Row(
         children: [
-          Icon(
-            Icons.check_circle_outline_rounded,
-            size: 14,
-            color: color,
-          ),
+          Icon(Icons.check_circle_outline_rounded, size: 14, color: color),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -1116,8 +1092,18 @@ class _RegisterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryContainer.withValues(alpha: 0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: ElevatedButton(
         onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
@@ -1127,23 +1113,25 @@ class _RegisterButton extends StatelessWidget {
             alpha: 0.6,
           ),
           elevation: 0,
-          shape: const StadiumBorder(),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           padding: const EdgeInsets.symmetric(vertical: 16),
         ),
         child: isLoading
             ? const SizedBox(
-                width: 20,
-                height: 20,
+                width: 22,
+                height: 22,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
+                  strokeWidth: 3,
                   valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
                 ),
               )
             : const Text(
                 'DAFTAR',
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
                   letterSpacing: 1.5,
                   color: AppColors.white,
                 ),

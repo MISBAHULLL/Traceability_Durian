@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../collector/data/collector_repository.dart';
 import '../../collector/screens/collector_home_screen.dart';
+import '../../consumer/data/consumer_repository.dart';
+import '../../consumer/screens/consumer_home_screen.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/screens/farmer_home_screen.dart';
 
@@ -241,6 +243,16 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
         email: email,
       );
       destination = const CollectorHomeScreen();
+    } else if (widget.role == 'konsumen') {
+      // [FE - Event Handler] Aktifkan akun konsumen baru di repository
+      // sebelum membuka beranda konsumen.
+      ConsumerRepository.instance.registerConsumer(
+        firstName: firstName,
+        lastName: lastName,
+        phone: phone,
+        email: email,
+      );
+      destination = const ConsumerHomeScreen();
     }
 
     if (destination == null) return;

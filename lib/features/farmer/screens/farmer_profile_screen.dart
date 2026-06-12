@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/profile_header.dart';
+import '../../../shared/widgets/profile_info_tile.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../data/farmer_repository.dart';
@@ -139,7 +141,16 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
                         const SizedBox(height: 8),
 
                         // ── Header profil (Req 6.1) ──────────────────────
-                        _ProfileHeader(profile: profile),
+                        ProfileHeader(
+                          fullName: profile.fullName,
+                          roleLabel: profile.roleLabel,
+                          avatar: FarmerAvatar(
+                            profile: profile,
+                            size: 72,
+                            showEditButton: true,
+                          ),
+                          avatarSize: 72,
+                        ),
 
                         const SizedBox(height: 28),
 
@@ -172,68 +183,6 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Header profil — avatar, nama, label peran
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({required this.profile});
-
-  final FarmerProfile profile;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        // Avatar foto/inisial dengan tombol edit kamera
-        FarmerAvatar(
-          profile: profile,
-          size: 72,
-          showEditButton: true,
-        ),
-
-        const SizedBox(width: 16),
-
-        // Nama + label peran
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                profile.fullName,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.black,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.agriculture_rounded,
-                    size: 14,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    profile.roleLabel,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Seksi detail info — lokasi dan kontak
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -256,33 +205,21 @@ class _ProfileInfoSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-
-        // [UTIL - Helper Function] Alamat dirakit hanya dari komponen yang
-        // terisi; bila kosong (petani baru) ditampilkan penanda yang jelas.
-        // Lokasi (Req 6.1)
-        _InfoRow(
+        ProfileInfoTile(
           icon: Icons.place_outlined,
           label: 'Lokasi',
           value: _composeAddress(profile),
           isEmpty: _composeAddress(profile) == _kNotSet,
         ),
-
-        const SizedBox(height: 14),
-
-        // [FE - Component Rendering] Nomor HP ditampilkan terpisah dari email
-        // agar identitas akun petani mudah dipakai oleh flow lintas role.
-        _InfoRow(
+        const SizedBox(height: 12),
+        ProfileInfoTile(
           icon: Icons.phone_outlined,
           label: 'Nomor HP',
           value: profile.contact.isEmpty ? _kNotSet : profile.contact,
           isEmpty: profile.contact.isEmpty,
         ),
-
-        const SizedBox(height: 14),
-
-        // [FE - Component Rendering] Email akun ditampilkan sebagai kontak
-        // digital yang berbeda dari nomor HP untuk kesiapan integrasi auth/API.
-        _InfoRow(
+        const SizedBox(height: 12),
+        ProfileInfoTile(
           icon: Icons.email_outlined,
           label: 'Email',
           value: profile.emailValue.isEmpty ? _kNotSet : profile.emailValue,
@@ -308,71 +245,6 @@ class _ProfileInfoSection extends StatelessWidget {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.isEmpty = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  /// Bila `true`, nilai ditampilkan sebagai placeholder abu (belum dilengkapi).
-  final bool isEmpty;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Ikon
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          alignment: Alignment.center,
-          child: Icon(icon, size: 18, color: AppColors.primary),
-        ),
-
-        const SizedBox(width: 12),
-
-        // Label + nilai
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.placeholder,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isEmpty ? AppColors.placeholder : AppColors.black,
-                  fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
-                  height: 1.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tombol Keluar

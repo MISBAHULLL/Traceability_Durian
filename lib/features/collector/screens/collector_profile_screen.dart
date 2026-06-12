@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/profile_header.dart';
+import '../../../shared/widgets/profile_info_tile.dart';
 import '../../auth/screens/home_screen.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
@@ -99,90 +101,70 @@ class _CollectorProfileScreenState extends State<CollectorProfileScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                 children: [
                   // ── Header profil ──────────────────────────────────────
-                  Center(
-                    child: Column(
-                      children: [
-                        CollectorAvatar(
-                          profile: profile,
-                          size: 96,
-                          showEditButton: true,
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          profile.fullName,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryContainer
-                                .withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            profile.roleLabel,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                      ],
+                  ProfileHeader(
+                    fullName: profile.fullName,
+                    roleLabel: profile.roleLabel,
+                    avatar: CollectorAvatar(
+                      profile: profile,
+                      size: 96,
+                      showEditButton: true,
                     ),
+                    avatarSize: 96,
                   ),
                   const SizedBox(height: 28),
 
                   // ── Informasi akun ─────────────────────────────────────
                   const _SectionTitle(title: 'Informasi Akun'),
                   const SizedBox(height: 8),
-                  _InfoTile(
+                  ProfileInfoTile(
                     icon: Icons.storefront_outlined,
                     label: 'Usaha/Lapak',
                     value: profile.businessName.isEmpty
                         ? 'Belum dilengkapi'
                         : profile.businessName,
+                    isEmpty: profile.businessName.isEmpty,
                   ),
-                  _InfoTile(
+                  const SizedBox(height: 12),
+                  ProfileInfoTile(
                     icon: Icons.badge_outlined,
                     label: 'Peran',
                     value: profile.roleLabel,
                   ),
-                  _InfoTile(
+                  const SizedBox(height: 12),
+                  ProfileInfoTile(
                     icon: Icons.phone_outlined,
                     label: 'Nomor HP',
                     value: profile.contact.isEmpty
                         ? 'Belum dilengkapi'
                         : profile.contact,
+                    isEmpty: profile.contact.isEmpty,
                   ),
-                  _InfoTile(
+                  const SizedBox(height: 12),
+                  ProfileInfoTile(
                     icon: Icons.email_outlined,
                     label: 'Email',
                     value: profile.email.isEmpty
                         ? 'Belum dilengkapi'
                         : profile.email,
+                    isEmpty: profile.email.isEmpty,
                   ),
-                  _InfoTile(
+                  const SizedBox(height: 12),
+                  ProfileInfoTile(
                     icon: Icons.place_outlined,
                     label: 'Lokasi',
                     value: profile.location.isEmpty
                         ? 'Belum dilengkapi'
                         : profile.location,
+                    isEmpty: profile.location.isEmpty,
                   ),
-                  _InfoTile(
+                  const SizedBox(height: 12),
+                  ProfileInfoTile(
                     icon: Icons.map_outlined,
                     label: 'Alamat Detail',
                     value: profile.address.isEmpty
                         ? 'Belum dilengkapi'
                         : profile.address,
+                    isEmpty: profile.address.isEmpty,
                   ),
                   const SizedBox(height: 12),
                   // [FE - Component Rendering] Tombol ini menjadi pintu
@@ -258,56 +240,3 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _InfoTile extends StatelessWidget {
-  const _InfoTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: AppColors.primary),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.placeholder,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.black,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

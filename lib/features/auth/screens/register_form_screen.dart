@@ -362,7 +362,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    // TODO: Ganti dengan API call saat BE siap
+    // Integrasikan dengan API pendaftaran saat backend tersedia.
     _showTopNotification(
       'Pendaftaran berhasil! Selamat datang.',
       isError: false,
@@ -741,11 +741,11 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                             ),
                           ),
                           const SizedBox(height: 16),
-                          ],
-                        ),
+                        ],
                       ),
                     ),
                   ),
+                ),
               ],
             ),
           ),

@@ -44,7 +44,7 @@ class DistributorDrawer extends StatelessWidget {
                     label: 'Pengiriman Aktif',
                     onTap: () {
                       Navigator.pop(context);
-                      // TODO: buka screen pengiriman aktif
+                      // Screen pengiriman aktif akan dihubungkan di sini.
                     },
                   ),
                   _DrawerItem(
@@ -68,7 +68,7 @@ class DistributorDrawer extends StatelessWidget {
                     label: 'Bantuan & Panduan',
                     onTap: () {
                       Navigator.pop(context);
-                      // TODO: buka help screen
+                      // Screen bantuan akan dihubungkan di sini.
                     },
                   ),
                   _DrawerItem(
@@ -76,7 +76,7 @@ class DistributorDrawer extends StatelessWidget {
                     label: 'Tentang',
                     onTap: () {
                       Navigator.pop(context);
-                      // TODO: buka about screen
+                      // Screen tentang aplikasi akan dihubungkan di sini.
                     },
                   ),
                 ],

@@ -175,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
 
-      // TODO: Ganti dengan API call saat BE siap
+      // Integrasikan dengan API autentikasi saat backend tersedia.
       // Contoh penanganan response BE:
       // if (response.statusCode == 404) {
       //   _showTopNotification('Email tidak terdaftar. Periksa kembali atau daftar akun baru.', isError: true);

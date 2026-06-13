@@ -135,8 +135,6 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.white,
-      // Drawer dibuka dari kanan (endDrawer) agar konsisten dengan posisi
-      // ikon hamburger di sisi kanan top bar.
       endDrawer: const FarmerDrawer(),
       body: SafeArea(
         child: FadeTransition(
@@ -148,6 +146,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
                 _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
                 Expanded(
                   child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
                     slivers: [
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
@@ -163,8 +162,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
                             const SizedBox(height: 14),
                             _FilterChips(
                               active: _activeFilter,
-                              onChanged: (f) =>
-                                  setState(() => _activeFilter = f),
+                              onChanged: (f) => setState(() => _activeFilter = f),
                             ),
                             const SizedBox(height: 16),
                             _SectionHeader(count: batches.length),
@@ -229,20 +227,21 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       child: Row(
         children: [
           const Text(
             'Beranda',
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
               color: AppColors.black,
+              letterSpacing: -0.5,
             ),
           ),
           const Spacer(),
           _IconButton(icon: Icons.person_outline_rounded, onTap: onProfile),
-          const SizedBox(width: 4),
+          const SizedBox(width: 10),
           _IconButton(icon: Icons.menu_rounded, onTap: onMenu),
         ],
       ),
@@ -258,10 +257,21 @@ class _IconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: onTap,
-      icon: Icon(icon, color: AppColors.black, size: 24),
-      splashRadius: 22,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF9FAFB),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFF0F2F5)),
+          ),
+          child: Icon(icon, color: AppColors.black, size: 22),
+        ),
+      ),
     );
   }
 }
@@ -283,39 +293,48 @@ class _GreetingBlock extends StatelessWidget {
         Text(
           'Halo, ${profile.fullName}',
           style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
             color: AppColors.black,
+            letterSpacing: -0.4,
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 8),
         Row(
           children: [
-            const Icon(
-              Icons.agriculture_rounded,
-              size: 15,
-              color: AppColors.primary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              profile.roleLabel,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: AppColors.primary,
+            // Label peran bergaya lencana, TANPA icon
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+              ),
+              child: Text(
+                profile.roleLabel,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
               ),
             ),
-            // Tampilkan lokasi hanya bila sudah dilengkapi (petani baru kosong).
+            
+            // Tampilkan lokasi hanya bila sudah dilengkapi
             if (profile.location.isNotEmpty) ...[
-              const Text(
-                '  •  ',
-                style: TextStyle(fontSize: 13, color: AppColors.placeholder),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.location_on_rounded,
+                size: 14,
+                color: AppColors.placeholder,
               ),
+              const SizedBox(width: 4),
               Flexible(
                 child: Text(
                   profile.location,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
                     color: AppColors.placeholder,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -349,26 +368,26 @@ class _StatRow extends StatelessWidget {
           child: _StatCard(
             value: '${repo.totalBatch}',
             label: 'Total Batch',
-            icon: Icons.inventory_2_outlined,
+            icon: Icons.inventory_2_rounded,
             color: AppColors.primary,
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Expanded(
           child: _StatCard(
             value: '${repo.pendingVerificationBatch}',
             label: 'Menunggu',
-            icon: Icons.pending_actions_outlined,
-            color: const Color(0xFFB45309),
+            icon: Icons.pending_actions_rounded,
+            color: const Color(0xFFD97706), // Oranye/Amber
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Expanded(
           child: _StatCard(
             value: '${repo.verifiedBatch}',
             label: 'Terverifikasi',
-            icon: Icons.verified_outlined,
-            color: const Color(0xFF3F8F27),
+            icon: Icons.verified_rounded,
+            color: const Color(0xFF16A34A), // Hijau Emerald
           ),
         ),
       ],
@@ -391,37 +410,58 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: color,
-              height: 1.0,
+    return AspectRatio(
+      aspectRatio: 1.0, // Membuat kartu menjadi persegi sempurna
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16), // Mempertahankan ujung melengkung
+          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: AppColors.placeholder,
-              fontWeight: FontWeight.w500,
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 20, color: color),
             ),
-          ),
-        ],
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: color,
+                height: 1.0,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.placeholder,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }

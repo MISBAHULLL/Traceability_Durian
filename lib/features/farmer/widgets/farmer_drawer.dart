@@ -235,7 +235,7 @@ class _DrawerHeader extends StatelessWidget {
                     border: Border.all(color: Colors.white, width: 2.5),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.25),
+                        color: Colors.black.withValues(alpha: 0.25),
                         blurRadius: 16,
                         offset: const Offset(0, 6),
                       ),
@@ -264,10 +264,10 @@ class _DrawerHeader extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.35),
+                            color: Colors.white.withValues(alpha: 0.35),
                             width: 1,
                           ),
                         ),
@@ -304,9 +304,8 @@ class _DrawerItem extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.color,
     this.isDestructive = false,
-  });
+  }) : color = null;
 
   final IconData icon;
   final String label;
@@ -324,7 +323,7 @@ class _DrawerItem extends StatelessWidget {
     final itemColor = color ?? defaultColor;
     
     // Warna background ikon yang sangat soft
-    final iconBgColor = itemColor.withOpacity(0.12);
+    final iconBgColor = itemColor.withValues(alpha: 0.12);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -334,8 +333,8 @@ class _DrawerItem extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
-          splashColor: itemColor.withOpacity(0.1),
-          highlightColor: itemColor.withOpacity(0.05),
+          splashColor: itemColor.withValues(alpha: 0.1),
+          highlightColor: itemColor.withValues(alpha: 0.05),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
@@ -365,7 +364,7 @@ class _DrawerItem extends StatelessWidget {
                   Icon(
                     Icons.chevron_right_rounded,
                     size: 18,
-                    color: AppColors.placeholder.withOpacity(0.5),
+                    color: AppColors.placeholder.withValues(alpha: 0.5),
                   ),
               ],
             ),

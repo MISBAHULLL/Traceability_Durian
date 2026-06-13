@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
@@ -973,626 +972,15 @@ class _GeoPoint {
   final double longitude;
 }
 
-// ─── Polygon boundary painter ────────────────────────────────────────────────
+/*
+GOOGLE MAPS PLACEHOLDER (NONAKTIF)
+----------------------------------
+Aktifkan kembali dependency dan API key yang sudah ditandai pada pubspec.yaml,
+AndroidManifest.xml, AppDelegate.swift, dan web/index.html. Setelah itu, ubah
+nama widget Google Maps ini kembali menjadi _RegionMapPreview dan nonaktifkan
+renderer OSM di bawah.
 
-class _BoundaryPainter extends CustomPainter {
-  _BoundaryPainter({
-    required this.rings,
-    required this.viewportOrigin,
-    required this.zoom,
-  });
-
-  final List<List<CahyadsnBoundaryPoint>> rings;
-  final Offset viewportOrigin;
-  final int zoom;
-
-  static const _tileSize = 256.0;
-
-  Offset _toScreen(double lat, double lng) {
-    final scale = math.pow(2, zoom).toDouble() * _tileSize;
-    final cLat = lat.clamp(-85.05112878, 85.05112878);
-    final radians = cLat * math.pi / 180;
-    final x = (lng + 180) / 360 * scale;
-    final y =
-        (1 - math.log(math.tan(radians) + 1 / math.cos(radians)) / math.pi) /
-        2 *
-        scale;
-    return Offset(x - viewportOrigin.dx, y - viewportOrigin.dy);
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.clipRect(Offset.zero & size);
-
-    final fillPaint = Paint()
-      ..color = const Color(0x3658A835)
-      ..style = PaintingStyle.fill;
-
-    final strokePaint = Paint()
-      ..color = AppColors.primary
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..strokeJoin = StrokeJoin.round;
-
-    final boundaryPath = Path()..fillType = PathFillType.evenOdd;
-    for (final ring in rings) {
-      if (ring.length < 3) continue;
-      final first = _toScreen(ring[0].latitude, ring[0].longitude);
-      boundaryPath.moveTo(first.dx, first.dy);
-      for (var i = 1; i < ring.length; i++) {
-        final pt = _toScreen(ring[i].latitude, ring[i].longitude);
-        boundaryPath.lineTo(pt.dx, pt.dy);
-      }
-      boundaryPath.close();
-    }
-    canvas.drawPath(boundaryPath, fillPaint);
-    canvas.drawPath(boundaryPath, strokePaint);
-  }
-
-  @override
-  bool shouldRepaint(_BoundaryPainter old) =>
-      old.zoom != zoom ||
-      old.viewportOrigin != viewportOrigin ||
-      old.rings != rings;
-}
-
-// ─── OSM tile map widget ─────────────────────────────────────────────────────
-
-class _OsmTiles extends StatefulWidget {
-  const _OsmTiles({
-    super.key,
-    required this.center,
-    required this.initialZoom,
-    required this.markerPoint,
-    required this.onTap,
-    this.boundary,
-  });
-
-  final _GeoPoint center;
-  final int initialZoom;
-  final _GeoPoint? markerPoint;
-  final ValueChanged<_GeoPoint> onTap;
-  final List<List<CahyadsnBoundaryPoint>>? boundary;
-
-  @override
-  State<_OsmTiles> createState() => _OsmTilesState();
-}
-
-class _OsmTilesState extends State<_OsmTiles> {
-  static const _tileSize = 256.0;
-  late int _zoom;
-  late _GeoPoint _center;
-  int _gestureStartZoom = 0;
-  Offset? _gestureAnchorWorld;
-
-  @override
-  void initState() {
-    super.initState();
-    _zoom = widget.initialZoom.clamp(3, 17);
-    _center = widget.center;
-  }
-
-  @override
-  void didUpdateWidget(covariant _OsmTiles old) {
-    super.didUpdateWidget(old);
-    if (old.initialZoom != widget.initialZoom ||
-        old.center.latitude != widget.center.latitude ||
-        old.center.longitude != widget.center.longitude) {
-      _zoom = widget.initialZoom.clamp(3, 17);
-      _center = widget.center;
-    }
-  }
-
-  void _zoomBy(int delta, Size viewportSize) {
-    final nextZoom = (_zoom + delta).clamp(3, 17);
-    if (nextZoom == _zoom) return;
-
-    final viewportCenter = Offset(
-      viewportSize.width / 2,
-      viewportSize.height / 2,
-    );
-    final anchor = widget.markerPoint ?? _center;
-    final anchorScreen =
-        _worldPointAt(anchor, _zoom) -
-        _worldPointAt(_center, _zoom) +
-        viewportCenter;
-    final nextCenterWorld =
-        _worldPointAt(anchor, nextZoom) - (anchorScreen - viewportCenter);
-
-    setState(() {
-      _zoom = nextZoom;
-      _center = _geoPointAt(nextCenterWorld, nextZoom);
-    });
-  }
-
-  void _resetView() {
-    setState(() {
-      _center = widget.center;
-      _zoom = widget.initialZoom.clamp(3, 17);
-    });
-  }
-
-  void _startGesture(ScaleStartDetails details, Size viewportSize) {
-    _gestureStartZoom = _zoom;
-    final viewportCenter = Offset(
-      viewportSize.width / 2,
-      viewportSize.height / 2,
-    );
-    _gestureAnchorWorld =
-        _worldPointAt(_center, _zoom) +
-        (details.localFocalPoint - viewportCenter);
-  }
-
-  void _updateGesture(ScaleUpdateDetails details, Size viewportSize) {
-    final anchor = _gestureAnchorWorld;
-    if (anchor == null) return;
-
-    final zoomDelta = math.log(details.scale) / math.ln2;
-    final nextZoom = (_gestureStartZoom + zoomDelta).round().clamp(3, 17);
-    final scaleFactor = math.pow(2, nextZoom - _gestureStartZoom).toDouble();
-    final anchorAtZoom = anchor * scaleFactor;
-    final viewportCenter = Offset(
-      viewportSize.width / 2,
-      viewportSize.height / 2,
-    );
-    final nextCenterWorld =
-        anchorAtZoom - (details.localFocalPoint - viewportCenter);
-
-    setState(() {
-      _zoom = nextZoom;
-      _center = _geoPointAt(nextCenterWorld, nextZoom);
-    });
-  }
-
-  Offset _worldPointAt(_GeoPoint point, int zoom) {
-    final scale = math.pow(2, zoom).toDouble() * _tileSize;
-    final latitude = point.latitude.clamp(-85.05112878, 85.05112878);
-    final radians = latitude * math.pi / 180;
-    final x = (point.longitude + 180) / 360 * scale;
-    final y =
-        (1 - math.log(math.tan(radians) + 1 / math.cos(radians)) / math.pi) /
-        2 *
-        scale;
-    return Offset(x, y);
-  }
-
-  Offset _worldPoint(_GeoPoint point) => _worldPointAt(point, _zoom);
-
-  _GeoPoint _geoPointAt(Offset world, int zoom) {
-    final tiles = math.pow(2, zoom).toDouble();
-    final worldSize = _tileSize * tiles;
-    final wrappedX = ((world.dx % worldSize) + worldSize) % worldSize;
-    final clampedY = world.dy.clamp(0.0, worldSize);
-    final longitude = wrappedX / worldSize * 360 - 180;
-    final normalizedY = clampedY / worldSize;
-    final mercator = math.pi * (1 - 2 * normalizedY);
-    final latitude =
-        math.atan((math.exp(mercator) - math.exp(-mercator)) / 2) *
-        180 /
-        math.pi;
-    return _GeoPoint(latitude, longitude);
-  }
-
-  _GeoPoint _geoPoint(Offset world) => _geoPointAt(world, _zoom);
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final size = Size(constraints.maxWidth, constraints.maxHeight);
-        final center = _worldPoint(_center);
-        final viewportOrigin = Offset(
-          center.dx - size.width / 2,
-          center.dy - size.height / 2,
-        );
-        final firstX = (viewportOrigin.dx / _tileSize).floor();
-        final lastX = ((viewportOrigin.dx + size.width) / _tileSize).floor();
-        final firstY = (viewportOrigin.dy / _tileSize).floor();
-        final lastY = ((viewportOrigin.dy + size.height) / _tileSize).floor();
-        final tileCount = math.pow(2, _zoom).toInt();
-
-        return Listener(
-          onPointerSignal: (event) {
-            if (event is PointerScrollEvent) {
-              _zoomBy(event.scrollDelta.dy > 0 ? -1 : 1, size);
-            }
-          },
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onScaleStart: (details) => _startGesture(details, size),
-            onScaleUpdate: (details) => _updateGesture(details, size),
-            onScaleEnd: (_) => _gestureAnchorWorld = null,
-            onTapUp: (details) {
-              final world = viewportOrigin + details.localPosition;
-              widget.onTap(_geoPoint(world));
-            },
-            child: ColoredBox(
-              color: const Color(0xFFE8ECEF),
-              child: Stack(
-                children: [
-                  for (var x = firstX; x <= lastX; x++)
-                    for (var y = firstY; y <= lastY; y++)
-                      if (y >= 0 && y < tileCount)
-                        Positioned(
-                          left: x * _tileSize - viewportOrigin.dx,
-                          top: y * _tileSize - viewportOrigin.dy,
-                          width: _tileSize,
-                          height: _tileSize,
-                          child: Image.network(
-                            'https://tile.openstreetmap.org/$_zoom/${((x % tileCount) + tileCount) % tileCount}/$y.png',
-                            key: ValueKey(
-                              'tile_${_zoom}_${((x % tileCount) + tileCount) % tileCount}_$y',
-                            ),
-                            fit: BoxFit.cover,
-                            filterQuality: FilterQuality.medium,
-                            errorBuilder: (_, _, _) =>
-                                const ColoredBox(color: Color(0xFFE8ECEF)),
-                          ),
-                        ),
-                  // ── Boundary polygon overlay ─────────────────────────────
-                  if (widget.boundary != null && widget.boundary!.isNotEmpty)
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _BoundaryPainter(
-                          rings: widget.boundary!,
-                          viewportOrigin: viewportOrigin,
-                          zoom: _zoom,
-                        ),
-                      ),
-                    ),
-                  // ── Location marker ──────────────────────────────────────
-                  if (widget.markerPoint != null)
-                    Positioned(
-                      left:
-                          _worldPoint(widget.markerPoint!).dx -
-                          viewportOrigin.dx -
-                          21,
-                      top:
-                          _worldPoint(widget.markerPoint!).dy -
-                          viewportOrigin.dy -
-                          42,
-                      child: const IgnorePointer(
-                        child: Icon(
-                          Icons.location_on_rounded,
-                          size: 42,
-                          color: AppColors.primaryContainer,
-                          shadows: [
-                            Shadow(
-                              color: Color(0x55000000),
-                              blurRadius: 5,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  // ── Zoom controls ────────────────────────────────────────
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Column(
-                      children: [
-                        _MapIconButton(
-                          icon: Icons.add,
-                          tooltip: 'Perbesar peta',
-                          onPressed: _zoom >= 17
-                              ? null
-                              : () => _zoomBy(1, size),
-                        ),
-                        const SizedBox(height: 4),
-                        _MapIconButton(
-                          icon: Icons.remove,
-                          tooltip: 'Perkecil peta',
-                          onPressed: _zoom <= 3
-                              ? null
-                              : () => _zoomBy(-1, size),
-                        ),
-                        const SizedBox(height: 4),
-                        _MapIconButton(
-                          icon: Icons.my_location_rounded,
-                          tooltip: 'Kembali ke wilayah terpilih',
-                          onPressed: _resetView,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _MapIconButton extends StatelessWidget {
-  const _MapIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.white.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(6),
-        elevation: 2,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(6),
-          child: SizedBox(
-            width: 34,
-            height: 34,
-            child: Icon(
-              icon,
-              size: 19,
-              color: onPressed == null
-                  ? AppColors.placeholder
-                  : AppColors.subtitle,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Region map preview (with boundary) ──────────────────────────────────────
-
-// Kept temporarily as a fallback reference while the Google Maps renderer is
-// used by the form.
-// ignore: unused_element
-class _LegacyRegionMapPreview extends StatelessWidget {
-  const _LegacyRegionMapPreview({
-    required this.region,
-    required this.regionLevel,
-    required this.boundary,
-    required this.isLoadingBoundary,
-    required this.farmPoint,
-    required this.onTap,
-  });
-
-  final CahyadsnRegionMap? region;
-
-  /// 0 = none, 1 = province, 2 = city, 3 = district, 4 = village.
-  final int regionLevel;
-  final CahyadsnRegionBoundary? boundary;
-  final bool isLoadingBoundary;
-  final _GeoPoint? farmPoint;
-  final ValueChanged<_GeoPoint> onTap;
-
-  /// Computes the center and zoom that fits the boundary polygon.
-  ({_GeoPoint center, int zoom}) _fitBounds(Size viewportSize) {
-    if (boundary == null || boundary!.rings.isEmpty) {
-      return (
-        center: region == null
-            ? const _GeoPoint(-2.5, 118)
-            : _GeoPoint(region!.latitude, region!.longitude),
-        zoom: region == null ? 5 : _fallbackZoom(),
-      );
-    }
-
-    // Compute bounding box of all polygon rings.
-    double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-    for (final ring in boundary!.rings) {
-      for (final pt in ring) {
-        if (pt.latitude < minLat) minLat = pt.latitude;
-        if (pt.latitude > maxLat) maxLat = pt.latitude;
-        if (pt.longitude < minLng) minLng = pt.longitude;
-        if (pt.longitude > maxLng) maxLng = pt.longitude;
-      }
-    }
-
-    final centerLat = (minLat + maxLat) / 2;
-    final centerLng = (minLng + maxLng) / 2;
-
-    // Calculate the zoom level that fits the bounding box into the viewport.
-    // Mercator projection: x = (lng + 180) / 360 * 2^zoom * 256
-    const tileSize = 256.0;
-    const padding = 24.0; // px padding on each side
-    final effWidth = (viewportSize.width - padding * 2).clamp(1.0, 4096.0);
-    final effHeight = (viewportSize.height - padding * 2).clamp(1.0, 4096.0);
-
-    // Longitude span → zoom
-    final lngSpan = (maxLng - minLng).abs();
-    final zoomLng = lngSpan > 0
-        ? (math.log(effWidth / tileSize * 360 / lngSpan) / math.ln2)
-        : 17.0;
-
-    // Latitude span → zoom (need Mercator conversion)
-    double latToY(double lat) {
-      final r = lat.clamp(-85.05112878, 85.05112878) * math.pi / 180;
-      return (1 - math.log(math.tan(r) + 1 / math.cos(r)) / math.pi) / 2;
-    }
-
-    final ySpan = (latToY(minLat) - latToY(maxLat)).abs();
-    final zoomLat = ySpan > 0
-        ? (math.log(effHeight / tileSize / ySpan) / math.ln2)
-        : 17.0;
-
-    final zoom = math.min(zoomLng, zoomLat).floor().clamp(3, 17);
-
-    return (center: _GeoPoint(centerLat, centerLng), zoom: zoom);
-  }
-
-  int _fallbackZoom() {
-    return switch (regionLevel) {
-      1 => 7,
-      2 => 10,
-      3 => 12,
-      _ => 14,
-    };
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // If the user has placed a farm point, always show that at high zoom.
-    if (farmPoint != null) {
-      return _buildMap(center: farmPoint!, zoom: 14, markerPoint: farmPoint);
-    }
-
-    // Auto-fit boundary.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final viewportSize = Size(
-          constraints.maxWidth,
-          220, // height of the map container
-        );
-        final fit = _fitBounds(viewportSize);
-        return _buildMap(center: fit.center, zoom: fit.zoom);
-      },
-    );
-  }
-
-  Widget _buildMap({
-    required _GeoPoint center,
-    required int zoom,
-    _GeoPoint? markerPoint,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Lokasi Kebun',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: AppColors.subtitle,
-          ),
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: SizedBox(
-            height: 220,
-            child: Stack(
-              children: [
-                _OsmTiles(
-                  key: ValueKey(
-                    '${boundary?.code ?? region?.code}-'
-                    '${farmPoint?.latitude}-${farmPoint?.longitude}',
-                  ),
-                  center: center,
-                  initialZoom: zoom,
-                  markerPoint: markerPoint,
-                  boundary: boundary?.rings,
-                  onTap: onTap,
-                ),
-                if (isLoadingBoundary)
-                  Positioned.fill(
-                    child: ColoredBox(
-                      color: Color(0x66FFFFFF),
-                      child: Center(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(7),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x26000000),
-                                blurRadius: 10,
-                                offset: Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 13,
-                              vertical: 10,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: 17,
-                                  height: 17,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.primaryContainer,
-                                  ),
-                                ),
-                                SizedBox(width: 9),
-                                Text(
-                                  'Memuat batas wilayah...',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.subtitle,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                Positioned(
-                  right: 6,
-                  bottom: 5,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.88),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      child: Text(
-                        '(c) OpenStreetMap contributors',
-                        style: TextStyle(
-                          fontSize: 9,
-                          color: AppColors.subtitle,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 7),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(
-              Icons.touch_app_outlined,
-              size: 15,
-              color: AppColors.placeholder,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                region == null
-                    ? 'Pilih provinsi untuk menampilkan wilayah pada peta.'
-                    : farmPoint == null
-                    ? boundary == null
-                          ? 'Peta menampilkan pusat ${region!.name}. Ketuk peta untuk memasang penanda.'
-                          : 'Zona ${boundary!.name} ditampilkan sesuai batas wilayah. Ketuk peta untuk memasang penanda.'
-                    : 'Penanda kebun sudah dipilih. Ketuk lokasi lain untuk memindahkannya.',
-                style: const TextStyle(
-                  fontSize: 11,
-                  height: 1.35,
-                  color: AppColors.placeholder,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _RegionMapPreview extends StatefulWidget {
+class _GoogleMapsRegionPreview extends StatefulWidget {
   const _RegionMapPreview({
     required this.region,
     required this.regionLevel,
@@ -1936,6 +1324,590 @@ class _MapFocusButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MapBoundaryLoader extends StatelessWidget {
+  const _MapBoundaryLoader();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(0x66FFFFFF),
+      child: Center(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(7),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x26000000),
+                blurRadius: 10,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 17,
+                  height: 17,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primaryContainer,
+                  ),
+                ),
+                SizedBox(width: 9),
+                Text(
+                  'Memuat batas wilayah...',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.subtitle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+*/
+
+class _BoundaryPainter extends CustomPainter {
+  const _BoundaryPainter({
+    required this.rings,
+    required this.viewportOrigin,
+    required this.zoom,
+  });
+
+  final List<List<CahyadsnBoundaryPoint>> rings;
+  final Offset viewportOrigin;
+  final int zoom;
+
+  static const _tileSize = 256.0;
+
+  Offset _toScreen(CahyadsnBoundaryPoint point) {
+    final scale = math.pow(2, zoom).toDouble() * _tileSize;
+    final latitude = point.latitude.clamp(-85.05112878, 85.05112878);
+    final radians = latitude * math.pi / 180;
+    final x = (point.longitude + 180) / 360 * scale;
+    final y =
+        (1 - math.log(math.tan(radians) + 1 / math.cos(radians)) / math.pi) /
+        2 *
+        scale;
+    return Offset(x - viewportOrigin.dx, y - viewportOrigin.dy);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.clipRect(Offset.zero & size);
+    final path = Path()..fillType = PathFillType.evenOdd;
+
+    for (final ring in rings) {
+      if (ring.length < 3) continue;
+      final first = _toScreen(ring.first);
+      path.moveTo(first.dx, first.dy);
+      for (final point in ring.skip(1)) {
+        final screenPoint = _toScreen(point);
+        path.lineTo(screenPoint.dx, screenPoint.dy);
+      }
+      path.close();
+    }
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0x3858A835)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = AppColors.primary
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_BoundaryPainter oldDelegate) =>
+      oldDelegate.rings != rings ||
+      oldDelegate.viewportOrigin != viewportOrigin ||
+      oldDelegate.zoom != zoom;
+}
+
+class _OsmTiles extends StatefulWidget {
+  const _OsmTiles({
+    super.key,
+    required this.center,
+    required this.initialZoom,
+    required this.markerPoint,
+    required this.onTap,
+    this.boundary,
+  });
+
+  final _GeoPoint center;
+  final int initialZoom;
+  final _GeoPoint? markerPoint;
+  final ValueChanged<_GeoPoint> onTap;
+  final List<List<CahyadsnBoundaryPoint>>? boundary;
+
+  @override
+  State<_OsmTiles> createState() => _OsmTilesState();
+}
+
+class _OsmTilesState extends State<_OsmTiles> {
+  static const _tileSize = 256.0;
+  late int _zoom;
+  late _GeoPoint _center;
+  int _gestureStartZoom = 0;
+  Offset? _gestureAnchorWorld;
+
+  @override
+  void initState() {
+    super.initState();
+    _zoom = widget.initialZoom.clamp(3, 17);
+    _center = widget.center;
+  }
+
+  @override
+  void didUpdateWidget(covariant _OsmTiles oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialZoom != widget.initialZoom ||
+        oldWidget.center.latitude != widget.center.latitude ||
+        oldWidget.center.longitude != widget.center.longitude) {
+      _zoom = widget.initialZoom.clamp(3, 17);
+      _center = widget.center;
+    }
+  }
+
+  Offset _worldPointAt(_GeoPoint point, int zoom) {
+    final scale = math.pow(2, zoom).toDouble() * _tileSize;
+    final latitude = point.latitude.clamp(-85.05112878, 85.05112878);
+    final radians = latitude * math.pi / 180;
+    final x = (point.longitude + 180) / 360 * scale;
+    final y =
+        (1 - math.log(math.tan(radians) + 1 / math.cos(radians)) / math.pi) /
+        2 *
+        scale;
+    return Offset(x, y);
+  }
+
+  _GeoPoint _geoPointAt(Offset world, int zoom) {
+    final worldSize = _tileSize * math.pow(2, zoom).toDouble();
+    final wrappedX = ((world.dx % worldSize) + worldSize) % worldSize;
+    final clampedY = world.dy.clamp(0.0, worldSize);
+    final longitude = wrappedX / worldSize * 360 - 180;
+    final mercator = math.pi * (1 - 2 * clampedY / worldSize);
+    final sinh = (math.exp(mercator) - math.exp(-mercator)) / 2;
+    final latitude = math.atan(sinh) * 180 / math.pi;
+    return _GeoPoint(latitude, longitude);
+  }
+
+  void _zoomBy(int delta, Size viewportSize) {
+    final nextZoom = (_zoom + delta).clamp(3, 17);
+    if (nextZoom == _zoom) return;
+
+    final viewportCenter = Offset(
+      viewportSize.width / 2,
+      viewportSize.height / 2,
+    );
+    final anchor = widget.markerPoint ?? _center;
+    final anchorScreen =
+        _worldPointAt(anchor, _zoom) -
+        _worldPointAt(_center, _zoom) +
+        viewportCenter;
+    final nextCenterWorld =
+        _worldPointAt(anchor, nextZoom) - (anchorScreen - viewportCenter);
+
+    setState(() {
+      _zoom = nextZoom;
+      _center = _geoPointAt(nextCenterWorld, nextZoom);
+    });
+  }
+
+  void _startGesture(ScaleStartDetails details, Size viewportSize) {
+    _gestureStartZoom = _zoom;
+    final viewportCenter = Offset(
+      viewportSize.width / 2,
+      viewportSize.height / 2,
+    );
+    _gestureAnchorWorld =
+        _worldPointAt(_center, _zoom) +
+        (details.localFocalPoint - viewportCenter);
+  }
+
+  void _updateGesture(ScaleUpdateDetails details, Size viewportSize) {
+    final anchor = _gestureAnchorWorld;
+    if (anchor == null) return;
+
+    final zoomDelta = math.log(details.scale) / math.ln2;
+    final nextZoom = (_gestureStartZoom + zoomDelta).round().clamp(3, 17);
+    final scaleFactor = math.pow(2, nextZoom - _gestureStartZoom).toDouble();
+    final viewportCenter = Offset(
+      viewportSize.width / 2,
+      viewportSize.height / 2,
+    );
+    final nextCenterWorld =
+        anchor * scaleFactor - (details.localFocalPoint - viewportCenter);
+
+    setState(() {
+      _zoom = nextZoom;
+      _center = _geoPointAt(nextCenterWorld, nextZoom);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+        final centerWorld = _worldPointAt(_center, _zoom);
+        final viewportOrigin = Offset(
+          centerWorld.dx - size.width / 2,
+          centerWorld.dy - size.height / 2,
+        );
+        final firstX = (viewportOrigin.dx / _tileSize).floor();
+        final lastX = ((viewportOrigin.dx + size.width) / _tileSize).floor();
+        final firstY = (viewportOrigin.dy / _tileSize).floor();
+        final lastY = ((viewportOrigin.dy + size.height) / _tileSize).floor();
+        final tileCount = math.pow(2, _zoom).toInt();
+
+        return Listener(
+          onPointerSignal: (event) {
+            if (event is PointerScrollEvent) {
+              _zoomBy(event.scrollDelta.dy > 0 ? -1 : 1, size);
+            }
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onScaleStart: (details) => _startGesture(details, size),
+            onScaleUpdate: (details) => _updateGesture(details, size),
+            onScaleEnd: (_) => _gestureAnchorWorld = null,
+            onTapUp: (details) {
+              widget.onTap(
+                _geoPointAt(viewportOrigin + details.localPosition, _zoom),
+              );
+            },
+            child: ColoredBox(
+              color: const Color(0xFFE8ECEF),
+              child: Stack(
+                children: [
+                  for (var x = firstX; x <= lastX; x++)
+                    for (var y = firstY; y <= lastY; y++)
+                      if (y >= 0 && y < tileCount)
+                        Positioned(
+                          left: x * _tileSize - viewportOrigin.dx,
+                          top: y * _tileSize - viewportOrigin.dy,
+                          width: _tileSize,
+                          height: _tileSize,
+                          child: Image.network(
+                            'https://tile.openstreetmap.org/$_zoom/${((x % tileCount) + tileCount) % tileCount}/$y.png',
+                            key: ValueKey('tile-$_zoom-$x-$y'),
+                            fit: BoxFit.cover,
+                            filterQuality: FilterQuality.medium,
+                            errorBuilder: (_, _, _) =>
+                                const ColoredBox(color: Color(0xFFE8ECEF)),
+                          ),
+                        ),
+                  if (widget.boundary != null && widget.boundary!.isNotEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _BoundaryPainter(
+                            rings: widget.boundary!,
+                            viewportOrigin: viewportOrigin,
+                            zoom: _zoom,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (widget.markerPoint != null)
+                    Positioned(
+                      left:
+                          _worldPointAt(widget.markerPoint!, _zoom).dx -
+                          viewportOrigin.dx -
+                          21,
+                      top:
+                          _worldPointAt(widget.markerPoint!, _zoom).dy -
+                          viewportOrigin.dy -
+                          42,
+                      child: const IgnorePointer(
+                        child: Icon(
+                          Icons.location_on_rounded,
+                          size: 42,
+                          color: AppColors.primaryContainer,
+                          shadows: [
+                            Shadow(
+                              color: Color(0x55000000),
+                              blurRadius: 5,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Column(
+                      children: [
+                        _MapIconButton(
+                          icon: Icons.add,
+                          tooltip: 'Perbesar peta',
+                          onPressed: _zoom >= 17
+                              ? null
+                              : () => _zoomBy(1, size),
+                        ),
+                        const SizedBox(height: 4),
+                        _MapIconButton(
+                          icon: Icons.remove,
+                          tooltip: 'Perkecil peta',
+                          onPressed: _zoom <= 3
+                              ? null
+                              : () => _zoomBy(-1, size),
+                        ),
+                        const SizedBox(height: 4),
+                        _MapIconButton(
+                          icon: Icons.center_focus_strong_rounded,
+                          tooltip: 'Kembali ke wilayah terpilih',
+                          onPressed: () => setState(() {
+                            _center = widget.center;
+                            _zoom = widget.initialZoom.clamp(3, 17);
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MapIconButton extends StatelessWidget {
+  const _MapIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.95),
+        elevation: 2,
+        borderRadius: BorderRadius.circular(6),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(6),
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Icon(
+              icon,
+              size: 19,
+              color: onPressed == null
+                  ? AppColors.placeholder
+                  : AppColors.primary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RegionMapPreview extends StatelessWidget {
+  const _RegionMapPreview({
+    required this.region,
+    required this.regionLevel,
+    required this.boundary,
+    required this.isLoadingBoundary,
+    required this.farmPoint,
+    required this.onTap,
+  });
+
+  final CahyadsnRegionMap? region;
+  final int regionLevel;
+  final CahyadsnRegionBoundary? boundary;
+  final bool isLoadingBoundary;
+  final _GeoPoint? farmPoint;
+  final ValueChanged<_GeoPoint> onTap;
+
+  int get _fallbackZoom => switch (regionLevel) {
+    0 => 5,
+    1 => 7,
+    2 => 10,
+    3 => 12,
+    _ => 14,
+  };
+
+  ({_GeoPoint center, int zoom}) _fitBounds(Size viewportSize) {
+    if (boundary == null || boundary!.rings.isEmpty) {
+      return (
+        center: region == null
+            ? const _GeoPoint(-2.5, 118)
+            : _GeoPoint(region!.latitude, region!.longitude),
+        zoom: _fallbackZoom,
+      );
+    }
+
+    var minLat = 90.0;
+    var maxLat = -90.0;
+    var minLng = 180.0;
+    var maxLng = -180.0;
+    for (final ring in boundary!.rings) {
+      for (final point in ring) {
+        if (point.latitude < minLat) minLat = point.latitude;
+        if (point.latitude > maxLat) maxLat = point.latitude;
+        if (point.longitude < minLng) minLng = point.longitude;
+        if (point.longitude > maxLng) maxLng = point.longitude;
+      }
+    }
+
+    double latitudeToY(double latitude) {
+      final radians = latitude.clamp(-85.05112878, 85.05112878) * math.pi / 180;
+      return (1 -
+              math.log(math.tan(radians) + 1 / math.cos(radians)) / math.pi) /
+          2;
+    }
+
+    const tileSize = 256.0;
+    const padding = 28.0;
+    final width = (viewportSize.width - padding * 2).clamp(1.0, 4096.0);
+    final height = (viewportSize.height - padding * 2).clamp(1.0, 4096.0);
+    final longitudeSpan = (maxLng - minLng).abs();
+    final latitudeSpan = (latitudeToY(minLat) - latitudeToY(maxLat)).abs();
+    final longitudeZoom = longitudeSpan == 0
+        ? 17.0
+        : math.log(width / tileSize * 360 / longitudeSpan) / math.ln2;
+    final latitudeZoom = latitudeSpan == 0
+        ? 17.0
+        : math.log(height / tileSize / latitudeSpan) / math.ln2;
+
+    return (
+      center: _GeoPoint((minLat + maxLat) / 2, (minLng + maxLng) / 2),
+      zoom: math.min(longitudeZoom, latitudeZoom).floor().clamp(3, 17),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fit = farmPoint == null
+            ? _fitBounds(Size(constraints.maxWidth, 240))
+            : (center: farmPoint!, zoom: 14);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Lokasi Kebun',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.subtitle,
+              ),
+            ),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                height: 240,
+                child: Stack(
+                  children: [
+                    _OsmTiles(
+                      key: ValueKey(
+                        '${boundary?.code ?? region?.code}-'
+                        '${farmPoint?.latitude}-${farmPoint?.longitude}',
+                      ),
+                      center: fit.center,
+                      initialZoom: fit.zoom,
+                      markerPoint: farmPoint,
+                      boundary: boundary?.rings,
+                      onTap: onTap,
+                    ),
+                    if (isLoadingBoundary)
+                      const Positioned.fill(child: _MapBoundaryLoader()),
+                    Positioned(
+                      right: 6,
+                      bottom: 5,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.88),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          child: Text(
+                            '(c) OpenStreetMap contributors',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: AppColors.subtitle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 7),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.touch_app_outlined,
+                  size: 15,
+                  color: AppColors.placeholder,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    region == null
+                        ? 'Pilih provinsi untuk menampilkan wilayah pada peta.'
+                        : farmPoint == null
+                        ? boundary == null
+                              ? 'Peta menampilkan pusat ${region!.name}. Ketuk peta untuk memasang penanda.'
+                              : 'Zona ${boundary!.name} ditampilkan sesuai batas wilayah. Geser atau cubit peta, lalu ketuk untuk memasang penanda.'
+                        : 'Penanda kebun sudah dipilih. Geser dan cubit peta tanpa mengubah titik, atau ketuk lokasi lain untuk memindahkannya.',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      height: 1.35,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 }

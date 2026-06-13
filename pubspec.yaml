@@ -55,6 +55,8 @@ dependencies:
   shared_preferences: ^2.5.5
   mobile_scanner: ^7.2.0
   http: ^1.6.0
+  # GOOGLE MAPS PLACEHOLDER: dependency disimpan agar aktivasi nanti mudah.
+  # Widget dan seluruh API key Google Maps masih dinonaktifkan.
   google_maps_flutter: ^2.17.1
 
 dev_dependencies:

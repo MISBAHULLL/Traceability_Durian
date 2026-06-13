@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
-import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
@@ -105,7 +104,8 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
     final profile = _repo.profile;
 
     return Scaffold(
-      backgroundColor: AppColors.surface, // Background surface agar card putih menonjol
+      backgroundColor:
+          AppColors.surface, // Background surface agar card putih menonjol
       body: SafeArea(
         child: FadeTransition(
           opacity: _fadeAnim,
@@ -120,7 +120,7 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
                     Container(
                       margin: const EdgeInsets.only(right: 8),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
@@ -191,15 +191,19 @@ class _ProfileHeader extends StatelessWidget {
             border: Border.all(color: Colors.white, width: 4),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withOpacity(0.15),
+                color: AppColors.primary.withValues(alpha: 0.15),
                 blurRadius: 24,
                 offset: const Offset(0, 10),
               ),
             ],
           ),
-          child: FarmerAvatar(profile: profile, size: 100, showEditButton: true),
+          child: FarmerAvatar(
+            profile: profile,
+            size: 100,
+            showEditButton: true,
+          ),
         ),
-        
+
         const SizedBox(height: 20),
 
         // Nama
@@ -213,35 +217,24 @@ class _ProfileHeader extends StatelessWidget {
           ),
           textAlign: TextAlign.center,
         ),
-        
+
         const SizedBox(height: 8),
 
         // Label peran bergaya lencana (badge)
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
-            color: AppColors.primaryContainer.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+            color: AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.agriculture_rounded,
-                size: 16,
-                color: AppColors.primary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                profile.roleLabel,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
+          child: Text(
+            profile.roleLabel,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+            ),
           ),
         ),
       ],
@@ -257,7 +250,7 @@ class _ProfileInfoSection extends StatelessWidget {
   const _ProfileInfoSection({required this.profile});
 
   final FarmerProfile profile;
-  
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -275,7 +268,7 @@ class _ProfileInfoSection extends StatelessWidget {
             ),
           ),
         ),
-        
+
         // Card melengkung dengan bayangan halus
         Container(
           decoration: BoxDecoration(
@@ -284,7 +277,7 @@ class _ProfileInfoSection extends StatelessWidget {
             border: Border.all(color: const Color(0xFFF3F4F6), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.02),
+                color: Colors.black.withValues(alpha: 0.02),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -299,9 +292,9 @@ class _ProfileInfoSection extends StatelessWidget {
                 value: _composeAddress(profile),
                 isEmpty: _composeAddress(profile) == _kNotSet,
               ),
-              
+
               const Divider(height: 1, color: Color(0xFFF3F4F6), indent: 68),
-              
+
               // Nomor HP
               _InfoRow(
                 icon: Icons.phone_rounded,
@@ -309,14 +302,16 @@ class _ProfileInfoSection extends StatelessWidget {
                 value: profile.contact.isEmpty ? _kNotSet : profile.contact,
                 isEmpty: profile.contact.isEmpty,
               ),
-              
+
               const Divider(height: 1, color: Color(0xFFF3F4F6), indent: 68),
-              
+
               // Email
               _InfoRow(
                 icon: Icons.email_rounded,
                 label: 'Alamat Email',
-                value: profile.emailValue.isEmpty ? _kNotSet : profile.emailValue,
+                value: profile.emailValue.isEmpty
+                    ? _kNotSet
+                    : profile.emailValue,
                 isEmpty: profile.emailValue.isEmpty,
               ),
             ],
@@ -364,15 +359,15 @@ class _InfoRow extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.08),
+              color: AppColors.primary.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
             child: Icon(icon, size: 22, color: AppColors.primary),
           ),
-          
+
           const SizedBox(width: 16),
-          
+
           // Label + nilai
           Expanded(
             child: Column(
@@ -426,7 +421,9 @@ class _LogoutButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: Color(0xFFDC2626), width: 1.5),
           foregroundColor: const Color(0xFFDC2626),
-          disabledForegroundColor: const Color(0xFFDC2626).withValues(alpha: 0.5),
+          disabledForegroundColor: const Color(
+            0xFFDC2626,
+          ).withValues(alpha: 0.5),
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),

@@ -59,10 +59,11 @@ class CollectorRepository extends ChangeNotifier {
     _shipmentCounter =
         LocalStorageService.loadInt('collector_shipment_counter') ??
         _shipmentBatches.length;
+    final seedShipmentMigrated = _migratePrimarySeedShipment();
 
     // [FE - State Management] Seed pengiriman baru disimpan setelah counter
     // siap agar fresh install tidak membaca late field yang belum diinisialisasi.
-    if (shipmentsJsonList == null) {
+    if (shipmentsJsonList == null || seedShipmentMigrated) {
       _saveToLocal();
     }
   }
@@ -95,6 +96,60 @@ class CollectorRepository extends ChangeNotifier {
     _farmerRepo.markBatchesInDistribution(
       sourceBatchCodes: distributedSourceCodes,
     );
+  }
+
+  // [FE - State Management] Migrasi ini memperbaiki PGL demo lama agar hanya
+  // memakai source Montong yang sudah diverifikasi dan jumlahnya rekonsiliasi.
+  bool _migratePrimarySeedShipment() {
+    if (_currentCollectorId != _kSeedCollectorId) return false;
+
+    final index = _shipmentBatches.indexWhere(
+      (shipment) => shipment.code == 'BATCH-PGL-001',
+    );
+    if (index == -1) return false;
+
+    final existing = _shipmentBatches[index];
+    const expectedSources = ['DRN-2026-000103', 'DRN-2026-000110'];
+    if (listEquals(existing.sourceBatchCodes, expectedSources)) return false;
+
+    _shipmentBatches[index] = CollectorShipmentBatch(
+      code: existing.code,
+      collectorId: existing.collectorId,
+      sourceBatchCodes: expectedSources,
+      totalWeightKg: 158,
+      totalFruitCount: 38,
+      gradeBreakdown: const [
+        CollectorStockBreakdown(
+          key: 'A',
+          label: 'Grade A',
+          totalWeightKg: 100,
+          totalFruitCount: 24,
+          batchCount: 2,
+        ),
+        CollectorStockBreakdown(
+          key: 'B',
+          label: 'Grade B',
+          totalWeightKg: 58,
+          totalFruitCount: 14,
+          batchCount: 2,
+        ),
+      ],
+      varietyBreakdown: const [
+        CollectorStockBreakdown(
+          key: 'montong',
+          label: 'Durian Montong',
+          totalWeightKg: 158,
+          totalFruitCount: 38,
+          batchCount: 2,
+        ),
+      ],
+      packagedAt: existing.packagedAt,
+      status: existing.status,
+      warehouseNote: existing.warehouseNote,
+      sentAt: existing.sentAt,
+      completedAt: existing.completedAt,
+    );
+    return true;
   }
 
   // ── Konstanta seed ─────────────────────────────────────────────────────────
@@ -218,17 +273,8 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - State Management] Stok pengepul dibentuk dari batch petani yang
   // sudah diverifikasi pengepul dan siap masuk flow distribusi berikutnya.
-  List<HarvestBatch> get stockBatches {
-    final items = _farmerRepo.batches
-        .where((b) => b.status == BatchStatus.verifiedByCollector)
-        .toList();
-    items.sort((a, b) {
-      final aDate = a.verifiedAt ?? a.createdAt ?? a.harvestDate;
-      final bDate = b.verifiedAt ?? b.createdAt ?? b.harvestDate;
-      return bDate.compareTo(aDate);
-    });
-    return List.unmodifiable(items);
-  }
+  List<HarvestBatch> get stockBatches =>
+      _farmerRepo.batchesForCollectorStock;
 
   // [FE - State Management] Batch tersedia untuk agregasi mengecualikan
   // source batch yang sudah pernah masuk batch pengiriman pengepul.
@@ -305,6 +351,13 @@ class CollectorRepository extends ChangeNotifier {
         .whereType<HarvestBatch>()
         .toList();
     if (selectedBatches.length != cleanCodes.length) return null;
+
+    // [FE - State Management] Satu PGL menjaga satu varietas agar manifest,
+    // grading, dan penelusuran fisik tidak ambigu saat diterima distributor.
+    final selectedVarieties = selectedBatches
+        .map((batch) => batch.variety.trim().toLowerCase())
+        .toSet();
+    if (selectedVarieties.length != 1) return null;
 
     final overview = _overviewForBatches(selectedBatches);
     final shipment = CollectorShipmentBatch(
@@ -479,20 +532,8 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - State Management] Riwayat pengepul menggabungkan batch yang sudah
   // diverifikasi dan ditolak untuk kebutuhan audit FE sementara.
-  List<HarvestBatch> get historyBatches {
-    final items = _farmerRepo.batches.where((b) {
-      return b.status == BatchStatus.verifiedByCollector ||
-          b.status == BatchStatus.rejected;
-    }).toList();
-    items.sort((a, b) {
-      final aDate =
-          a.verifiedAt ?? a.rejectedAt ?? a.createdAt ?? a.harvestDate;
-      final bDate =
-          b.verifiedAt ?? b.rejectedAt ?? b.createdAt ?? b.harvestDate;
-      return bDate.compareTo(aDate);
-    });
-    return List.unmodifiable(items);
-  }
+  List<HarvestBatch> get historyBatches =>
+      _farmerRepo.batchesForCollectorHistory;
 
   // [UTIL - Helper Function] Mapper ini mengubah HarvestBatch milik petani
   // menjadi CollectorProduct read-only untuk UI pengepul.
@@ -648,7 +689,7 @@ class CollectorRepository extends ChangeNotifier {
       CollectorShipmentBatch(
         code: 'BATCH-PGL-001',
         collectorId: 'collector-001',
-        sourceBatchCodes: const ['DRN-2026-000128', 'DRN-2026-000119'],
+        sourceBatchCodes: const ['DRN-2026-000103', 'DRN-2026-000110'],
         totalWeightKg: 158.0,
         totalFruitCount: 38,
         gradeBreakdown: const [
@@ -657,30 +698,23 @@ class CollectorRepository extends ChangeNotifier {
             label: 'Grade A',
             totalWeightKg: 100.0,
             totalFruitCount: 24,
-            batchCount: 1,
+            batchCount: 2,
           ),
           CollectorStockBreakdown(
             key: 'B',
             label: 'Grade B',
             totalWeightKg: 58.0,
             totalFruitCount: 14,
-            batchCount: 1,
+            batchCount: 2,
           ),
         ],
         varietyBreakdown: const [
           CollectorStockBreakdown(
             key: 'montong',
             label: 'Durian Montong',
-            totalWeightKg: 90.0,
-            totalFruitCount: 20,
-            batchCount: 1,
-          ),
-          CollectorStockBreakdown(
-            key: 'bawor',
-            label: 'Durian Bawor',
-            totalWeightKg: 68.0,
-            totalFruitCount: 18,
-            batchCount: 1,
+            totalWeightKg: 158.0,
+            totalFruitCount: 38,
+            batchCount: 2,
           ),
         ],
         packagedAt: now.subtract(const Duration(hours: 4)),

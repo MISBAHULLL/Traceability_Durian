@@ -611,8 +611,22 @@ class _SourceTraceDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
+    // [FE - Component Rendering] Expansion ini menjaga provenance tetap
+    // ringkas; detail lintas role dibuka hanya ketika distributor membutuhkannya.
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(top: 8),
+        title: const Text(
+          'Data asal & verifikasi',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: AppColors.primary,
+          ),
+        ),
+        children: [
         // [FE - Component Rendering] Blok ini adalah data asal dari petani
         // yang diwariskan ke distributor melalui provenance source batch.
         _TraceDetailBlock(
@@ -715,7 +729,8 @@ class _SourceTraceDetails extends StatelessWidget {
             ],
           ],
         ),
-      ],
+        ],
+      ),
     );
   }
 }

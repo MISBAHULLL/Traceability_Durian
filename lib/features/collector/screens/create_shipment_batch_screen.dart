@@ -44,12 +44,27 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
 
   // [FE - Event Handler] Handler ini memilih/melepas source batch yang akan
   // masuk ke provenance tree batch pengiriman.
-  void _toggleBatch(String code) {
+  void _toggleBatch(HarvestBatch batch) {
+    if (!_selectedCodes.contains(batch.code) && _selectedCodes.isNotEmpty) {
+      final selectedBatch = _repo.availableStockBatches.firstWhere(
+        (item) => _selectedCodes.contains(item.code),
+      );
+      if (selectedBatch.variety.trim().toLowerCase() !=
+          batch.variety.trim().toLowerCase()) {
+        _notification.show(
+          context,
+          'Satu batch PGL hanya boleh berisi satu varietas durian.',
+          isError: true,
+        );
+        return;
+      }
+    }
+
     setState(() {
-      if (_selectedCodes.contains(code)) {
-        _selectedCodes.remove(code);
+      if (_selectedCodes.contains(batch.code)) {
+        _selectedCodes.remove(batch.code);
       } else {
-        _selectedCodes.add(code);
+        _selectedCodes.add(batch.code);
       }
     });
   }
@@ -115,7 +130,7 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
                             child: _SelectableBatchTile(
                               batch: batch,
                               selected: _selectedCodes.contains(batch.code),
-                              onTap: () => _toggleBatch(batch.code),
+                              onTap: () => _toggleBatch(batch),
                             ),
                           ),
                         ),

@@ -146,7 +146,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (_selectedProduct == null) {
       _notif.show(
         context,
-        'Pilih produk yang akan dibeli terlebih dahulu.',
+        'Pilih batch panen yang akan diverifikasi terlebih dahulu.',
         isError: true,
       );
       return;
@@ -308,7 +308,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (selectedProduct == null) {
       _notif.show(
         context,
-        'Pilih produk yang akan ditolak terlebih dahulu.',
+        'Pilih batch panen yang akan ditolak terlebih dahulu.',
         isError: true,
       );
       return;
@@ -458,6 +458,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final products = _repo.products
         .where((p) => p.category == ProductCategory.durianSegar)
         .toList();
+    final isBatchLockedFromScan =
+        widget.initialBatchCode?.trim().isNotEmpty == true &&
+        _selectedProduct != null;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -472,15 +475,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // ── Pilih Produk ─────────────────────────────────────
-                    const _SectionLabel(label: 'Pilih Produk'),
+                    // [FE - Component Rendering] Pengepul memilih identitas
+                    // batch DRN, bukan memilih atau mengubah varietas durian.
+                    const _SectionLabel(label: 'Pilih Batch Panen'),
                     const SizedBox(height: 8),
-                    _ProductDropdown(
-                      products: products,
-                      selected: _selectedProduct,
-                      onChanged: (p) => setState(() {
-                        _selectProduct(p);
-                      }),
-                    ),
+                    if (isBatchLockedFromScan)
+                      _ScannedBatchField(batch: _selectedProduct!)
+                    else
+                      _BatchDropdown(
+                        batches: products,
+                        selected: _selectedProduct,
+                        onChanged: (p) => setState(() {
+                          _selectProduct(p);
+                        }),
+                      ),
 
                     // ── Info Produk (read-only) ──────────────────────────
                     if (_selectedProduct != null) ...[
@@ -756,14 +764,16 @@ class _FieldLabel extends StatelessWidget {
 
 // [FE - Component Rendering] _ProductDropdown menampilkan daftar produk durian
 // segar yang dapat dibeli/diverifikasi pengepul — simulasi hasil scan QR.
-class _ProductDropdown extends StatelessWidget {
-  const _ProductDropdown({
-    required this.products,
+// [FE - Component Rendering] Dropdown ini menampilkan antrean batch DRN
+// petani yang masih tersedia untuk verifikasi manual oleh pengepul.
+class _BatchDropdown extends StatelessWidget {
+  const _BatchDropdown({
+    required this.batches,
     required this.selected,
     required this.onChanged,
   });
 
-  final List<CollectorProduct> products;
+  final List<CollectorProduct> batches;
   final CollectorProduct? selected;
   final ValueChanged<CollectorProduct?> onChanged;
 
@@ -780,7 +790,7 @@ class _ProductDropdown extends StatelessWidget {
         child: DropdownButton<CollectorProduct>(
           value: selected,
           hint: const Text(
-            'Pilih produk durian',
+            'Pilih kode batch petani',
             style: TextStyle(fontSize: 14, color: AppColors.placeholder),
           ),
           isExpanded: true,
@@ -788,17 +798,73 @@ class _ProductDropdown extends StatelessWidget {
             Icons.keyboard_arrow_down_rounded,
             color: AppColors.placeholder,
           ),
-          items: products.map((p) {
+          items: batches.map((batch) {
             return DropdownMenuItem(
-              value: p,
+              value: batch,
               child: Text(
-                p.name,
+                '${batch.code} • ${batch.name}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 14, color: AppColors.black),
               ),
             );
           }).toList(),
           onChanged: onChanged,
         ),
+      ),
+    );
+  }
+}
+
+// [FE - Component Rendering] Hasil scan QR dikunci sebagai batch read-only
+// agar pengepul tidak berpindah ke DRN lain setelah memindai barang fisik.
+class _ScannedBatchField extends StatelessWidget {
+  const _ScannedBatchField({required this.batch});
+
+  final CollectorProduct batch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.qr_code_2_rounded,
+            size: 21,
+            color: AppColors.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  batch.code,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.black,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  batch.name,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.subtitle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

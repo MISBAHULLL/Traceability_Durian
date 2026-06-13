@@ -57,6 +57,7 @@ class FarmerRepository extends ChangeNotifier {
     _batchCounter =
         LocalStorageService.loadInt('farmer_batch_counter') ?? _batches.length;
     _ensureSeedRejectedBatch();
+    _ensureSeedShipmentSourceBatches();
   }
 
   // [FE - State Management] Migrasi seed ini menjaga data demo tetap lengkap
@@ -66,6 +67,45 @@ class FarmerRepository extends ChangeNotifier {
     if (_batches.any((b) => b.code == _kSeedRejectedBatchCode)) return;
 
     _batches.add(_buildSeedRejectedBatch());
+    if (_batchCounter < _batches.length) {
+      _batchCounter = _batches.length;
+    }
+    _saveToLocal();
+  }
+
+  // [FE - State Management] Migrasi ini menyiapkan dua batch Montong yang
+  // valid sebagai source PGL demo, termasuk hasil verifikasi pengepul.
+  void _ensureSeedShipmentSourceBatches() {
+    if (_currentFarmerId != _kSeedFarmerId) return;
+
+    var changed = false;
+    final existingIndex = _batches.indexWhere(
+      (batch) => batch.code == _kSeedDistributedBatchCode,
+    );
+    if (existingIndex != -1 &&
+        _batches[existingIndex].receivedQuantity == null) {
+      final existing = _batches[existingIndex];
+      _batches[existingIndex] = existing.copyWith(
+        receivedQuantity: 64,
+        receivedFruitCount: 21,
+        verifiedGrade: 'A',
+        gradeBreakdown: const [
+          BatchGradeBreakdown(grade: 'A', weightKg: 40, fruitCount: 13),
+          BatchGradeBreakdown(grade: 'B', weightKg: 24, fruitCount: 8),
+        ],
+        qualityNotes: 'Kondisi baik setelah sortir dan timbang ulang.',
+        verifiedBy: 'Pengepul Jember',
+        verifiedAt: DateTime(2026, 5, 13, 9, 30),
+      );
+      changed = true;
+    }
+
+    if (!_batches.any((batch) => batch.code == _kSeedShipmentSourceBatchCode)) {
+      _batches.add(_buildSeedShipmentSourceBatch());
+      changed = true;
+    }
+
+    if (!changed) return;
     if (_batchCounter < _batches.length) {
       _batchCounter = _batches.length;
     }
@@ -94,6 +134,8 @@ class FarmerRepository extends ChangeNotifier {
 
   static const String _kSeedFarmerId = 'farmer-001';
   static const String _kSeedRejectedBatchCode = 'DRN-2026-000077';
+  static const String _kSeedDistributedBatchCode = 'DRN-2026-000103';
+  static const String _kSeedShipmentSourceBatchCode = 'DRN-2026-000110';
 
   static const FarmerProfile _kSeedProfile = FarmerProfile(
     farmerId: _kSeedFarmerId,
@@ -273,6 +315,39 @@ class FarmerRepository extends ChangeNotifier {
   );
 
   /// Singleton instance — diakses dari seluruh UI petani.
+  // [DB - Model/Entity] Seed ini menjadi source PGL demo kedua dengan
+  // varietas Montong dan hasil verifikasi fisik pengepul yang lengkap.
+  static HarvestBatch _buildSeedShipmentSourceBatch() => HarvestBatch(
+    code: _kSeedShipmentSourceBatchCode,
+    farmerId: _kSeedFarmerId,
+    farmId: 'farm-001',
+    variety: 'Montong',
+    grade: 'A',
+    quantity: 96,
+    unit: 'kg',
+    fruitCount: 18,
+    harvestDate: DateTime(2026, 5, 14),
+    farmName: 'Kebun Pakis 1',
+    status: BatchStatus.verifiedByCollector,
+    fertilizer: 'Organik Kompos',
+    harvestMethod: 'Jatuh Alami',
+    maturityLevel: 'Matang Pohon',
+    shelfLifeEstimate: '2 hari',
+    storageSuggestion: 'Simpan di ruang sejuk dan berventilasi.',
+    notes: 'Batch Montong untuk pengiriman agregat pengepul.',
+    createdAt: DateTime(2026, 5, 14, 7, 30),
+    receivedQuantity: 94,
+    receivedFruitCount: 17,
+    verifiedGrade: 'A',
+    gradeBreakdown: const [
+      BatchGradeBreakdown(grade: 'A', weightKg: 60, fruitCount: 11),
+      BatchGradeBreakdown(grade: 'B', weightKg: 34, fruitCount: 6),
+    ],
+    qualityNotes: 'Mayoritas Grade A, enam buah masuk Grade B.',
+    verifiedBy: 'Pengepul Jember',
+    verifiedAt: DateTime(2026, 5, 15, 9, 0),
+  );
+
   static final FarmerRepository instance = FarmerRepository._seed();
 
   // ── State internal ──────────────────────────────────────────────────────────
@@ -579,6 +654,38 @@ class FarmerRepository extends ChangeNotifier {
     items.sort((a, b) {
       final aDate = a.createdAt ?? a.harvestDate;
       final bDate = b.createdAt ?? b.harvestDate;
+      return bDate.compareTo(aDate);
+    });
+    return List.unmodifiable(items);
+  }
+
+  // [FE - State Management] Getter lintas-role ini menyediakan stok hasil
+  // verifikasi dari seluruh petani untuk operasional pengepul pada mock FE.
+  // Backend nanti harus membatasi hasil berdasarkan collectorId penerima.
+  List<HarvestBatch> get batchesForCollectorStock {
+    final items = _batches
+        .where((b) => b.status == BatchStatus.verifiedByCollector)
+        .toList();
+    items.sort((a, b) {
+      final aDate = a.verifiedAt ?? a.createdAt ?? a.harvestDate;
+      final bDate = b.verifiedAt ?? b.createdAt ?? b.harvestDate;
+      return bDate.compareTo(aDate);
+    });
+    return List.unmodifiable(items);
+  }
+
+  // [FE - State Management] Getter audit lintas-role ini menjaga hasil
+  // verifikasi dan penolakan tetap terlihat pada riwayat pengepul mock.
+  List<HarvestBatch> get batchesForCollectorHistory {
+    final items = _batches.where((batch) {
+      return batch.status == BatchStatus.verifiedByCollector ||
+          batch.status == BatchStatus.rejected;
+    }).toList();
+    items.sort((a, b) {
+      final aDate =
+          a.verifiedAt ?? a.rejectedAt ?? a.createdAt ?? a.harvestDate;
+      final bDate =
+          b.verifiedAt ?? b.rejectedAt ?? b.createdAt ?? b.harvestDate;
       return bDate.compareTo(aDate);
     });
     return List.unmodifiable(items);

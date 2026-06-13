@@ -5,6 +5,7 @@ import '../../auth/screens/home_screen.dart';
 import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
 import '../models/distributor_profile.dart';
+import '../screens/distributor_active_shipments_screen.dart';
 import '../screens/distributor_history_screen.dart';
 import '../screens/distributor_profile_screen.dart';
 import '../screens/distributor_scan_qr_screen.dart';
@@ -48,14 +49,12 @@ class DistributorDrawer extends StatelessWidget {
                   _DrawerItem(
                     icon: Icons.local_shipping_outlined,
                     label: 'Pengiriman Aktif',
-                    onTap: () {
-                      Navigator.pop(context);
-                      // Screen pengiriman aktif akan dihubungkan di sini.
-                    },
+                    onTap: () =>
+                        _go(context, const DistributorActiveShipmentsScreen()),
                   ),
                   _DrawerItem(
                     icon: Icons.history_rounded,
-                    label: 'Riwayat Pengiriman',
+                    label: 'Riwayat Aktivitas',
                     onTap: () => _go(context, const DistributorHistoryScreen()),
                   ),
                   _DrawerItem(

@@ -189,6 +189,16 @@ class DistributorRepository extends ChangeNotifier {
     }
   }
 
+  // [FE - State Management] Riwayat receipt menyajikan bukti penerimaan
+  // distributor terbaru lebih dulu untuk tab audit aktivitas barang masuk.
+  List<DistributorReceipt> get receiptHistory {
+    final items = _receipts
+        .where((receipt) => receipt.distributorId == _currentDistributorId)
+        .toList();
+    items.sort((a, b) => b.receivedAt.compareTo(a.receivedAt));
+    return List.unmodifiable(items);
+  }
+
   /// Metrik 1: Total Kirim (Transit + Tiba)
   int get totalKirim => allShipments
       .where(

@@ -63,28 +63,36 @@ class UmkmProfileScreen extends StatelessWidget {
                   ProfileInfoTile(
                     icon: Icons.phone_outlined,
                     label: 'Kontak',
-                    value: profile.contact.isEmpty ? 'Belum dilengkapi' : profile.contact,
+                    value: profile.contact.isEmpty
+                        ? 'Belum dilengkapi'
+                        : profile.contact,
                     isEmpty: profile.contact.isEmpty,
                   ),
                   const SizedBox(height: 12),
                   ProfileInfoTile(
                     icon: Icons.mail_outline_rounded,
                     label: 'Email',
-                    value: profile.email.isEmpty ? 'Belum dilengkapi' : profile.email,
+                    value: profile.email.isEmpty
+                        ? 'Belum dilengkapi'
+                        : profile.email,
                     isEmpty: profile.email.isEmpty,
                   ),
                   const SizedBox(height: 12),
                   ProfileInfoTile(
                     icon: Icons.location_on_outlined,
                     label: 'Lokasi',
-                    value: profile.location.isEmpty ? 'Belum dilengkapi' : profile.location,
+                    value: profile.location.isEmpty
+                        ? 'Belum dilengkapi'
+                        : profile.location,
                     isEmpty: profile.location.isEmpty,
                   ),
                   const SizedBox(height: 12),
                   ProfileInfoTile(
                     icon: Icons.info_outline_rounded,
                     label: 'Tentang UMKM',
-                    value: profile.about.isEmpty ? 'Belum dilengkapi' : profile.about,
+                    value: profile.about.isEmpty
+                        ? 'Belum dilengkapi'
+                        : profile.about,
                     isEmpty: profile.about.isEmpty,
                   ),
                   const SizedBox(height: 24),
@@ -99,7 +107,9 @@ class UmkmProfileScreen extends StatelessWidget {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        final confirmed = await showLogoutConfirmationDialog(context);
+                        final confirmed = await showLogoutConfirmationDialog(
+                          context,
+                        );
                         if (!confirmed) return;
                         if (!context.mounted) return;
                         UmkmRoutes.replaceAll(context, const HomeScreen());
@@ -141,7 +151,8 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = (profile.imagePath != null && profile.imagePath!.isNotEmpty) ||
+    final hasImage =
+        (profile.imagePath != null && profile.imagePath!.isNotEmpty) ||
         profile.imageBytes != null;
     return ProfileHeader(
       fullName: profile.ownerName,
@@ -160,15 +171,17 @@ class _Header extends StatelessWidget {
                   ? Image.memory(
                       profile.imageBytes!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const _ImageFallback(),
+                      errorBuilder: (_, _, _) => const _ImageFallback(),
                     )
-                  : (!kIsWeb && profile.imagePath != null && profile.imagePath!.isNotEmpty)
-                      ? Image.file(
-                          File(profile.imagePath!),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const _ImageFallback(),
-                        )
-                      : const _ImageFallback(),
+                  : (!kIsWeb &&
+                        profile.imagePath != null &&
+                        profile.imagePath!.isNotEmpty)
+                  ? Image.file(
+                      File(profile.imagePath!),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const _ImageFallback(),
+                    )
+                  : const _ImageFallback(),
             )
           : null,
     );

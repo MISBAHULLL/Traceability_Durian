@@ -63,10 +63,7 @@ class UmkmStockOrder {
 
   String get totalLabel => 'Rp ${_formatCurrency(totalAmount)}';
 
-  UmkmStockOrder copyWith({
-    UmkmStockOrderStatus? status,
-    String? note,
-  }) {
+  UmkmStockOrder copyWith({UmkmStockOrderStatus? status, String? note}) {
     return UmkmStockOrder(
       id: id,
       offerId: offerId,

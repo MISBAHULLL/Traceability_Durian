@@ -43,8 +43,10 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
   // trace publik, lalu mengambil kode DRN-YYYY-NNNNNN untuk validasi FE.
   String _extractBatchCode(String raw) {
     final text = raw.trim();
-    final match = RegExp(r'DRN-\d{4}-\d{6}', caseSensitive: false)
-        .firstMatch(text);
+    final match = RegExp(
+      r'DRN-\d{4}-\d{6}',
+      caseSensitive: false,
+    ).firstMatch(text);
     return (match?.group(0) ?? text).toUpperCase();
   }
 
@@ -55,8 +57,11 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
 
     final code = _extractBatchCode(_codeCtrl.text);
     if (code.isEmpty) {
-      _notification.show(context, 'Masukkan kode batch terlebih dahulu.',
-          isError: true);
+      _notification.show(
+        context,
+        'Masukkan kode batch terlebih dahulu.',
+        isError: true,
+      );
       return;
     }
 
@@ -222,13 +227,15 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -293,10 +300,7 @@ class _FieldLabel extends StatelessWidget {
 // [FE - Component Rendering] Toggle ini memisahkan scan kamera dan input kode
 // supaya FE tetap bisa dites di device maupun browser.
 class _ScanModeToggle extends StatelessWidget {
-  const _ScanModeToggle({
-    required this.isCameraMode,
-    required this.onChanged,
-  });
+  const _ScanModeToggle({required this.isCameraMode, required this.onChanged});
 
   final bool isCameraMode;
   final Future<void> Function(bool value) onChanged;
@@ -411,10 +415,7 @@ class _CameraScannerBox extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(
-            controller: controller,
-            onDetect: onDetect,
-          ),
+          MobileScanner(controller: controller, onDetect: onDetect),
           Center(
             child: Container(
               width: 210,
@@ -478,10 +479,7 @@ class _SectionTitle extends StatelessWidget {
 // [FE - Component Rendering] Tile ini menjadi fallback pilih batch langsung
 // saat pengepul perlu verifikasi tanpa memindai QR fisik.
 class _AvailableBatchTile extends StatelessWidget {
-  const _AvailableBatchTile({
-    required this.product,
-    required this.onTap,
-  });
+  const _AvailableBatchTile({required this.product, required this.onTap});
 
   final CollectorProduct product;
   final VoidCallback onTap;
@@ -564,10 +562,7 @@ class _EmptyBatchHint extends StatelessWidget {
       ),
       child: const Text(
         'Belum ada batch petani yang menunggu verifikasi.',
-        style: TextStyle(
-          fontSize: 13,
-          color: AppColors.placeholder,
-        ),
+        style: TextStyle(fontSize: 13, color: AppColors.placeholder),
       ),
     );
   }

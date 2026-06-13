@@ -11,18 +11,17 @@ import '../models/consumer_transaction.dart';
 import 'consumer_transaction_qr_screen.dart';
 
 class ConsumerCreateTransactionScreen extends StatefulWidget {
-  const ConsumerCreateTransactionScreen({
-    super.key,
-    required this.product,
-  });
+  const ConsumerCreateTransactionScreen({super.key, required this.product});
 
   final ConsumerProduct product;
 
   @override
-  State<ConsumerCreateTransactionScreen> createState() => _ConsumerCreateTransactionScreenState();
+  State<ConsumerCreateTransactionScreen> createState() =>
+      _ConsumerCreateTransactionScreenState();
 }
 
-class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransactionScreen> {
+class _ConsumerCreateTransactionScreenState
+    extends State<ConsumerCreateTransactionScreen> {
   final _addressController = TextEditingController();
   final _coordinateController = TextEditingController();
   final _accountNumberController = TextEditingController();
@@ -89,7 +88,9 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
       }
 
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       if (!mounted) return;
@@ -127,17 +128,19 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
   Future<void> _submit() async {
     if (_paymentMethod == 'Transfer Bank' &&
         _accountNumberController.text.trim().isEmpty) {
-      _showMessage('Nomor rekening harus diisi untuk transfer bank.', isError: true);
+      _showMessage(
+        'Nomor rekening harus diisi untuk transfer bank.',
+        isError: true,
+      );
       return;
     }
 
     setState(() => _isSubmitting = true);
     final repo = ConsumerRepository.instance;
     final isTransferBank = _paymentMethod == 'Transfer Bank';
-    final paymentStatus =
-        _paymentMethod == 'QRIS'
-            ? ConsumerPaymentStatus.unpaid
-            : ConsumerPaymentStatus.processing;
+    final paymentStatus = _paymentMethod == 'QRIS'
+        ? ConsumerPaymentStatus.unpaid
+        : ConsumerPaymentStatus.processing;
     final transaction = repo.addTransaction(
       widget.product,
       quantity: _quantity,
@@ -146,7 +149,9 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
       paymentMethod: _paymentMethod,
       paymentStatus: paymentStatus,
       bankName: isTransferBank ? _selectedBank : null,
-      accountNumber: isTransferBank ? _accountNumberController.text.trim() : null,
+      accountNumber: isTransferBank
+          ? _accountNumberController.text.trim()
+          : null,
       note: 'Transaksi dibuat dari detail produk.',
     );
     try {
@@ -179,9 +184,15 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
                       title: 'Detail Pembelian',
                       children: [
                         _InfoRow(label: 'Produk', value: widget.product.name),
-                        _InfoRow(label: 'Harga', value: widget.product.priceLabel),
+                        _InfoRow(
+                          label: 'Harga',
+                          value: widget.product.priceLabel,
+                        ),
                         _InfoRow(label: 'UMKM', value: widget.product.umkmName),
-                        _InfoRow(label: 'Stok', value: widget.product.stockLabel),
+                        _InfoRow(
+                          label: 'Stok',
+                          value: widget.product.stockLabel,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -190,7 +201,10 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
                       children: [
                         Row(
                           children: [
-                            _QuantityButton(icon: Icons.remove_rounded, onTap: _decrementQuantity),
+                            _QuantityButton(
+                              icon: Icons.remove_rounded,
+                              onTap: _decrementQuantity,
+                            ),
                             Expanded(
                               child: Center(
                                 child: Text(
@@ -203,7 +217,10 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
                                 ),
                               ),
                             ),
-                            _QuantityButton(icon: Icons.add_rounded, onTap: _incrementQuantity),
+                            _QuantityButton(
+                              icon: Icons.add_rounded,
+                              onTap: _incrementQuantity,
+                            ),
                           ],
                         ),
                       ],
@@ -215,7 +232,9 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
-                            onPressed: _isLocating ? null : _fillCurrentLocation,
+                            onPressed: _isLocating
+                                ? null
+                                : _fillCurrentLocation,
                             icon: _isLocating
                                 ? const SizedBox(
                                     width: 16,
@@ -224,9 +243,14 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Icon(Icons.my_location_rounded, size: 18),
+                                : const Icon(
+                                    Icons.my_location_rounded,
+                                    size: 18,
+                                  ),
                             label: Text(
-                              _isLocating ? 'Mengambil Lokasi...' : 'Tambahkan Lokasi',
+                              _isLocating
+                                  ? 'Mengambil Lokasi...'
+                                  : 'Tambahkan Lokasi',
                             ),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.primary,
@@ -258,17 +282,21 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
                       title: 'Pembayaran',
                       children: [
                         DropdownButtonFormField<String>(
-                          value: _paymentMethod,
+                          initialValue: _paymentMethod,
                           decoration: InputDecoration(
                             filled: true,
                             fillColor: AppColors.surface,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE5E7EB),
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFE5E7EB),
+                              ),
                             ),
                           ),
                           items: _paymentMethods
@@ -288,17 +316,21 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
                         if (_paymentMethod == 'Transfer Bank') ...[
                           const SizedBox(height: 12),
                           DropdownButtonFormField<String>(
-                            value: _selectedBank,
+                            initialValue: _selectedBank,
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: AppColors.surface,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE5E7EB),
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE5E7EB),
+                                ),
                               ),
                             ),
                             items: _bankOptions
@@ -377,10 +409,7 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-  });
+  const _InfoRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -465,7 +494,10 @@ class _TextFieldRow extends StatelessWidget {
         hintStyle: const TextStyle(fontSize: 13, color: AppColors.placeholder),
         filled: true,
         fillColor: AppColors.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFFE5E7EB)),

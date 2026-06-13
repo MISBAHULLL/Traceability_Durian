@@ -72,10 +72,7 @@ class _SplashScreenState extends State<SplashScreen>
             parent: animation,
             curve: Curves.easeInOutCubic,
           );
-          return FadeTransition(
-            opacity: curved,
-            child: child,
-          );
+          return FadeTransition(opacity: curved, child: child);
         },
       ),
     );
@@ -99,10 +96,7 @@ class _SplashScreenState extends State<SplashScreen>
             final opacity = _fadeIn.value * _fadeOut.value;
             return Opacity(
               opacity: opacity.clamp(0.0, 1.0),
-              child: Transform.scale(
-                scale: _scale.value,
-                child: child,
-              ),
+              child: Transform.scale(scale: _scale.value, child: child),
             );
           },
           child: Column(
@@ -113,10 +107,8 @@ class _SplashScreenState extends State<SplashScreen>
                 width: 130,
                 height: 130,
                 fit: BoxFit.contain,
-                errorBuilder: (_, _, _) => const Text(
-                  '🌵',
-                  style: TextStyle(fontSize: 80),
-                ),
+                errorBuilder: (_, _, _) =>
+                    const Text('🌵', style: TextStyle(fontSize: 80)),
               ),
               const SizedBox(height: 28),
               const Text(

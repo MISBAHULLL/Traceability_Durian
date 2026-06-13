@@ -97,10 +97,7 @@ class AppTopBar extends StatelessWidget {
           if (actions.isNotEmpty)
             Align(
               alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: actions,
-              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: actions),
             ),
         ],
       ),

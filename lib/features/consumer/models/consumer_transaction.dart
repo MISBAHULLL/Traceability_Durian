@@ -96,7 +96,7 @@ class ConsumerTransaction {
   ///
   /// Ini berbeda dari kode transaksi/pembayaran dan dipakai khusus setelah
   /// transaksi selesai.
-  String get purchasedProductCode => 'PUR-${product.code}-${id}';
+  String get purchasedProductCode => 'PUR-${product.code}-$id';
 
   String get purchasedProductQrData => purchasedProductCode;
 }

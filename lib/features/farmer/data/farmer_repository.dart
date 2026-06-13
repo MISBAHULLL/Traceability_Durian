@@ -57,6 +57,7 @@ class FarmerRepository extends ChangeNotifier {
     _batchCounter =
         LocalStorageService.loadInt('farmer_batch_counter') ?? _batches.length;
     _ensureSeedRejectedBatch();
+    _ensureSeedShipmentSourceBatches();
   }
 
   // [FE - State Management] Migrasi seed ini menjaga data demo tetap lengkap
@@ -66,6 +67,45 @@ class FarmerRepository extends ChangeNotifier {
     if (_batches.any((b) => b.code == _kSeedRejectedBatchCode)) return;
 
     _batches.add(_buildSeedRejectedBatch());
+    if (_batchCounter < _batches.length) {
+      _batchCounter = _batches.length;
+    }
+    _saveToLocal();
+  }
+
+  // [FE - State Management] Migrasi ini menyiapkan dua batch Montong yang
+  // valid sebagai source PGL demo, termasuk hasil verifikasi pengepul.
+  void _ensureSeedShipmentSourceBatches() {
+    if (_currentFarmerId != _kSeedFarmerId) return;
+
+    var changed = false;
+    final existingIndex = _batches.indexWhere(
+      (batch) => batch.code == _kSeedDistributedBatchCode,
+    );
+    if (existingIndex != -1 &&
+        _batches[existingIndex].receivedQuantity == null) {
+      final existing = _batches[existingIndex];
+      _batches[existingIndex] = existing.copyWith(
+        receivedQuantity: 64,
+        receivedFruitCount: 21,
+        verifiedGrade: 'A',
+        gradeBreakdown: const [
+          BatchGradeBreakdown(grade: 'A', weightKg: 40, fruitCount: 13),
+          BatchGradeBreakdown(grade: 'B', weightKg: 24, fruitCount: 8),
+        ],
+        qualityNotes: 'Kondisi baik setelah sortir dan timbang ulang.',
+        verifiedBy: 'Pengepul Jember',
+        verifiedAt: DateTime(2026, 5, 13, 9, 30),
+      );
+      changed = true;
+    }
+
+    if (!_batches.any((batch) => batch.code == _kSeedShipmentSourceBatchCode)) {
+      _batches.add(_buildSeedShipmentSourceBatch());
+      changed = true;
+    }
+
+    if (!changed) return;
     if (_batchCounter < _batches.length) {
       _batchCounter = _batches.length;
     }
@@ -94,7 +134,8 @@ class FarmerRepository extends ChangeNotifier {
 
   static const String _kSeedFarmerId = 'farmer-001';
   static const String _kSeedRejectedBatchCode = 'DRN-2026-000077';
-
+  static const String _kSeedDistributedBatchCode = 'DRN-2026-000103';
+  static const String _kSeedShipmentSourceBatchCode = 'DRN-2026-000110';
 
   static const FarmerProfile _kSeedProfile = FarmerProfile(
     farmerId: _kSeedFarmerId,
@@ -109,171 +150,204 @@ class FarmerRepository extends ChangeNotifier {
   );
 
   static List<Farm> _buildSeedFarms() => [
-        const Farm(
-          id: 'farm-001',
-          farmerId: _kSeedFarmerId,
-          name: 'Kebun Pakis 1',
-          province: 'Jawa Timur',
-          city: 'Kabupaten Jember',
-          district: 'Pakis',
-          village: 'Pakis',
-          address: 'Jl. Raya Pakis No. 1, Desa Pakis, Kec. Pakis, Kab. Jember',
-        ),
-        const Farm(
-          id: 'farm-002',
-          farmerId: _kSeedFarmerId,
-          name: 'Kebun Curah 2',
-          province: 'Jawa Timur',
-          city: 'Kabupaten Jember',
-          district: 'Curah Nongko',
-          village: 'Curah Nongko',
-          address: 'Jl. Curah Nongko No. 2, Desa Curah Nongko, Kab. Jember',
-        ),
-      ];
+    const Farm(
+      id: 'farm-001',
+      farmerId: _kSeedFarmerId,
+      name: 'Kebun Pakis 1',
+      province: 'Jawa Timur',
+      city: 'Kabupaten Jember',
+      district: 'Pakis',
+      village: 'Pakis',
+      address: 'Jl. Raya Pakis No. 1, Desa Pakis, Kec. Pakis, Kab. Jember',
+    ),
+    const Farm(
+      id: 'farm-002',
+      farmerId: _kSeedFarmerId,
+      name: 'Kebun Curah 2',
+      province: 'Jawa Timur',
+      city: 'Kabupaten Jember',
+      district: 'Curah Nongko',
+      village: 'Curah Nongko',
+      address: 'Jl. Curah Nongko No. 2, Desa Curah Nongko, Kab. Jember',
+    ),
+  ];
 
   static List<HarvestBatch> _buildSeedBatches() => [
-        HarvestBatch(
-          code: 'DRN-2026-000128',
-          farmerId: _kSeedFarmerId,
-          farmId: 'farm-001',
-          variety: 'Montong',
-          grade: 'A',
-          quantity: 52,
-          unit: 'kg',
-          fruitCount: 18,
-          harvestDate: DateTime(2026, 5, 24),
-          farmName: 'Kebun Pakis 1',
-          status: BatchStatus.created,
-          fertilizer: 'Organik Kompos',
-          harvestMethod: 'Jatuh Alami',
-          maturityLevel: 'Matang Pohon',
-          shelfLifeEstimate: '2-3 hari',
-          storageSuggestion: 'Simpan di tempat sejuk dan kering.',
-          notes: 'Kulit utuh, aroma kuat, siap disortir pengepul.',
-          createdAt: DateTime(2026, 5, 24, 8, 30),
-        ),
-        HarvestBatch(
-          code: 'DRN-2026-000119',
-          farmerId: _kSeedFarmerId,
-          farmId: 'farm-001',
-          variety: 'Bawor',
-          grade: 'B',
-          quantity: 40,
-          unit: 'kg',
-          fruitCount: 14,
-          harvestDate: DateTime(2026, 5, 20),
-          farmName: 'Kebun Pakis 1',
-          status: BatchStatus.verifiedByCollector,
-          fertilizer: 'NPK',
-          harvestMethod: 'Petik Matang',
-          maturityLevel: 'Matang',
-          shelfLifeEstimate: '2-3 hari',
-          storageSuggestion: 'Hindari sinar matahari langsung.',
-          notes: 'Sudah lolos sortir awal di kebun.',
-          createdAt: DateTime(2026, 5, 20, 9, 0),
-          receivedQuantity: 39,
-          receivedFruitCount: 14,
-          verifiedGrade: 'B',
-          gradeBreakdown: const [
-            BatchGradeBreakdown(grade: 'A', weightKg: 10, fruitCount: 3),
-            BatchGradeBreakdown(grade: 'B', weightKg: 24, fruitCount: 9),
-            BatchGradeBreakdown(grade: 'C', weightKg: 5, fruitCount: 2),
-          ],
-          qualityNotes: 'Berat diterima sesuai, sebagian kulit lecet ringan.',
-          verifiedBy: 'Pengepul Jember',
-          verifiedAt: DateTime(2026, 5, 21, 10, 0),
-        ),
-        HarvestBatch(
-          code: 'DRN-2026-000103',
-          farmerId: _kSeedFarmerId,
-          farmId: 'farm-002',
-          variety: 'Montong',
-          grade: 'A',
-          quantity: 65,
-          unit: 'kg',
-          fruitCount: 22,
-          harvestDate: DateTime(2026, 5, 12),
-          farmName: 'Kebun Curah 2',
-          status: BatchStatus.inDistribution,
-          fertilizer: 'Kandang',
-          harvestMethod: 'Jatuh Alami',
-          maturityLevel: 'Matang Pohon',
-          shelfLifeEstimate: '1 hari',
-          storageSuggestion: 'Segera distribusikan setelah diterima.',
-          notes: 'Sebagian buah sangat matang.',
-          createdAt: DateTime(2026, 5, 12, 7, 45),
-        ),
-        HarvestBatch(
-          code: 'DRN-2026-000097',
-          farmerId: _kSeedFarmerId,
-          farmId: 'farm-002',
-          variety: 'Petruk',
-          grade: 'B',
-          quantity: 38,
-          unit: 'kg',
-          fruitCount: 13,
-          harvestDate: DateTime(2026, 5, 5),
-          farmName: 'Kebun Curah 2',
-          status: BatchStatus.receivedByUmkm,
-          fertilizer: 'Hayati',
-          harvestMethod: 'Petik Matang',
-          maturityLevel: 'Matang',
-          shelfLifeEstimate: '2-3 hari',
-          storageSuggestion: 'Simpan di ruang berventilasi.',
-          notes: 'Cocok untuk bahan olahan.',
-          createdAt: DateTime(2026, 5, 5, 10, 15),
-        ),
-        HarvestBatch(
-          code: 'DRN-2026-000088',
-          farmerId: _kSeedFarmerId,
-          farmId: 'farm-001',
-          variety: 'Montong',
-          grade: 'A',
-          quantity: 70,
-          unit: 'kg',
-          fruitCount: 24,
-          harvestDate: DateTime(2026, 4, 28),
-          farmName: 'Kebun Pakis 1',
-          status: BatchStatus.processed,
-          fertilizer: 'Organik Kompos',
-          harvestMethod: 'Jatuh Alami',
-          maturityLevel: 'Matang Pohon',
-          shelfLifeEstimate: '1 hari',
-          storageSuggestion: 'Gunakan segera untuk menjaga aroma.',
-          notes: 'Batch telah diproses UMKM.',
-          createdAt: DateTime(2026, 4, 28, 8, 0),
-        ),
-        _buildSeedRejectedBatch(),
-      ];
+    HarvestBatch(
+      code: 'DRN-2026-000128',
+      farmerId: _kSeedFarmerId,
+      farmId: 'farm-001',
+      variety: 'Montong',
+      grade: 'A',
+      quantity: 52,
+      unit: 'kg',
+      fruitCount: 18,
+      harvestDate: DateTime(2026, 5, 24),
+      farmName: 'Kebun Pakis 1',
+      status: BatchStatus.created,
+      fertilizer: 'Organik Kompos',
+      harvestMethod: 'Jatuh Alami',
+      maturityLevel: 'Matang Pohon',
+      shelfLifeEstimate: '2-3 hari',
+      storageSuggestion: 'Simpan di tempat sejuk dan kering.',
+      notes: 'Kulit utuh, aroma kuat, siap disortir pengepul.',
+      createdAt: DateTime(2026, 5, 24, 8, 30),
+    ),
+    HarvestBatch(
+      code: 'DRN-2026-000119',
+      farmerId: _kSeedFarmerId,
+      farmId: 'farm-001',
+      variety: 'Bawor',
+      grade: 'B',
+      quantity: 40,
+      unit: 'kg',
+      fruitCount: 14,
+      harvestDate: DateTime(2026, 5, 20),
+      farmName: 'Kebun Pakis 1',
+      status: BatchStatus.verifiedByCollector,
+      fertilizer: 'NPK',
+      harvestMethod: 'Petik Matang',
+      maturityLevel: 'Matang',
+      shelfLifeEstimate: '2-3 hari',
+      storageSuggestion: 'Hindari sinar matahari langsung.',
+      notes: 'Sudah lolos sortir awal di kebun.',
+      createdAt: DateTime(2026, 5, 20, 9, 0),
+      receivedQuantity: 39,
+      receivedFruitCount: 14,
+      verifiedGrade: 'B',
+      gradeBreakdown: const [
+        BatchGradeBreakdown(grade: 'A', weightKg: 10, fruitCount: 3),
+        BatchGradeBreakdown(grade: 'B', weightKg: 24, fruitCount: 9),
+        BatchGradeBreakdown(grade: 'C', weightKg: 5, fruitCount: 2),
+      ],
+      qualityNotes: 'Berat diterima sesuai, sebagian kulit lecet ringan.',
+      verifiedBy: 'Pengepul Jember',
+      verifiedAt: DateTime(2026, 5, 21, 10, 0),
+    ),
+    HarvestBatch(
+      code: 'DRN-2026-000103',
+      farmerId: _kSeedFarmerId,
+      farmId: 'farm-002',
+      variety: 'Montong',
+      grade: 'A',
+      quantity: 65,
+      unit: 'kg',
+      fruitCount: 22,
+      harvestDate: DateTime(2026, 5, 12),
+      farmName: 'Kebun Curah 2',
+      status: BatchStatus.inDistribution,
+      fertilizer: 'Kandang',
+      harvestMethod: 'Jatuh Alami',
+      maturityLevel: 'Matang Pohon',
+      shelfLifeEstimate: '1 hari',
+      storageSuggestion: 'Segera distribusikan setelah diterima.',
+      notes: 'Sebagian buah sangat matang.',
+      createdAt: DateTime(2026, 5, 12, 7, 45),
+    ),
+    HarvestBatch(
+      code: 'DRN-2026-000097',
+      farmerId: _kSeedFarmerId,
+      farmId: 'farm-002',
+      variety: 'Petruk',
+      grade: 'B',
+      quantity: 38,
+      unit: 'kg',
+      fruitCount: 13,
+      harvestDate: DateTime(2026, 5, 5),
+      farmName: 'Kebun Curah 2',
+      status: BatchStatus.receivedByUmkm,
+      fertilizer: 'Hayati',
+      harvestMethod: 'Petik Matang',
+      maturityLevel: 'Matang',
+      shelfLifeEstimate: '2-3 hari',
+      storageSuggestion: 'Simpan di ruang berventilasi.',
+      notes: 'Cocok untuk bahan olahan.',
+      createdAt: DateTime(2026, 5, 5, 10, 15),
+    ),
+    HarvestBatch(
+      code: 'DRN-2026-000088',
+      farmerId: _kSeedFarmerId,
+      farmId: 'farm-001',
+      variety: 'Montong',
+      grade: 'A',
+      quantity: 70,
+      unit: 'kg',
+      fruitCount: 24,
+      harvestDate: DateTime(2026, 4, 28),
+      farmName: 'Kebun Pakis 1',
+      status: BatchStatus.processed,
+      fertilizer: 'Organik Kompos',
+      harvestMethod: 'Jatuh Alami',
+      maturityLevel: 'Matang Pohon',
+      shelfLifeEstimate: '1 hari',
+      storageSuggestion: 'Gunakan segera untuk menjaga aroma.',
+      notes: 'Batch telah diproses UMKM.',
+      createdAt: DateTime(2026, 4, 28, 8, 0),
+    ),
+    _buildSeedRejectedBatch(),
+  ];
 
   // [FE - State Management] Seed ini menyediakan contoh batch ditolak agar
   // role petani bisa menguji filter, badge, timeline, dan alasan penolakan.
   static HarvestBatch _buildSeedRejectedBatch() => HarvestBatch(
-        code: _kSeedRejectedBatchCode,
-        farmerId: _kSeedFarmerId,
-        farmId: 'farm-001',
-        variety: 'Bawor',
-        grade: 'B',
-        quantity: 45,
-        unit: 'kg',
-        fruitCount: 16,
-        harvestDate: DateTime(2026, 4, 20),
-        farmName: 'Kebun Pakis 1',
-        status: BatchStatus.rejected,
-        fertilizer: 'Organik Kompos',
-        harvestMethod: 'Petik Matang',
-        maturityLevel: 'Matang',
-        shelfLifeEstimate: '1-2 hari',
-        storageSuggestion: 'Pisahkan dari batch siap jual.',
-        notes: 'Contoh data untuk alur batch yang tidak lolos verifikasi.',
-        createdAt: DateTime(2026, 4, 20, 8, 45),
-        rejectionReason:
-            'Beberapa buah retak dan tingkat kematangan tidak seragam.',
-        rejectedBy: 'Pengepul Jember',
-        rejectedAt: DateTime(2026, 4, 21, 10, 30),
-      );
+    code: _kSeedRejectedBatchCode,
+    farmerId: _kSeedFarmerId,
+    farmId: 'farm-001',
+    variety: 'Bawor',
+    grade: 'B',
+    quantity: 45,
+    unit: 'kg',
+    fruitCount: 16,
+    harvestDate: DateTime(2026, 4, 20),
+    farmName: 'Kebun Pakis 1',
+    status: BatchStatus.rejected,
+    fertilizer: 'Organik Kompos',
+    harvestMethod: 'Petik Matang',
+    maturityLevel: 'Matang',
+    shelfLifeEstimate: '1-2 hari',
+    storageSuggestion: 'Pisahkan dari batch siap jual.',
+    notes: 'Contoh data untuk alur batch yang tidak lolos verifikasi.',
+    createdAt: DateTime(2026, 4, 20, 8, 45),
+    rejectionReason:
+        'Beberapa buah retak dan tingkat kematangan tidak seragam.',
+    rejectedBy: 'Pengepul Jember',
+    rejectedAt: DateTime(2026, 4, 21, 10, 30),
+  );
 
   /// Singleton instance — diakses dari seluruh UI petani.
+  // [DB - Model/Entity] Seed ini menjadi source PGL demo kedua dengan
+  // varietas Montong dan hasil verifikasi fisik pengepul yang lengkap.
+  static HarvestBatch _buildSeedShipmentSourceBatch() => HarvestBatch(
+    code: _kSeedShipmentSourceBatchCode,
+    farmerId: _kSeedFarmerId,
+    farmId: 'farm-001',
+    variety: 'Montong',
+    grade: 'A',
+    quantity: 96,
+    unit: 'kg',
+    fruitCount: 18,
+    harvestDate: DateTime(2026, 5, 14),
+    farmName: 'Kebun Pakis 1',
+    status: BatchStatus.verifiedByCollector,
+    fertilizer: 'Organik Kompos',
+    harvestMethod: 'Jatuh Alami',
+    maturityLevel: 'Matang Pohon',
+    shelfLifeEstimate: '2 hari',
+    storageSuggestion: 'Simpan di ruang sejuk dan berventilasi.',
+    notes: 'Batch Montong untuk pengiriman agregat pengepul.',
+    createdAt: DateTime(2026, 5, 14, 7, 30),
+    receivedQuantity: 94,
+    receivedFruitCount: 17,
+    verifiedGrade: 'A',
+    gradeBreakdown: const [
+      BatchGradeBreakdown(grade: 'A', weightKg: 60, fruitCount: 11),
+      BatchGradeBreakdown(grade: 'B', weightKg: 34, fruitCount: 6),
+    ],
+    qualityNotes: 'Mayoritas Grade A, enam buah masuk Grade B.',
+    verifiedBy: 'Pengepul Jember',
+    verifiedAt: DateTime(2026, 5, 15, 9, 0),
+  );
+
   static final FarmerRepository instance = FarmerRepository._seed();
 
   // ── State internal ──────────────────────────────────────────────────────────
@@ -302,8 +376,9 @@ class FarmerRepository extends ChangeNotifier {
 
   /// Daftar batch milik petani yang sedang login, diurutkan terbaru di atas.
   List<HarvestBatch> get batches {
-    final owned =
-        _batches.where((b) => b.farmerId == _currentFarmerId).toList();
+    final owned = _batches
+        .where((b) => b.farmerId == _currentFarmerId)
+        .toList();
     owned.sort((a, b) {
       final ta = a.createdAt ?? DateTime(0);
       final tb = b.createdAt ?? DateTime(0);
@@ -573,10 +648,43 @@ class FarmerRepository extends ChangeNotifier {
   // [FE - State Management] Getter ini membuka batch CREATED sebagai antrean
   // verifikasi pengepul tanpa memberi pengepul akses mengubah data panen.
   List<HarvestBatch> get batchesForCollectorVerification {
-    final items = _batches.where((b) => b.status == BatchStatus.created).toList();
+    final items = _batches
+        .where((b) => b.status == BatchStatus.created)
+        .toList();
     items.sort((a, b) {
       final aDate = a.createdAt ?? a.harvestDate;
       final bDate = b.createdAt ?? b.harvestDate;
+      return bDate.compareTo(aDate);
+    });
+    return List.unmodifiable(items);
+  }
+
+  // [FE - State Management] Getter lintas-role ini menyediakan stok hasil
+  // verifikasi dari seluruh petani untuk operasional pengepul pada mock FE.
+  // Backend nanti harus membatasi hasil berdasarkan collectorId penerima.
+  List<HarvestBatch> get batchesForCollectorStock {
+    final items = _batches
+        .where((b) => b.status == BatchStatus.verifiedByCollector)
+        .toList();
+    items.sort((a, b) {
+      final aDate = a.verifiedAt ?? a.createdAt ?? a.harvestDate;
+      final bDate = b.verifiedAt ?? b.createdAt ?? b.harvestDate;
+      return bDate.compareTo(aDate);
+    });
+    return List.unmodifiable(items);
+  }
+
+  // [FE - State Management] Getter audit lintas-role ini menjaga hasil
+  // verifikasi dan penolakan tetap terlihat pada riwayat pengepul mock.
+  List<HarvestBatch> get batchesForCollectorHistory {
+    final items = _batches.where((batch) {
+      return batch.verifiedAt != null || batch.rejectedAt != null;
+    }).toList();
+    items.sort((a, b) {
+      final aDate =
+          a.verifiedAt ?? a.rejectedAt ?? a.createdAt ?? a.harvestDate;
+      final bDate =
+          b.verifiedAt ?? b.rejectedAt ?? b.createdAt ?? b.harvestDate;
       return bDate.compareTo(aDate);
     });
     return List.unmodifiable(items);
@@ -654,6 +762,59 @@ class FarmerRepository extends ChangeNotifier {
     return true;
   }
 
+  // [FE - State Management] Mutasi ini menjadi jembatan status dari pengepul
+  // ke distributor: VERIFIED_BY_COLLECTOR -> IN_DISTRIBUTION untuk semua
+  // batch petani yang menjadi source dalam satu batch pengiriman agregat.
+  bool markBatchesInDistribution({required Iterable<String> sourceBatchCodes}) {
+    final cleanCodes = sourceBatchCodes
+        .map((code) => code.trim())
+        .where((code) => code.isNotEmpty)
+        .toSet();
+    if (cleanCodes.isEmpty) return false;
+
+    var changed = false;
+    for (var i = 0; i < _batches.length; i++) {
+      final batch = _batches[i];
+      if (!cleanCodes.contains(batch.code)) continue;
+      if (batch.status != BatchStatus.verifiedByCollector) continue;
+
+      _batches[i] = batch.copyWith(status: BatchStatus.inDistribution);
+      changed = true;
+    }
+
+    if (!changed) return false;
+
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  // [FE - State Management] Transisi ini mencatat handover akhir untuk jalur
+  // pengepul langsung ke UMKM setelah source batch berada dalam distribusi.
+  bool markBatchesReceivedByUmkm({required Iterable<String> sourceBatchCodes}) {
+    final cleanCodes = sourceBatchCodes
+        .map((code) => code.trim())
+        .where((code) => code.isNotEmpty)
+        .toSet();
+    if (cleanCodes.isEmpty) return false;
+
+    var changed = false;
+    for (var i = 0; i < _batches.length; i++) {
+      final batch = _batches[i];
+      if (!cleanCodes.contains(batch.code)) continue;
+      if (batch.status != BatchStatus.inDistribution) continue;
+
+      _batches[i] = batch.copyWith(status: BatchStatus.receivedByUmkm);
+      changed = true;
+    }
+
+    if (!changed) return false;
+
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
   // [FE - State Management] eventsFor membangkitkan timeline dari status
   // batch saat ini — pada fase FE-only ini bersifat deterministik;
   // di masa depan akan diganti dengan event nyata dari backend.
@@ -670,15 +831,18 @@ class FarmerRepository extends ChangeNotifier {
     final actorName = _profile.fullName;
     final createdAt = batch.createdAt ?? batch.harvestDate;
     final verifiedBy = batch.verifiedBy ?? 'Pengepul';
-    final verifiedAt = batch.verifiedAt ?? createdAt.add(const Duration(days: 1));
+    final verifiedAt =
+        batch.verifiedAt ?? createdAt.add(const Duration(days: 1));
 
     // Event "Batch Dibuat" selalu ada
-    events.add(BatchEvent(
-      title: 'Batch Dibuat',
-      actorLabel: 'Petani — $actorName',
-      timestamp: createdAt,
-      status: BatchStatus.created,
-    ));
+    events.add(
+      BatchEvent(
+        title: 'Batch Dibuat',
+        actorLabel: 'Petani — $actorName',
+        timestamp: createdAt,
+        status: BatchStatus.created,
+      ),
+    );
 
     // Tambahkan event lanjutan berdasarkan status saat ini
     switch (batch.status) {
@@ -686,107 +850,140 @@ class FarmerRepository extends ChangeNotifier {
       case BatchStatus.created:
         break; // hanya event dibuat
       case BatchStatus.verifiedByCollector:
-        events.add(BatchEvent(
-          title: 'Terverifikasi Pengepul',
-          actorLabel: verifiedBy,
-          timestamp: verifiedAt,
-          status: BatchStatus.verifiedByCollector,
-        ));
+        events.add(
+          BatchEvent(
+            title: 'Terverifikasi Pengepul',
+            actorLabel: verifiedBy,
+            timestamp: verifiedAt,
+            status: BatchStatus.verifiedByCollector,
+          ),
+        );
       case BatchStatus.inDistribution:
-        events.add(BatchEvent(
-          title: 'Terverifikasi Pengepul',
-          actorLabel: verifiedBy,
-          timestamp: verifiedAt,
-          status: BatchStatus.verifiedByCollector,
-        ));
-        events.add(BatchEvent(
-          title: 'Dalam Distribusi',
-          actorLabel: 'Pengepul',
-          timestamp: createdAt.add(const Duration(days: 2)),
-          status: BatchStatus.inDistribution,
-        ));
+        events.add(
+          BatchEvent(
+            title: 'Terverifikasi Pengepul',
+            actorLabel: verifiedBy,
+            timestamp: verifiedAt,
+            status: BatchStatus.verifiedByCollector,
+          ),
+        );
+        events.add(
+          BatchEvent(
+            title: 'Dalam Distribusi',
+            actorLabel: 'Pengepul',
+            timestamp: createdAt.add(const Duration(days: 2)),
+            status: BatchStatus.inDistribution,
+          ),
+        );
       case BatchStatus.receivedByUmkm:
-        events.add(BatchEvent(
-          title: 'Terverifikasi Pengepul',
-          actorLabel: verifiedBy,
-          timestamp: verifiedAt,
-          status: BatchStatus.verifiedByCollector,
-        ));
-        events.add(BatchEvent(
-          title: 'Dalam Distribusi',
-          actorLabel: 'Pengepul',
-          timestamp: createdAt.add(const Duration(days: 2)),
-          status: BatchStatus.inDistribution,
-        ));
-        events.add(BatchEvent(
-          title: 'Diterima UMKM',
-          actorLabel: 'UMKM',
-          timestamp: createdAt.add(const Duration(days: 3)),
-          status: BatchStatus.receivedByUmkm,
-        ));
+        events.add(
+          BatchEvent(
+            title: 'Terverifikasi Pengepul',
+            actorLabel: verifiedBy,
+            timestamp: verifiedAt,
+            status: BatchStatus.verifiedByCollector,
+          ),
+        );
+        events.add(
+          BatchEvent(
+            title: 'Dalam Distribusi',
+            actorLabel: 'Pengepul',
+            timestamp: createdAt.add(const Duration(days: 2)),
+            status: BatchStatus.inDistribution,
+          ),
+        );
+        events.add(
+          BatchEvent(
+            title: 'Diterima UMKM',
+            actorLabel: 'UMKM',
+            timestamp: createdAt.add(const Duration(days: 3)),
+            status: BatchStatus.receivedByUmkm,
+          ),
+        );
       case BatchStatus.processed:
-        events.add(BatchEvent(
-          title: 'Terverifikasi Pengepul',
-          actorLabel: verifiedBy,
-          timestamp: verifiedAt,
-          status: BatchStatus.verifiedByCollector,
-        ));
-        events.add(BatchEvent(
-          title: 'Dalam Distribusi',
-          actorLabel: 'Pengepul',
-          timestamp: createdAt.add(const Duration(days: 2)),
-          status: BatchStatus.inDistribution,
-        ));
-        events.add(BatchEvent(
-          title: 'Diterima UMKM',
-          actorLabel: 'UMKM',
-          timestamp: createdAt.add(const Duration(days: 3)),
-          status: BatchStatus.receivedByUmkm,
-        ));
-        events.add(BatchEvent(
-          title: 'Sedang Diolah',
-          actorLabel: 'UMKM',
-          timestamp: createdAt.add(const Duration(days: 4)),
-          status: BatchStatus.processed,
-        ));
+        events.add(
+          BatchEvent(
+            title: 'Terverifikasi Pengepul',
+            actorLabel: verifiedBy,
+            timestamp: verifiedAt,
+            status: BatchStatus.verifiedByCollector,
+          ),
+        );
+        events.add(
+          BatchEvent(
+            title: 'Dalam Distribusi',
+            actorLabel: 'Pengepul',
+            timestamp: createdAt.add(const Duration(days: 2)),
+            status: BatchStatus.inDistribution,
+          ),
+        );
+        events.add(
+          BatchEvent(
+            title: 'Diterima UMKM',
+            actorLabel: 'UMKM',
+            timestamp: createdAt.add(const Duration(days: 3)),
+            status: BatchStatus.receivedByUmkm,
+          ),
+        );
+        events.add(
+          BatchEvent(
+            title: 'Sedang Diolah',
+            actorLabel: 'UMKM',
+            timestamp: createdAt.add(const Duration(days: 4)),
+            status: BatchStatus.processed,
+          ),
+        );
       case BatchStatus.sold:
-        events.add(BatchEvent(
-          title: 'Terverifikasi Pengepul',
-          actorLabel: verifiedBy,
-          timestamp: verifiedAt,
-          status: BatchStatus.verifiedByCollector,
-        ));
-        events.add(BatchEvent(
-          title: 'Dalam Distribusi',
-          actorLabel: 'Pengepul',
-          timestamp: createdAt.add(const Duration(days: 2)),
-          status: BatchStatus.inDistribution,
-        ));
-        events.add(BatchEvent(
-          title: 'Diterima UMKM',
-          actorLabel: 'UMKM',
-          timestamp: createdAt.add(const Duration(days: 3)),
-          status: BatchStatus.receivedByUmkm,
-        ));
-        events.add(BatchEvent(
-          title: 'Sedang Diolah',
-          actorLabel: 'UMKM',
-          timestamp: createdAt.add(const Duration(days: 4)),
-          status: BatchStatus.processed,
-        ));
-        events.add(BatchEvent(
-          title: 'Terjual',
-          actorLabel: 'UMKM',
-          timestamp: createdAt.add(const Duration(days: 5)),
-          status: BatchStatus.sold,
-        ));
+        events.add(
+          BatchEvent(
+            title: 'Terverifikasi Pengepul',
+            actorLabel: verifiedBy,
+            timestamp: verifiedAt,
+            status: BatchStatus.verifiedByCollector,
+          ),
+        );
+        events.add(
+          BatchEvent(
+            title: 'Dalam Distribusi',
+            actorLabel: 'Pengepul',
+            timestamp: createdAt.add(const Duration(days: 2)),
+            status: BatchStatus.inDistribution,
+          ),
+        );
+        events.add(
+          BatchEvent(
+            title: 'Diterima UMKM',
+            actorLabel: 'UMKM',
+            timestamp: createdAt.add(const Duration(days: 3)),
+            status: BatchStatus.receivedByUmkm,
+          ),
+        );
+        events.add(
+          BatchEvent(
+            title: 'Sedang Diolah',
+            actorLabel: 'UMKM',
+            timestamp: createdAt.add(const Duration(days: 4)),
+            status: BatchStatus.processed,
+          ),
+        );
+        events.add(
+          BatchEvent(
+            title: 'Terjual',
+            actorLabel: 'UMKM',
+            timestamp: createdAt.add(const Duration(days: 5)),
+            status: BatchStatus.sold,
+          ),
+        );
       case BatchStatus.rejected:
-        events.add(BatchEvent(
-          title: 'Ditolak Pengepul',
-          actorLabel: batch.rejectedBy ?? 'Pengepul',
-          timestamp: batch.rejectedAt ?? createdAt.add(const Duration(days: 1)),
-          status: BatchStatus.rejected,
-        ));
+        events.add(
+          BatchEvent(
+            title: 'Ditolak Pengepul',
+            actorLabel: batch.rejectedBy ?? 'Pengepul',
+            timestamp:
+                batch.rejectedAt ?? createdAt.add(const Duration(days: 1)),
+            status: BatchStatus.rejected,
+          ),
+        );
     }
 
     // Urutkan kronologis (terlama di atas)
@@ -887,6 +1084,7 @@ class FarmerRepository extends ChangeNotifier {
     notifyListeners();
   }
 }
+
 // [UTIL - Helper Function] searchAndFilterBatches adalah fungsi murni yang
 // memisahkan logika filter dari UI — mudah diuji secara independen (PBT P2)
 // dan dipakai ulang di mana pun daftar batch perlu difilter.
@@ -908,7 +1106,8 @@ List<HarvestBatch> searchAndFilterBatches(
   final q = query.trim().toLowerCase();
   return batches.where((b) {
     final matchFilter = filter.matches(b.status);
-    final matchQuery = q.isEmpty ||
+    final matchQuery =
+        q.isEmpty ||
         b.code.toLowerCase().contains(q) ||
         b.variety.toLowerCase().contains(q);
     return matchFilter && matchQuery;

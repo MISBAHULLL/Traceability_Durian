@@ -103,11 +103,13 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     _selectedFarm = farm;
     _variety = batch.variety;
     _fertilizer = (batch.fertilizer?.isEmpty ?? true) ? null : batch.fertilizer;
-    _harvestMethod =
-        (batch.harvestMethod?.isEmpty ?? true) ? null : batch.harvestMethod;
+    _harvestMethod = (batch.harvestMethod?.isEmpty ?? true)
+        ? null
+        : batch.harvestMethod;
     _grade = batch.grade;
-    _maturityLevel =
-        (batch.maturityLevel?.isEmpty ?? true) ? null : batch.maturityLevel;
+    _maturityLevel = (batch.maturityLevel?.isEmpty ?? true)
+        ? null
+        : batch.maturityLevel;
     _shelfLifeEstimate = (batch.shelfLifeEstimate?.isEmpty ?? true)
         ? null
         : batch.shelfLifeEstimate;
@@ -180,14 +182,18 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
             children: [
               const SizedBox(height: 8),
               ListTile(
-                leading: const Icon(Icons.photo_camera_outlined,
-                    color: AppColors.primary),
+                leading: const Icon(
+                  Icons.photo_camera_outlined,
+                  color: AppColors.primary,
+                ),
                 title: const Text('Ambil dari Kamera'),
                 onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined,
-                    color: AppColors.primary),
+                leading: const Icon(
+                  Icons.photo_library_outlined,
+                  color: AppColors.primary,
+                ),
                 title: const Text('Pilih dari Galeri'),
                 onTap: () => Navigator.pop(sheetCtx, ImageSource.gallery),
               ),
@@ -229,8 +235,18 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
 
   String _formatDate(DateTime d) {
     const months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
@@ -378,7 +394,9 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
           children: [
             // Top bar dengan tombol back (Req 2.1)
             AppTopBar(
-              title: widget.isEditMode ? 'Ubah Batch Panen' : 'Tambah Batch Panen',
+              title: widget.isEditMode
+                  ? 'Ubah Batch Panen'
+                  : 'Tambah Batch Panen',
             ),
 
             // Form scrollable
@@ -637,10 +655,7 @@ class _PhotoPickerField extends StatelessWidget {
                 right: 8,
                 child: Row(
                   children: [
-                    _CircleAction(
-                      icon: Icons.edit_outlined,
-                      onTap: onPick,
-                    ),
+                    _CircleAction(icon: Icons.edit_outlined, onTap: onPick),
                     const SizedBox(width: 8),
                     _CircleAction(
                       icon: Icons.close_rounded,
@@ -692,11 +707,7 @@ class _PhotoPickerField extends StatelessWidget {
 
 /// Tombol bulat kecil untuk aksi di atas preview foto (ganti/hapus).
 class _CircleAction extends StatelessWidget {
-  const _CircleAction({
-    required this.icon,
-    required this.onTap,
-    this.color,
-  });
+  const _CircleAction({required this.icon, required this.onTap, this.color});
 
   final IconData icon;
   final VoidCallback onTap;
@@ -775,8 +786,9 @@ class _DatePickerField extends StatelessWidget {
                     value ?? hint,
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight:
-                          value != null ? FontWeight.w500 : FontWeight.normal,
+                      fontWeight: value != null
+                          ? FontWeight.w500
+                          : FontWeight.normal,
                       color: value != null
                           ? AppColors.black
                           : AppColors.placeholder,
@@ -832,10 +844,7 @@ class _TextAreaField extends StatelessWidget {
           controller: controller,
           maxLines: 3,
           textInputAction: TextInputAction.newline,
-          style: const TextStyle(
-            fontSize: 14,
-            color: AppColors.black,
-          ),
+          style: const TextStyle(fontSize: 14, color: AppColors.black),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(
@@ -894,13 +903,8 @@ class _FruitCountField extends StatelessWidget {
         TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-          ],
-          style: const TextStyle(
-            fontSize: 14,
-            color: AppColors.black,
-          ),
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          style: const TextStyle(fontSize: 14, color: AppColors.black),
           decoration: InputDecoration(
             hintText: 'Contoh: 18',
             hintStyle: const TextStyle(
@@ -968,10 +972,7 @@ class _QuantityField extends StatelessWidget {
             // Izinkan angka dan satu titik desimal
             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
           ],
-          style: const TextStyle(
-            fontSize: 14,
-            color: AppColors.black,
-          ),
+          style: const TextStyle(fontSize: 14, color: AppColors.black),
           decoration: InputDecoration(
             hintText: 'Contoh: 150',
             hintStyle: const TextStyle(

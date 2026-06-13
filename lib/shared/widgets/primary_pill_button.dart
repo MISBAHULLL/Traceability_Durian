@@ -45,8 +45,9 @@ class PrimaryPillButton extends StatelessWidget {
         onPressed: isDisabled ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primaryContainer,
-          disabledBackgroundColor:
-              AppColors.primaryContainer.withValues(alpha: 0.55),
+          disabledBackgroundColor: AppColors.primaryContainer.withValues(
+            alpha: 0.55,
+          ),
           foregroundColor: AppColors.white,
           disabledForegroundColor: AppColors.white.withValues(alpha: 0.7),
           elevation: 0,

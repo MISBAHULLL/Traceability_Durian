@@ -39,9 +39,12 @@ class UmkmRepository extends ChangeNotifier {
   List<UmkmStockOrder>? _stockOrders;
 
   UmkmProfile get profile => _profile ??= _seedProfile;
-  List<UmkmProduct> get products => List.unmodifiable(_products ??= _buildSeedProducts());
-  List<UmkmOrder> get orders => List.unmodifiable(_orders ??= _buildSeedOrders());
-  List<UmkmPurchase> get purchases => List.unmodifiable(_purchases ??= _buildSeedPurchases());
+  List<UmkmProduct> get products =>
+      List.unmodifiable(_products ??= _buildSeedProducts());
+  List<UmkmOrder> get orders =>
+      List.unmodifiable(_orders ??= _buildSeedOrders());
+  List<UmkmPurchase> get purchases =>
+      List.unmodifiable(_purchases ??= _buildSeedPurchases());
   List<UmkmStockOffer> get stockOffers {
     final offers = _stockOffers ??= _buildSeedStockOffers();
     if (!_isValidStockOffers(offers)) {
@@ -49,13 +52,17 @@ class UmkmRepository extends ChangeNotifier {
     }
     return List.unmodifiable(_stockOffers!);
   }
-  List<UmkmStockOrder> get stockOrders => List.unmodifiable(_stockOrders ??= _buildSeedStockOrders());
+
+  List<UmkmStockOrder> get stockOrders =>
+      List.unmodifiable(_stockOrders ??= _buildSeedStockOrders());
 
   List<UmkmProduct> _productsOrCreate() => _products ??= <UmkmProduct>[];
   List<UmkmOrder> _ordersOrCreate() => _orders ??= <UmkmOrder>[];
   List<UmkmPurchase> _purchasesOrCreate() => _purchases ??= <UmkmPurchase>[];
-  List<UmkmStockOffer> _stockOffersOrCreate() => _stockOffers ??= <UmkmStockOffer>[];
-  List<UmkmStockOrder> _stockOrdersOrCreate() => _stockOrders ??= <UmkmStockOrder>[];
+  List<UmkmStockOffer> _stockOffersOrCreate() =>
+      _stockOffers ??= <UmkmStockOffer>[];
+  List<UmkmStockOrder> _stockOrdersOrCreate() =>
+      _stockOrders ??= <UmkmStockOrder>[];
 
   bool _isValidStockOffers(List<UmkmStockOffer> offers) {
     try {
@@ -117,7 +124,9 @@ class UmkmRepository extends ChangeNotifier {
 
   void updateStockOrder(UmkmStockOrder updatedOrder) {
     final stockOrders = _stockOrdersOrCreate();
-    final index = stockOrders.indexWhere((order) => order.id == updatedOrder.id);
+    final index = stockOrders.indexWhere(
+      (order) => order.id == updatedOrder.id,
+    );
     if (index == -1) return;
     stockOrders[index] = updatedOrder;
     notifyListeners();
@@ -225,7 +234,8 @@ class UmkmRepository extends ChangeNotifier {
         supplierType: UmkmSupplierType.distributor,
         pricePerKg: 68000,
         stockKg: 80,
-        description: 'Sudah disortir, cocok untuk produksi pancake dan dessert.',
+        description:
+            'Sudah disortir, cocok untuk produksi pancake dan dessert.',
         status: UmkmStockOfferStatus.aktif,
         createdAt: DateTime(2026, 6, 11, 10, 0),
         imagePath: 'assets/images/durian.png',

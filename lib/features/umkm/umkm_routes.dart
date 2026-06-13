@@ -11,8 +11,8 @@ class UmkmRoutes {
     return PageRouteBuilder<T>(
       transitionDuration: _duration,
       reverseTransitionDuration: _duration,
-      pageBuilder: (_, __, ___) => page,
-      transitionsBuilder: (_, animation, __, child) {
+      pageBuilder: (_, _, _) => page,
+      transitionsBuilder: (_, animation, _, child) {
         return FadeTransition(
           opacity: CurvedAnimation(parent: animation, curve: _curve),
           child: child,

@@ -171,14 +171,14 @@ class ConsumerProfile {
   }
 
   Map<String, dynamic> toJson() => {
-        'consumerId': consumerId,
-        'fullName': fullName,
-        'roleLabel': roleLabel,
-        'contact': contact,
-        'email': email,
-        'location': location,
-        'avatarPath': avatarPath,
-      };
+    'consumerId': consumerId,
+    'fullName': fullName,
+    'roleLabel': roleLabel,
+    'contact': contact,
+    'email': email,
+    'location': location,
+    'avatarPath': avatarPath,
+  };
 
   factory ConsumerProfile.fromJson(Map<String, dynamic> json) {
     return ConsumerProfile(

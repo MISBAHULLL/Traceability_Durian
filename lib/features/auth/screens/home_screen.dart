@@ -4,6 +4,9 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'register_role_screen.dart';
+import '../../farmer/screens/farmer_home_screen.dart';
+import '../../collector/screens/collector_home_screen.dart';
+import '../../distributor/screens/distributor_home_screen.dart';
 
 /// Landing + login screen for DurianTrace.
 ///
@@ -47,13 +50,13 @@ class _HomeScreenState extends State<HomeScreen>
       parent: _animController,
       curve: const Interval(0.0, 0.8, curve: Curves.easeInOutCubic),
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.05),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
-    ));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _animController,
+            curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
+          ),
+        );
     _animController.forward();
   }
 
@@ -99,7 +102,10 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Validasi field kosong — spesifik per field
     if (identifier.isEmpty && password.isEmpty) {
-      _showTopNotification('Email/Username dan password wajib diisi.', isError: true);
+      _showTopNotification(
+        'Email/Username dan password wajib diisi.',
+        isError: true,
+      );
       return;
     }
     if (identifier.isEmpty) {
@@ -123,7 +129,8 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Deteksi input yang seperti email tapi tidak ada '@'
     // contoh: sionalop.com, user.name, test.id
-    final looksLikeEmail = !identifier.contains('@') &&
+    final looksLikeEmail =
+        !identifier.contains('@') &&
         RegExp(r'\.[a-zA-Z]{2,}$').hasMatch(identifier);
     if (looksLikeEmail) {
       _showTopNotification(
@@ -168,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
 
-      // TODO: Ganti dengan API call saat BE siap
+      // Integrasikan dengan API autentikasi saat backend tersedia.
       // Contoh penanganan response BE:
       // if (response.statusCode == 404) {
       //   _showTopNotification('Email tidak terdaftar. Periksa kembali atau daftar akun baru.', isError: true);
@@ -181,7 +188,38 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showTopNotification('Form siap dikirim ke backend.', isError: false);
+
+      Widget? destination;
+      final query = identifier.toLowerCase().trim();
+      if (query.contains('petani')) {
+        destination = const FarmerHomeScreen();
+      } else if (query.contains('pengepul')) {
+        destination = const CollectorHomeScreen();
+      } else if (query.contains('distributor') || query.contains('andi')) {
+        destination = const DistributorHomeScreen();
+      }
+
+      if (destination != null) {
+        _showTopNotification('Masuk berhasil!', isError: false);
+        await Future.delayed(const Duration(milliseconds: 600));
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 400),
+            pageBuilder: (_, _, _) => destination!,
+            transitionsBuilder: (_, animation, _, child) => FadeTransition(
+              opacity: CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeInOutCubic,
+              ),
+              child: child,
+            ),
+          ),
+          (route) => false,
+        );
+      } else {
+        _showTopNotification('Form siap dikirim ke backend.', isError: false);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -211,7 +249,6 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -269,24 +306,22 @@ class _WelcomeHeader extends StatelessWidget {
               fit: BoxFit.contain,
               // If the asset is missing for any reason, fall back to a glyph
               // so the layout never breaks during development.
-              errorBuilder: (context, error, stackTrace) => const Text(
-                'Icon Durian',
-                style: TextStyle(fontSize: 64),
-              ),
+              errorBuilder: (context, error, stackTrace) =>
+                  const Text('Icon Durian', style: TextStyle(fontSize: 64)),
             ),
           ),
           const SizedBox(height: 7),
-            Transform.translate(
+          Transform.translate(
             offset: const Offset(0, 25), // positif = turun, negatif = naik
             child: const Text(
-            'Selamat Datang',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w400,
-              letterSpacing: 0.4,
-              color: Color.fromARGB(255, 2, 2, 3),
+              'Selamat Datang',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                letterSpacing: 0.4,
+                color: Color.fromARGB(255, 2, 2, 3),
+              ),
             ),
-          ),
           ),
           const SizedBox(height: 10),
           Transform.translate(
@@ -455,20 +490,16 @@ class _RoundedTextFieldState extends State<_RoundedTextField> {
       textInputAction: widget.textInputAction,
       onSubmitted: widget.onSubmitted,
       textAlign: TextAlign.center,
-      style: const TextStyle(
-        fontSize: 14,
-        color: AppColors.black,
-      ),
+      style: const TextStyle(fontSize: 14, color: AppColors.black),
       decoration: InputDecoration(
         hintText: widget.hintText,
-        hintStyle: const TextStyle(
-          fontSize: 14,
-          color: AppColors.placeholder,
-        ),
+        hintStyle: const TextStyle(fontSize: 14, color: AppColors.placeholder),
         filled: true,
         fillColor: AppColors.white,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 48,
+          vertical: 14,
+        ),
         border: border,
         enabledBorder: border,
         focusedBorder: const OutlineInputBorder(
@@ -516,9 +547,7 @@ class _PrimaryActionButton extends StatelessWidget {
         foregroundColor: AppColors.black,
         disabledBackgroundColor: AppColors.white.withValues(alpha: 0.6),
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         padding: const EdgeInsets.symmetric(horizontal: 37, vertical: 14),
       ),
       child: isLoading
@@ -575,8 +604,7 @@ class _TopNotificationBanner extends StatefulWidget {
   final VoidCallback onDismiss;
 
   @override
-  State<_TopNotificationBanner> createState() =>
-      _TopNotificationBannerState();
+  State<_TopNotificationBanner> createState() => _TopNotificationBannerState();
 }
 
 class _TopNotificationBannerState extends State<_TopNotificationBanner>
@@ -646,7 +674,10 @@ class _TopNotificationBannerState extends State<_TopNotificationBanner>
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(14),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: bgColor,
                   borderRadius: BorderRadius.circular(14),

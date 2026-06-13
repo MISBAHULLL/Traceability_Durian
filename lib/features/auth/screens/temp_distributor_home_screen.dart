@@ -18,10 +18,7 @@ class TempDistributorHomeScreen extends StatelessWidget {
         elevation: 0,
         title: const Text(
           'Beranda Distributor',
-          style: TextStyle(
-            color: AppColors.black,
-            fontWeight: FontWeight.w700,
-          ),
+          style: TextStyle(color: AppColors.black, fontWeight: FontWeight.w700),
         ),
         iconTheme: const IconThemeData(color: AppColors.black),
       ),

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
-import '../../../shared/widgets/qr_preview.dart';
 import '../data/umkm_repository.dart';
 import '../models/umkm_order.dart';
 import '../models/umkm_product.dart';
@@ -69,9 +68,9 @@ class _UmkmOrderDetailScreenState extends State<UmkmOrderDetailScreen> {
     _repo.deleteOrder(_order.id);
     if (!mounted) return;
     setState(() => _isSaving = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Pesanan dibatalkan.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Pesanan dibatalkan.')));
     Navigator.pop(context);
   }
 
@@ -123,23 +122,35 @@ class _UmkmOrderDetailScreenState extends State<UmkmOrderDetailScreen> {
                         _InfoRow(label: 'Jumlah', value: '${_order.quantity}'),
                         _InfoRow(label: 'Total', value: _order.totalLabel),
                         _InfoRow(label: 'Status', value: _order.status.label),
-                        _InfoRow(label: 'Catatan', value: _order.note ?? 'Tidak ada catatan'),
+                        _InfoRow(
+                          label: 'Catatan',
+                          value: _order.note ?? 'Tidak ada catatan',
+                        ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 24),
                     if (_order.status == UmkmOrderStatus.diproses) ...[
                       Row(
                         children: [
                           Expanded(
                             child: ElevatedButton(
-                              onPressed: _isSaving ? null : () => _updateStatus(UmkmOrderStatus.selesai),
+                              onPressed: _isSaving
+                                  ? null
+                                  : () =>
+                                        _updateStatus(UmkmOrderStatus.selesai),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primaryContainer,
-                                disabledBackgroundColor: AppColors.primaryContainer.withValues(alpha: 0.35),
+                                disabledBackgroundColor: AppColors
+                                    .primaryContainer
+                                    .withValues(alpha: 0.35),
                                 foregroundColor: AppColors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
                               ),
                               child: _isSaving
                                   ? const SizedBox(
@@ -147,7 +158,10 @@ class _UmkmOrderDetailScreenState extends State<UmkmOrderDetailScreen> {
                                       height: 18,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2.4,
-                                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              AppColors.white,
+                                            ),
                                       ),
                                     )
                                   : const Text('selesai'),
@@ -163,9 +177,15 @@ class _UmkmOrderDetailScreenState extends State<UmkmOrderDetailScreen> {
                               onPressed: _isSaving ? null : _cancelOrder,
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: const Color(0xFFDC2626),
-                                side: const BorderSide(color: Color(0xFFFECACA)),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                side: const BorderSide(
+                                  color: Color(0xFFFECACA),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
                                 backgroundColor: const Color(0xFFFFF5F5),
                               ),
                               child: const Text('Batalkan Pesanan'),
@@ -186,7 +206,9 @@ class _UmkmOrderDetailScreenState extends State<UmkmOrderDetailScreen> {
 
   UmkmProduct? _findProductByName(String productName) {
     try {
-      return _repo.products.firstWhere((product) => product.name == productName);
+      return _repo.products.firstWhere(
+        (product) => product.name == productName,
+      );
     } catch (_) {
       return null;
     }
@@ -251,10 +273,7 @@ class _HeaderCard extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.children,
-  });
+  const _SectionCard({required this.title, required this.children});
 
   final String title;
   final List<Widget> children;
@@ -340,7 +359,7 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.12),
+        color: AppColors.primary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(

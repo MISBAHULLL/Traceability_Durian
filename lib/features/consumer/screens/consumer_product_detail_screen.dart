@@ -48,9 +48,8 @@ class ConsumerProductDetailScreen extends StatelessWidget {
                           width: double.infinity,
                           height: 210,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => _FallbackImage(
-                            category: product.category,
-                          ),
+                          errorBuilder: (_, _, _) =>
+                              _FallbackImage(category: product.category),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -59,7 +58,10 @@ class ConsumerProductDetailScreen extends StatelessWidget {
                       title: 'Informasi Produk',
                       children: [
                         _InfoRow(label: 'Nama Produk', value: product.name),
-                        _InfoRow(label: 'Kategori', value: product.category.label),
+                        _InfoRow(
+                          label: 'Kategori',
+                          value: product.category.label,
+                        ),
                         _InfoRow(
                           label: 'Status',
                           value: product.status.label,
@@ -95,14 +97,8 @@ class ConsumerProductDetailScreen extends StatelessWidget {
                                 value: batch.status.label,
                                 valueColor: batch.status.color,
                               ),
-                              _InfoRow(
-                                label: 'Kode Batch',
-                                value: batch.code,
-                              ),
-                              _InfoRow(
-                                label: 'Varietas',
-                                value: batch.variety,
-                              ),
+                              _InfoRow(label: 'Kode Batch', value: batch.code),
+                              _InfoRow(label: 'Varietas', value: batch.variety),
                               _InfoRow(
                                 label: 'Grade Awal Petani',
                                 value: 'Grade ${batch.grade}',
@@ -115,7 +111,8 @@ class ConsumerProductDetailScreen extends StatelessWidget {
                                 ),
                               _InfoRow(
                                 label: 'Total Berat',
-                                value: '${_formatWeight(batch.quantity)} ${batch.unit}',
+                                value:
+                                    '${_formatWeight(batch.quantity)} ${batch.unit}',
                               ),
                               if (batch.receivedQuantity != null)
                                 _InfoRow(
@@ -178,11 +175,9 @@ class ConsumerProductDetailScreen extends StatelessWidget {
                                   label: 'Catatan Sortir',
                                   value: batch.qualityNotes!,
                                 ),
-                              if (batch.notes != null && batch.notes!.isNotEmpty)
-                                _InfoRow(
-                                  label: 'Catatan',
-                                  value: batch.notes!,
-                                ),
+                              if (batch.notes != null &&
+                                  batch.notes!.isNotEmpty)
+                                _InfoRow(label: 'Catatan', value: batch.notes!),
                             ],
                     ),
                     const SizedBox(height: 24),
@@ -251,9 +246,7 @@ class _HeaderCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: statusBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: statusColor.withValues(alpha: 0.18),
-        ),
+        border: Border.all(color: statusColor.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,11 +328,7 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
+  const _InfoRow({required this.label, required this.value, this.valueColor});
 
   final String label;
   final String value;

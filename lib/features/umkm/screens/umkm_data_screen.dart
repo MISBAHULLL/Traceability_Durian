@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -116,7 +115,11 @@ class _UmkmDataScreenState extends State<UmkmDataScreen> {
                     const SizedBox(height: 6),
                     const Text(
                       'Perbarui informasi usaha, kontak, dan deskripsi UMKM Anda.',
-                      style: TextStyle(fontSize: 12, color: AppColors.placeholder, height: 1.5),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.placeholder,
+                        height: 1.5,
+                      ),
                     ),
                     const SizedBox(height: 20),
                     _SectionCard(
@@ -141,7 +144,10 @@ class _UmkmDataScreenState extends State<UmkmDataScreen> {
                       children: [
                         _buildField(label: 'Nama UMKM', controller: _nameCtrl),
                         const SizedBox(height: 14),
-                        _buildField(label: 'Nama Pemilik', controller: _ownerCtrl),
+                        _buildField(
+                          label: 'Nama Pemilik',
+                          controller: _ownerCtrl,
+                        ),
                         const SizedBox(height: 14),
                         _buildField(
                           label: 'Kontak',
@@ -258,18 +264,18 @@ class _ImagePickerCard extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             child: kIsWeb
                 ? imageBytes != null
-                    ? Image.memory(
-                        imageBytes!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const _ImagePlaceholder(),
-                      )
-                    : const _ImagePlaceholder()
+                      ? Image.memory(
+                          imageBytes!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const _ImagePlaceholder(),
+                        )
+                      : const _ImagePlaceholder()
                 : imagePath != null && imagePath!.isNotEmpty
-                    ? Image.file(
-                        File(imagePath!),
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const _ImagePlaceholder(),
-                      )
+                ? Image.file(
+                    File(imagePath!),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const _ImagePlaceholder(),
+                  )
                 : const _ImagePlaceholder(),
           ),
           const SizedBox(height: 12),
@@ -316,14 +322,15 @@ class _ImagePlaceholder extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.storefront_outlined, size: 42, color: AppColors.placeholder),
+          Icon(
+            Icons.storefront_outlined,
+            size: 42,
+            color: AppColors.placeholder,
+          ),
           SizedBox(height: 8),
           Text(
             'Tambahkan gambar UMKM',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.placeholder,
-            ),
+            style: TextStyle(fontSize: 12, color: AppColors.placeholder),
           ),
         ],
       ),

@@ -16,12 +16,12 @@ class CollectorStockOverview {
   final List<CollectorStockBreakdown> varietyBreakdown;
 
   Map<String, dynamic> toJson() => {
-        'activeBatchCount': activeBatchCount,
-        'totalWeightKg': totalWeightKg,
-        'totalFruitCount': totalFruitCount,
-        'gradeBreakdown': gradeBreakdown.map((e) => e.toJson()).toList(),
-        'varietyBreakdown': varietyBreakdown.map((e) => e.toJson()).toList(),
-      };
+    'activeBatchCount': activeBatchCount,
+    'totalWeightKg': totalWeightKg,
+    'totalFruitCount': totalFruitCount,
+    'gradeBreakdown': gradeBreakdown.map((e) => e.toJson()).toList(),
+    'varietyBreakdown': varietyBreakdown.map((e) => e.toJson()).toList(),
+  };
 
   factory CollectorStockOverview.fromJson(Map<String, dynamic> json) {
     return CollectorStockOverview(
@@ -30,15 +30,19 @@ class CollectorStockOverview {
       totalFruitCount: (json['totalFruitCount'] as num).toInt(),
       gradeBreakdown: ((json['gradeBreakdown'] as List<dynamic>?) ?? [])
           .whereType<Map>()
-          .map((item) => CollectorStockBreakdown.fromJson(
-                Map<String, dynamic>.from(item),
-              ))
+          .map(
+            (item) => CollectorStockBreakdown.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
           .toList(),
       varietyBreakdown: ((json['varietyBreakdown'] as List<dynamic>?) ?? [])
           .whereType<Map>()
-          .map((item) => CollectorStockBreakdown.fromJson(
-                Map<String, dynamic>.from(item),
-              ))
+          .map(
+            (item) => CollectorStockBreakdown.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
           .toList(),
     );
   }
@@ -62,12 +66,12 @@ class CollectorStockBreakdown {
   final int batchCount;
 
   Map<String, dynamic> toJson() => {
-        'key': key,
-        'label': label,
-        'totalWeightKg': totalWeightKg,
-        'totalFruitCount': totalFruitCount,
-        'batchCount': batchCount,
-      };
+    'key': key,
+    'label': label,
+    'totalWeightKg': totalWeightKg,
+    'totalFruitCount': totalFruitCount,
+    'batchCount': batchCount,
+  };
 
   factory CollectorStockBreakdown.fromJson(Map<String, dynamic> json) {
     return CollectorStockBreakdown(

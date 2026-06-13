@@ -8,10 +8,7 @@ import '../models/consumer_transaction.dart';
 import 'consumer_home_screen.dart';
 
 class ConsumerTransactionQrScreen extends StatelessWidget {
-  const ConsumerTransactionQrScreen({
-    super.key,
-    required this.transaction,
-  });
+  const ConsumerTransactionQrScreen({super.key, required this.transaction});
 
   final ConsumerTransaction transaction;
 
@@ -78,10 +75,7 @@ class ConsumerTransactionQrScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 14),
                             if (isQris) ...[
-                              _MiniInfoRow(
-                                label: 'Status',
-                                value: statusLabel,
-                              ),
+                              _MiniInfoRow(label: 'Status', value: statusLabel),
                               const SizedBox(height: 10),
                               _MiniInfoRow(
                                 label: 'Kode Transaksi',
@@ -98,10 +92,7 @@ class ConsumerTransactionQrScreen extends StatelessWidget {
                                 value: transaction.accountNumber ?? '-',
                               ),
                               const SizedBox(height: 10),
-                              _MiniInfoRow(
-                                label: 'Status',
-                                value: statusLabel,
-                              ),
+                              _MiniInfoRow(label: 'Status', value: statusLabel),
                             ],
                           ],
                         ),
@@ -132,7 +123,10 @@ class ConsumerTransactionQrScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
                         borderRadius: BorderRadius.circular(12),
@@ -161,16 +155,29 @@ class ConsumerTransactionQrScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 22),
-                    _MiniInfoRow(label: 'Jumlah', value: '${transaction.quantity} pcs'),
+                    _MiniInfoRow(
+                      label: 'Jumlah',
+                      value: '${transaction.quantity} pcs',
+                    ),
                     const SizedBox(height: 10),
                     _MiniInfoRow(label: 'Total', value: transaction.totalLabel),
                     const SizedBox(height: 10),
-                    _MiniInfoRow(label: 'Alamat', value: transaction.buyerAddress),
+                    _MiniInfoRow(
+                      label: 'Alamat',
+                      value: transaction.buyerAddress,
+                    ),
                     const SizedBox(height: 10),
-                    _MiniInfoRow(label: 'Koordinat', value: transaction.buyerCoordinates),
+                    _MiniInfoRow(
+                      label: 'Koordinat',
+                      value: transaction.buyerCoordinates,
+                    ),
                     const SizedBox(height: 10),
-                    _MiniInfoRow(label: 'Pembayaran', value: transaction.paymentMethod),
-                    if (transaction.bankName != null && transaction.bankName!.isNotEmpty)
+                    _MiniInfoRow(
+                      label: 'Pembayaran',
+                      value: transaction.paymentMethod,
+                    ),
+                    if (transaction.bankName != null &&
+                        transaction.bankName!.isNotEmpty)
                       _MiniInfoRow(label: 'Bank', value: transaction.bankName!),
                     if (transaction.accountNumber != null &&
                         transaction.accountNumber!.isNotEmpty)

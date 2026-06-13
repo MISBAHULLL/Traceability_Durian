@@ -34,10 +34,7 @@ class UmkmOrder {
   final String qrCodeData;
   final String? note;
 
-  UmkmOrder copyWith({
-    UmkmOrderStatus? status,
-    String? note,
-  }) {
+  UmkmOrder copyWith({UmkmOrderStatus? status, String? note}) {
     return UmkmOrder(
       id: id,
       productName: productName,

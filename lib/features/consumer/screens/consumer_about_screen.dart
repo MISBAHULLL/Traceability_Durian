@@ -106,11 +106,7 @@ class _DescriptionBox extends StatelessWidget {
         'DurianTrace membantu konsumen menemukan produk UMKM durian, '
         'membaca informasi singkat produk, lalu membuka trace publik untuk '
         'melihat jejak asal dan status perjalanannya.',
-        style: TextStyle(
-          fontSize: 14,
-          color: AppColors.subtitle,
-          height: 1.5,
-        ),
+        style: TextStyle(fontSize: 14, color: AppColors.subtitle, height: 1.5),
       ),
     );
   }

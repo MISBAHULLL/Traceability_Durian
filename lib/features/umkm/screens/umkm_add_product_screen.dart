@@ -121,7 +121,9 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
     final id = 'P-${now.millisecondsSinceEpoch}';
     final code = 'UMKM-P-${now.millisecondsSinceEpoch.toString().substring(7)}';
     final stockValue = _stock;
-    final stockLabel = stockValue > 0 ? 'Stok $stockValue unit' : 'Stok belum ditentukan';
+    final stockLabel = stockValue > 0
+        ? 'Stok $stockValue unit'
+        : 'Stok belum ditentukan';
 
     final product = UmkmProduct(
       id: id,
@@ -133,7 +135,9 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
       description: _descriptionCtrl.text.trim().isEmpty
           ? 'Deskripsi produk belum ditambahkan.'
           : _descriptionCtrl.text.trim(),
-      status: stockValue <= 0 ? UmkmProductStatus.habis : UmkmProductStatus.aktif,
+      status: stockValue <= 0
+          ? UmkmProductStatus.habis
+          : UmkmProductStatus.aktif,
       qrCodeData: code,
       imagePath: _selectedImagePath,
     );
@@ -212,7 +216,8 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
                         _buildField(
                           label: 'Deskripsi',
                           controller: _descriptionCtrl,
-                          hintText: 'Jelaskan produk secara singkat dan menarik',
+                          hintText:
+                              'Jelaskan produk secara singkat dan menarik',
                           maxLines: 4,
                         ),
                       ],
@@ -226,7 +231,9 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
                           controller: _priceCtrl,
                           hintText: 'Contoh: 68.000',
                           keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
                           prefixText: 'Rp',
                         ),
                         const SizedBox(height: 14),
@@ -256,7 +263,9 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
                               decoration: BoxDecoration(
                                 color: AppColors.surface,
                                 borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: const Color(0xFFE5E7EB)),
+                                border: Border.all(
+                                  color: const Color(0xFFE5E7EB),
+                                ),
                               ),
                               child: QrPreview(
                                 data: _createdProduct!.qrCodeData,
@@ -289,12 +298,7 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
   }
 
   Widget _buildDropdown() {
-    const categoryOptions = <String>[
-      'Segar',
-      'Olahan',
-      'Minuman',
-      'Paket',
-    ];
+    const categoryOptions = <String>['Segar', 'Olahan', 'Minuman', 'Paket'];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -309,7 +313,9 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: categoryOptions.contains(_category) ? _category : categoryOptions.first,
+          initialValue: categoryOptions.contains(_category)
+              ? _category
+              : categoryOptions.first,
           decoration: InputDecoration(
             filled: true,
             fillColor: AppColors.surface,
@@ -317,7 +323,10 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
           items: categoryOptions
               .map((item) => DropdownMenuItem(value: item, child: Text(item)))
@@ -362,11 +371,17 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
           textAlignVertical: TextAlignVertical.center,
           decoration: InputDecoration(
             hintText: hintText,
-            hintStyle: const TextStyle(fontSize: 13, color: AppColors.placeholder),
+            hintStyle: const TextStyle(
+              fontSize: 13,
+              color: AppColors.placeholder,
+            ),
             prefixText: prefixText == null ? null : '$prefixText ',
             filled: true,
             fillColor: AppColors.surface,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide.none,
@@ -451,7 +466,7 @@ class _ImagePickerCard extends StatelessWidget {
                 ? Image.file(
                     File(imagePath!),
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const _ImagePlaceholder(),
+                    errorBuilder: (_, _, _) => const _ImagePlaceholder(),
                   )
                 : const _ImagePlaceholder(),
           ),
@@ -509,10 +524,7 @@ class _ImagePlaceholder extends StatelessWidget {
           SizedBox(height: 8),
           Text(
             'Tambahkan foto produk',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.placeholder,
-            ),
+            style: TextStyle(fontSize: 12, color: AppColors.placeholder),
           ),
         ],
       ),
@@ -560,10 +572,7 @@ class _StockControl extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _StepButton(
-                icon: Icons.remove_rounded,
-                onTap: onDecrement,
-              ),
+              _StepButton(icon: Icons.remove_rounded, onTap: onDecrement),
               const SizedBox(width: 12),
               Expanded(
                 child: TextField(
@@ -593,10 +602,7 @@ class _StockControl extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              _StepButton(
-                icon: Icons.add_rounded,
-                onTap: onIncrement,
-              ),
+              _StepButton(icon: Icons.add_rounded, onTap: onIncrement),
             ],
           ),
         ),

@@ -1,12 +1,17 @@
 import Flutter
 import UIKit
 
+// GOOGLE MAPS PLACEHOLDER:
+// import GoogleMaps
+
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // Aktifkan saat Google Maps dipakai kembali:
+    // GMSServices.provideAPIKey("YOUR_GOOGLE_MAPS_API_KEY")
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

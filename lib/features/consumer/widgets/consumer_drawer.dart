@@ -27,10 +27,7 @@ class ConsumerDrawer extends StatelessWidget {
               profile: profile,
               onTap: () {
                 Navigator.pop(context);
-                ConsumerRoutes.push(
-                  context,
-                  const ConsumerProfileScreen(),
-                );
+                ConsumerRoutes.push(context, const ConsumerProfileScreen());
               },
             ),
             const Divider(height: 1, color: Color(0xFFE5E7EB)),
@@ -62,10 +59,7 @@ class ConsumerDrawer extends StatelessWidget {
                     label: 'Bantuan',
                     onTap: () {
                       Navigator.pop(context);
-                      ConsumerRoutes.push(
-                        context,
-                        const ConsumerHelpScreen(),
-                      );
+                      ConsumerRoutes.push(context, const ConsumerHelpScreen());
                     },
                   ),
                   _DrawerItem(
@@ -73,10 +67,7 @@ class ConsumerDrawer extends StatelessWidget {
                     label: 'Tentang',
                     onTap: () {
                       Navigator.pop(context);
-                      ConsumerRoutes.push(
-                        context,
-                        const ConsumerAboutScreen(),
-                      );
+                      ConsumerRoutes.push(context, const ConsumerAboutScreen());
                     },
                   ),
                 ],
@@ -213,7 +204,9 @@ class _DrawerItem extends StatelessWidget {
             Icon(
               icon,
               size: 22,
-              color: isDestructive ? const Color(0xFFB91C1C) : AppColors.primary,
+              color: isDestructive
+                  ? const Color(0xFFB91C1C)
+                  : AppColors.primary,
             ),
             const SizedBox(width: 16),
             Text(

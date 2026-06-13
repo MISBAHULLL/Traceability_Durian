@@ -44,7 +44,9 @@ class UmkmProfile {
       location: location ?? this.location,
       about: about ?? this.about,
       imagePath: imagePath == _unset ? this.imagePath : imagePath as String?,
-      imageBytes: imageBytes == _unset ? this.imageBytes : imageBytes as Uint8List?,
+      imageBytes: imageBytes == _unset
+          ? this.imageBytes
+          : imageBytes as Uint8List?,
     );
   }
 }

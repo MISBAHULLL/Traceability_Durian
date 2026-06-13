@@ -9,6 +9,11 @@
         android:label="DurianTrace"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- GOOGLE MAPS PLACEHOLDER (nonaktif; peta saat ini memakai OSM):
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

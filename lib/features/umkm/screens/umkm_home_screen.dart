@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/widgets/primary_pill_button.dart';
 import '../data/umkm_repository.dart';
 import '../models/umkm_order.dart';
 import '../models/umkm_product.dart';
@@ -51,11 +50,11 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
     );
     _slideAnim = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
         .animate(
-      CurvedAnimation(
-        parent: _animController,
-        curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
-      ),
-    );
+          CurvedAnimation(
+            parent: _animController,
+            curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
+          ),
+        );
     _searchController.addListener(() {
       setState(() => _query = _searchController.text.trim().toLowerCase());
     });
@@ -109,7 +108,9 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
   Future<void> _openProductDetail(UmkmProduct product) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => UmkmProductDetailScreen(product: product)),
+      MaterialPageRoute(
+        builder: (_) => UmkmProductDetailScreen(product: product),
+      ),
     );
   }
 
@@ -123,7 +124,9 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
   Future<void> _openPurchaseDetail(UmkmStockOrder order) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => UmkmStockOrderDetailScreen(order: order)),
+      MaterialPageRoute(
+        builder: (_) => UmkmStockOrderDetailScreen(order: order),
+      ),
     );
   }
 
@@ -160,10 +163,7 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
             position: _slideAnim,
             child: Column(
               children: [
-                _TopBar(
-                  onProfile: _openProfile,
-                  onMenu: _openDrawer,
-                ),
+                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
                 Expanded(
                   child: CustomScrollView(
                     slivers: [
@@ -203,52 +203,64 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
                                   setState(() => _activeCategory = value),
                             ),
                             const SizedBox(height: 22),
-                            _SectionHeader(title: 'Produk UMKM', count: products.length),
+                            _SectionHeader(
+                              title: 'Produk UMKM',
+                              count: products.length,
+                            ),
                           ]),
                         ),
                       ),
                       SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
                         sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final product = products[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _ProductCard(
-                                  product: product,
-                                  onTap: () => _openProductDetail(product),
-                                ),
-                              );
-                            },
-                            childCount: products.length,
-                          ),
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final product = products[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _ProductCard(
+                                product: product,
+                                onTap: () => _openProductDetail(product),
+                              ),
+                            );
+                          }, childCount: products.length),
                         ),
                       ),
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                         sliver: SliverList(
                           delegate: SliverChildListDelegate([
-                            _SectionHeader(title: 'Pesanan Masuk', count: orders.length),
+                            _SectionHeader(
+                              title: 'Pesanan Masuk',
+                              count: orders.length,
+                            ),
                           ]),
                         ),
                       ),
                       SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
                         sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final order = orders[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _OrderCard(
-                                  order: order,
-                                  onTap: () => _openOrderDetail(order),
-                                ),
-                              );
-                            },
-                            childCount: orders.length,
-                          ),
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final order = orders[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _OrderCard(
+                                order: order,
+                                onTap: () => _openOrderDetail(order),
+                              ),
+                            );
+                          }, childCount: orders.length),
                         ),
                       ),
                       SliverPadding(
@@ -265,19 +277,19 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                         sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final purchase = purchases[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _PurchaseCard(
-                                  purchase: purchase,
-                                  onTap: () => _openPurchaseDetail(purchase),
-                                ),
-                              );
-                            },
-                            childCount: purchases.length,
-                          ),
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final purchase = purchases[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _PurchaseCard(
+                                purchase: purchase,
+                                onTap: () => _openPurchaseDetail(purchase),
+                              ),
+                            );
+                          }, childCount: purchases.length),
                         ),
                       ),
                     ],
@@ -488,7 +500,7 @@ class _CategoryChips extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           final category = categories[index];
           final isActive = category == activeCategory;
@@ -498,10 +510,14 @@ class _CategoryChips extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: isActive ? AppColors.primaryContainer : AppColors.surface,
+                color: isActive
+                    ? AppColors.primaryContainer
+                    : AppColors.surface,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: isActive ? AppColors.primaryContainer : const Color(0xFFE5E7EB),
+                  color: isActive
+                      ? AppColors.primaryContainer
+                      : const Color(0xFFE5E7EB),
                 ),
               ),
               child: Text(
@@ -559,20 +575,26 @@ class _ProfileCard extends StatelessWidget {
                 ? Image.memory(
                     profile.imageBytes!,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const _UmkmImagePlaceholder(),
+                    errorBuilder: (_, _, _) => const _UmkmImagePlaceholder(),
                   )
-                : (!kIsWeb && profile.imagePath != null && profile.imagePath!.isNotEmpty)
-                    ? Image.file(
-                        File(profile.imagePath!),
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const _UmkmImagePlaceholder(),
-                      )
-                    : const _UmkmImagePlaceholder(),
+                : (!kIsWeb &&
+                      profile.imagePath != null &&
+                      profile.imagePath!.isNotEmpty)
+                ? Image.file(
+                    File(profile.imagePath!),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const _UmkmImagePlaceholder(),
+                  )
+                : const _UmkmImagePlaceholder(),
           ),
           const SizedBox(height: 14),
           Row(
             children: [
-              const Icon(Icons.storefront_rounded, color: AppColors.primaryContainer, size: 24),
+              const Icon(
+                Icons.storefront_rounded,
+                color: AppColors.primaryContainer,
+                size: 24,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -580,12 +602,19 @@ class _ProfileCard extends StatelessWidget {
                   children: [
                     Text(
                       profile.name,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.black),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.black,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       profile.ownerName,
-                      style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.placeholder,
+                      ),
                     ),
                   ],
                 ),
@@ -593,8 +622,13 @@ class _ProfileCard extends StatelessWidget {
               TextButton(
                 onPressed: onEdit,
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
                 child: const Text('Ubah'),
               ),
@@ -603,15 +637,25 @@ class _ProfileCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             profile.about,
-            style: const TextStyle(fontSize: 12, color: AppColors.subtitle, height: 1.6),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.subtitle,
+              height: 1.6,
+            ),
           ),
           const SizedBox(height: 16),
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
-              _InfoLabel(icon: Icons.inventory_2_rounded, label: '$productCount Produk'),
-              _InfoLabel(icon: Icons.receipt_long_rounded, label: '$orderCount Pesanan'),
+              _InfoLabel(
+                icon: Icons.inventory_2_rounded,
+                label: '$productCount Produk',
+              ),
+              _InfoLabel(
+                icon: Icons.receipt_long_rounded,
+                label: '$orderCount Pesanan',
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -619,7 +663,10 @@ class _ProfileCard extends StatelessWidget {
             spacing: 12,
             runSpacing: 8,
             children: [
-              _InfoLabel(icon: Icons.location_on_rounded, label: profile.location),
+              _InfoLabel(
+                icon: Icons.location_on_rounded,
+                label: profile.location,
+              ),
               _InfoLabel(icon: Icons.email_rounded, label: profile.email),
             ],
           ),
@@ -630,7 +677,12 @@ class _ProfileCard extends StatelessWidget {
 }
 
 class _ActionTile extends StatelessWidget {
-  const _ActionTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
+  const _ActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String title;
@@ -701,14 +753,15 @@ class _UmkmImagePlaceholder extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.storefront_outlined, size: 42, color: AppColors.placeholder),
+          Icon(
+            Icons.storefront_outlined,
+            size: 42,
+            color: AppColors.placeholder,
+          ),
           SizedBox(height: 8),
           Text(
             'Gambar UMKM',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.placeholder,
-            ),
+            style: TextStyle(fontSize: 12, color: AppColors.placeholder),
           ),
         ],
       ),
@@ -729,7 +782,11 @@ class _SectionHeader extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.black),
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: AppColors.black,
+          ),
         ),
         Text(
           '$count item',
@@ -858,8 +915,8 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: status == UmkmProductStatus.aktif
-            ? AppColors.primary.withOpacity(0.12)
-            : AppColors.subtitle.withOpacity(0.12),
+            ? AppColors.primary.withValues(alpha: 0.12)
+            : AppColors.subtitle.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -867,7 +924,9 @@ class _StatusBadge extends StatelessWidget {
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w700,
-          color: status == UmkmProductStatus.aktif ? AppColors.primary : AppColors.subtitle,
+          color: status == UmkmProductStatus.aktif
+              ? AppColors.primary
+              : AppColors.subtitle,
         ),
       ),
     );
@@ -953,15 +1012,22 @@ class _OrderCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     order.productName,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.black),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.black,
+                    ),
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: order.status == UmkmOrderStatus.diproses
-                        ? AppColors.primary.withOpacity(0.12)
-                        : AppColors.primaryContainer.withOpacity(0.12),
+                        ? AppColors.primary.withValues(alpha: 0.12)
+                        : AppColors.primaryContainer.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -987,12 +1053,19 @@ class _OrderCard extends StatelessWidget {
               children: [
                 Text(
                   order.totalLabel,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
                 ),
                 const Spacer(),
                 Text(
                   'x${order.quantity}',
-                  style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.placeholder,
+                  ),
                 ),
               ],
             ),
@@ -1029,10 +1102,17 @@ class _PurchaseCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     purchase.supplierName,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.black),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.black,
+                    ),
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: AppColors.subtitle),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.subtitle,
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -1045,12 +1125,19 @@ class _PurchaseCard extends StatelessWidget {
               children: [
                 Text(
                   purchase.totalLabel,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
                 ),
                 const Spacer(),
                 Text(
                   'x${purchase.quantityKg}',
-                  style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.placeholder,
+                  ),
                 ),
               ],
             ),

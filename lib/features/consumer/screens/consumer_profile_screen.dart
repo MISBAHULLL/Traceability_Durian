@@ -57,21 +57,27 @@ class ConsumerProfileScreen extends StatelessWidget {
                   ProfileInfoTile(
                     icon: Icons.phone_outlined,
                     label: 'Kontak',
-                    value: profile.contact.isEmpty ? 'Belum dilengkapi' : profile.contact,
+                    value: profile.contact.isEmpty
+                        ? 'Belum dilengkapi'
+                        : profile.contact,
                     isEmpty: profile.contact.isEmpty,
                   ),
                   const SizedBox(height: 12),
                   ProfileInfoTile(
                     icon: Icons.mail_outline_rounded,
                     label: 'Email',
-                    value: profile.email.isEmpty ? 'Belum dilengkapi' : profile.email,
+                    value: profile.email.isEmpty
+                        ? 'Belum dilengkapi'
+                        : profile.email,
                     isEmpty: profile.email.isEmpty,
                   ),
                   const SizedBox(height: 12),
                   ProfileInfoTile(
                     icon: Icons.location_on_outlined,
                     label: 'Domisili',
-                    value: profile.location.isEmpty ? 'Belum dilengkapi' : profile.location,
+                    value: profile.location.isEmpty
+                        ? 'Belum dilengkapi'
+                        : profile.location,
                     isEmpty: profile.location.isEmpty,
                   ),
                   const SizedBox(height: 24),
@@ -79,7 +85,9 @@ class ConsumerProfileScreen extends StatelessWidget {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        final confirmed = await showLogoutConfirmationDialog(context);
+                        final confirmed = await showLogoutConfirmationDialog(
+                          context,
+                        );
                         if (!confirmed) return;
                         if (!context.mounted) return;
                         ConsumerRepository.instance.logout();

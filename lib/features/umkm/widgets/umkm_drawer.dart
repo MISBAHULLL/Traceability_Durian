@@ -124,16 +124,16 @@ class _DrawerHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = profileName.isNotEmpty ? profileName.trim().substring(0, 1).toUpperCase() : 'U';
+    final initial = profileName.isNotEmpty
+        ? profileName.trim().substring(0, 1).toUpperCase()
+        : 'U';
 
     return InkWell(
       onTap: onTap,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-        decoration: const BoxDecoration(
-          color: AppColors.primaryContainer,
-        ),
+        decoration: const BoxDecoration(color: AppColors.primaryContainer),
         child: Row(
           children: [
             Container(

@@ -55,6 +55,10 @@ dependencies:
   intl: ^0.20.2
   shared_preferences: ^2.5.5
   mobile_scanner: ^7.2.0
+  http: ^1.6.0
+  # GOOGLE MAPS PLACEHOLDER: dependency disimpan agar aktivasi nanti mudah.
+  # Widget dan seluruh API key Google Maps masih dinonaktifkan.
+  google_maps_flutter: ^2.17.1
 
 dev_dependencies:
   flutter_test:
@@ -83,6 +87,8 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/data/cahyadsn_wilayah.sql
+    - assets/data/cahyadsn_wilayah_map.txt
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

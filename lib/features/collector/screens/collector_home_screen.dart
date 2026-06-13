@@ -54,13 +54,13 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
       parent: _animController,
       curve: const Interval(0.0, 0.8, curve: Curves.easeInOutCubic),
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.04),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
-    ));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _animController,
+            curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
+          ),
+        );
     _animController.forward();
 
     _searchController.addListener(() {
@@ -100,7 +100,10 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
         transitionDuration: const Duration(milliseconds: 400),
         pageBuilder: (_, _, _) => const CollectorProfileScreen(),
         transitionsBuilder: (_, animation, _, child) => FadeTransition(
-          opacity: CurvedAnimation(parent: animation, curve: Curves.easeInOutCubic),
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOutCubic,
+          ),
           child: child,
         ),
       ),
@@ -136,10 +139,7 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
             position: _slideAnim,
             child: Column(
               children: [
-                _TopBar(
-                  onProfile: _openProfile,
-                  onMenu: _openDrawer,
-                ),
+                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
                 Expanded(
                   child: CustomScrollView(
                     slivers: [
@@ -171,19 +171,19 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                           sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final product = products[index];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _ProductCard(
-                                    product: product,
-                                    onTap: () => _onProductTap(product),
-                                  ),
-                                );
-                              },
-                              childCount: products.length,
-                            ),
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              final product = products[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _ProductCard(
+                                  product: product,
+                                  onTap: () => _onProductTap(product),
+                                ),
+                              );
+                            }, childCount: products.length),
                           ),
                         ),
                     ],
@@ -205,10 +205,7 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
 // [FE - Component Rendering] _TopBar mengikuti pola beranda petani:
 // judul "Beranda" di kiri dan ikon aksi di kanan.
 class _TopBar extends StatelessWidget {
-  const _TopBar({
-    required this.onProfile,
-    required this.onMenu,
-  });
+  const _TopBar({required this.onProfile, required this.onMenu});
 
   final VoidCallback onProfile;
   final VoidCallback onMenu;
@@ -228,15 +225,9 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          _IconButton(
-            icon: Icons.person_outline_rounded,
-            onTap: onProfile,
-          ),
+          _IconButton(icon: Icons.person_outline_rounded, onTap: onProfile),
           const SizedBox(width: 4),
-          _IconButton(
-            icon: Icons.menu_rounded,
-            onTap: onMenu,
-          ),
+          _IconButton(icon: Icons.menu_rounded, onTap: onMenu),
         ],
       ),
     );
@@ -270,6 +261,10 @@ class _GreetingBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final secondaryLabel = profile.businessName.isEmpty
+        ? profile.roleLabel
+        : profile.businessName;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -282,23 +277,9 @@ class _GreetingBlock extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 2),
-        Row(
-          children: [
-            const Icon(
-              Icons.person_outline_rounded,
-              size: 15,
-              color: AppColors.primary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              profile.roleLabel,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.primary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+        Text(
+          secondaryLabel,
+          style: const TextStyle(fontSize: 13, color: AppColors.placeholder),
         ),
         // [FE - Component Rendering] Lokasi operasional ditampilkan bila ada
         // agar pengepul langsung tahu konteks akun yang sedang aktif.
@@ -306,10 +287,7 @@ class _GreetingBlock extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             profile.location,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.placeholder,
-            ),
+            style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
           ),
         ],
       ],
@@ -422,10 +400,7 @@ class _SearchField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(999),
-          borderSide: const BorderSide(
-            color: AppColors.black,
-            width: 1.5,
-          ),
+          borderSide: const BorderSide(color: AppColors.black, width: 1.5),
         ),
       ),
     );
@@ -504,8 +479,18 @@ class _ProductCard extends StatelessWidget {
 
   String _formatDate(DateTime d) {
     const months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
@@ -531,7 +516,8 @@ class _ProductCard extends StatelessWidget {
                 width: 104,
                 child: Container(
                   color: AppColors.surface,
-                  child: (product.imagePath != null &&
+                  child:
+                      (product.imagePath != null &&
                           product.imagePath!.isNotEmpty)
                       ? Image.asset(
                           product.imagePath!,
@@ -570,7 +556,9 @@ class _ProductCard extends StatelessWidget {
                         _Bullet(
                           text: 'Jumlah Buah : ${product.fruitCount} butir',
                         ),
-                      _Bullet(text: 'Daging Buah : ${product.fleshDescription}'),
+                      _Bullet(
+                        text: 'Daging Buah : ${product.fleshDescription}',
+                      ),
                       // [FE - Component Rendering] Info traceability dari
                       // petani ditampilkan ringkas di kartu antrean pengepul.
                       if (product.shelfLifeEstimate != null &&
@@ -580,7 +568,8 @@ class _ProductCard extends StatelessWidget {
                         ),
                       _Bullet(text: 'Lokasi : ${product.location}'),
                       _Bullet(
-                        text: 'Waktu Panen : ${_formatDate(product.harvestDate)}',
+                        text:
+                            'Waktu Panen : ${_formatDate(product.harvestDate)}',
                       ),
                       _Bullet(text: 'Pemilik Pohon : ${product.treeOwner}'),
                     ],

@@ -40,8 +40,7 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
 
   String _extractProductCode(String raw) {
     final text = raw.trim();
-    final match =
-        RegExp(r'UMKM-\d{3}', caseSensitive: false).firstMatch(text);
+    final match = RegExp(r'UMKM-\d{3}', caseSensitive: false).firstMatch(text);
     return (match?.group(0) ?? text).toUpperCase();
   }
 
@@ -208,13 +207,15 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -262,10 +263,7 @@ class _FieldLabel extends StatelessWidget {
 }
 
 class _ScanModeToggle extends StatelessWidget {
-  const _ScanModeToggle({
-    required this.isCameraMode,
-    required this.onChanged,
-  });
+  const _ScanModeToggle({required this.isCameraMode, required this.onChanged});
 
   final bool isCameraMode;
   final Future<void> Function(bool value) onChanged;
@@ -378,10 +376,7 @@ class _CameraScannerBox extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(
-            controller: controller,
-            onDetect: onDetect,
-          ),
+          MobileScanner(controller: controller, onDetect: onDetect),
           Center(
             child: Container(
               width: 210,

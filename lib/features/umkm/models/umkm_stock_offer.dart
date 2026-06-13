@@ -56,10 +56,7 @@ class UmkmStockOffer {
   String get priceLabel => 'Rp ${_formatCurrency(pricePerKg)} / kg';
   String get stockLabel => 'Stok $stockKg kg';
 
-  UmkmStockOffer copyWith({
-    int? stockKg,
-    UmkmStockOfferStatus? status,
-  }) {
+  UmkmStockOffer copyWith({int? stockKg, UmkmStockOfferStatus? status}) {
     return UmkmStockOffer(
       id: id,
       traceCode: traceCode,

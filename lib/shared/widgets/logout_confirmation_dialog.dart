@@ -13,9 +13,7 @@ Future<bool> showLogoutConfirmationDialog(BuildContext context) async {
     builder: (dialogCtx) {
       return AlertDialog(
         backgroundColor: AppColors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
         contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
         actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
@@ -29,11 +27,7 @@ Future<bool> showLogoutConfirmationDialog(BuildContext context) async {
         ),
         content: const Text(
           'Anda akan keluar dari sesi ini dan kembali ke halaman masuk.',
-          style: TextStyle(
-            fontSize: 14,
-            height: 1.45,
-            color: AppColors.black,
-          ),
+          style: TextStyle(fontSize: 14, height: 1.45, color: AppColors.black),
         ),
         actionsAlignment: MainAxisAlignment.end,
         actions: [

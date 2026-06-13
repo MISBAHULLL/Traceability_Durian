@@ -22,10 +22,7 @@ import '../models/collector_product.dart';
 /// Mengikuti alur Batch Validation Form (blueprint 08 sec 4.4): pilih produk
 /// (simulasi scan QR) → input receivedQuantity, grade, qualityNotes → submit.
 class AddTransactionScreen extends StatefulWidget {
-  const AddTransactionScreen({
-    super.key,
-    this.initialBatchCode,
-  });
+  const AddTransactionScreen({super.key, this.initialBatchCode});
 
   /// Kode batch hasil scan QR simulasi; jika valid, produk langsung terpilih.
   final String? initialBatchCode;
@@ -147,8 +144,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     // Validasi field wajib
     if (_selectedProduct == null) {
-      _notif.show(context, 'Pilih produk yang akan dibeli terlebih dahulu.',
-          isError: true);
+      _notif.show(
+        context,
+        'Pilih batch panen yang akan diverifikasi terlebih dahulu.',
+        isError: true,
+      );
       return;
     }
 
@@ -208,10 +208,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     // [ERROR - Exception Handling] Validasi mass balance ini memastikan total
     // hasil sortir Grade A/B/C sama dengan stok fisik yang diterima pengepul.
     final gradeBreakdown = _buildGradeBreakdown();
-    final totalGradeWeight =
-        gradeBreakdown.fold<double>(0, (sum, item) => sum + item.weightKg);
-    final totalGradeFruit =
-        gradeBreakdown.fold<int>(0, (sum, item) => sum + item.fruitCount);
+    final totalGradeWeight = gradeBreakdown.fold<double>(
+      0,
+      (sum, item) => sum + item.weightKg,
+    );
+    final totalGradeFruit = gradeBreakdown.fold<int>(
+      0,
+      (sum, item) => sum + item.fruitCount,
+    );
     final hasInvalidGrade = gradeBreakdown.any((item) {
       final hasWeight = item.weightKg > 0;
       final hasFruit = item.fruitCount > 0;
@@ -304,7 +308,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (selectedProduct == null) {
       _notif.show(
         context,
-        'Pilih produk yang akan ditolak terlebih dahulu.',
+        'Pilih batch panen yang akan ditolak terlebih dahulu.',
         isError: true,
       );
       return;
@@ -345,10 +349,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _notesCtrl.clear();
     });
 
-    _notif.show(
-      context,
-      'Batch ${selectedProduct.name} berhasil ditolak.',
-    );
+    _notif.show(context, 'Batch ${selectedProduct.name} berhasil ditolak.');
 
     await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
@@ -400,15 +401,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       fillColor: AppColors.surface,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Color(0xFFE5E7EB),
-                        ),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Color(0xFFE5E7EB),
-                        ),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -461,6 +458,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final products = _repo.products
         .where((p) => p.category == ProductCategory.durianSegar)
         .toList();
+    final isBatchLockedFromScan =
+        widget.initialBatchCode?.trim().isNotEmpty == true &&
+        _selectedProduct != null;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -475,15 +475,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // ── Pilih Produk ─────────────────────────────────────
-                    const _SectionLabel(label: 'Pilih Produk'),
+                    // [FE - Component Rendering] Pengepul memilih identitas
+                    // batch DRN, bukan memilih atau mengubah varietas durian.
+                    const _SectionLabel(label: 'Pilih Batch Panen'),
                     const SizedBox(height: 8),
-                    _ProductDropdown(
-                      products: products,
-                      selected: _selectedProduct,
-                      onChanged: (p) => setState(() {
-                        _selectProduct(p);
-                      }),
-                    ),
+                    if (isBatchLockedFromScan)
+                      _ScannedBatchField(batch: _selectedProduct!)
+                    else
+                      _BatchDropdown(
+                        batches: products,
+                        selected: _selectedProduct,
+                        onChanged: (p) => setState(() {
+                          _selectProduct(p);
+                        }),
+                      ),
 
                     // ── Info Produk (read-only) ──────────────────────────
                     if (_selectedProduct != null) ...[
@@ -563,9 +568,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       focusNode: _fruitCountFocus,
                       keyboardType: TextInputType.number,
                       textInputAction: TextInputAction.next,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       onSubmitted: (_) =>
                           FocusScope.of(context).requestFocus(_notesFocus),
                       style: const TextStyle(
@@ -761,14 +764,16 @@ class _FieldLabel extends StatelessWidget {
 
 // [FE - Component Rendering] _ProductDropdown menampilkan daftar produk durian
 // segar yang dapat dibeli/diverifikasi pengepul — simulasi hasil scan QR.
-class _ProductDropdown extends StatelessWidget {
-  const _ProductDropdown({
-    required this.products,
+// [FE - Component Rendering] Dropdown ini menampilkan antrean batch DRN
+// petani yang masih tersedia untuk verifikasi manual oleh pengepul.
+class _BatchDropdown extends StatelessWidget {
+  const _BatchDropdown({
+    required this.batches,
     required this.selected,
     required this.onChanged,
   });
 
-  final List<CollectorProduct> products;
+  final List<CollectorProduct> batches;
   final CollectorProduct? selected;
   final ValueChanged<CollectorProduct?> onChanged;
 
@@ -785,26 +790,81 @@ class _ProductDropdown extends StatelessWidget {
         child: DropdownButton<CollectorProduct>(
           value: selected,
           hint: const Text(
-            'Pilih produk durian',
+            'Pilih kode batch petani',
             style: TextStyle(fontSize: 14, color: AppColors.placeholder),
           ),
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-              color: AppColors.placeholder),
-          items: products.map((p) {
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: AppColors.placeholder,
+          ),
+          items: batches.map((batch) {
             return DropdownMenuItem(
-              value: p,
+              value: batch,
               child: Text(
-                p.name,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.black,
-                ),
+                '${batch.code} • ${batch.name}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14, color: AppColors.black),
               ),
             );
           }).toList(),
           onChanged: onChanged,
         ),
+      ),
+    );
+  }
+}
+
+// [FE - Component Rendering] Hasil scan QR dikunci sebagai batch read-only
+// agar pengepul tidak berpindah ke DRN lain setelah memindai barang fisik.
+class _ScannedBatchField extends StatelessWidget {
+  const _ScannedBatchField({required this.batch});
+
+  final CollectorProduct batch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.qr_code_2_rounded,
+            size: 21,
+            color: AppColors.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  batch.code,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.black,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  batch.name,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.subtitle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -879,22 +939,13 @@ class _ProductInfo extends StatelessWidget {
             ),
           if (product.maturityLevel != null &&
               product.maturityLevel!.isNotEmpty)
-            _InfoRow(
-              label: 'Kematangan',
-              value: product.maturityLevel!,
-            ),
+            _InfoRow(label: 'Kematangan', value: product.maturityLevel!),
           if (product.shelfLifeEstimate != null &&
               product.shelfLifeEstimate!.isNotEmpty)
-            _InfoRow(
-              label: 'Masa Simpan',
-              value: product.shelfLifeEstimate!,
-            ),
+            _InfoRow(label: 'Masa Simpan', value: product.shelfLifeEstimate!),
           if (product.storageSuggestion != null &&
               product.storageSuggestion!.isNotEmpty)
-            _InfoRow(
-              label: 'Saran Simpan',
-              value: product.storageSuggestion!,
-            ),
+            _InfoRow(label: 'Saran Simpan', value: product.storageSuggestion!),
         ],
       ),
     );
@@ -1039,10 +1090,7 @@ class _GradeNumberField extends StatelessWidget {
       ),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(
-          fontSize: 12,
-          color: AppColors.placeholder,
-        ),
+        hintStyle: const TextStyle(fontSize: 12, color: AppColors.placeholder),
         filled: true,
         fillColor: AppColors.white,
         isDense: true,

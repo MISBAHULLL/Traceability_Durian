@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/widgets/primary_pill_button.dart';
 import '../consumer_routes.dart';
 import '../data/consumer_repository.dart';
 import '../models/consumer_product.dart';
@@ -28,8 +27,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
 
   ConsumerProductFilter _activeFilter = ConsumerProductFilter.semua;
   _DashboardTab _activeTab = _DashboardTab.products;
-  _TransactionPaymentTab _activeTransactionTab =
-      _TransactionPaymentTab.unpaid;
+  _TransactionPaymentTab _activeTransactionTab = _TransactionPaymentTab.unpaid;
   String _query = '';
 
   late final AnimationController _animController;
@@ -47,15 +45,13 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
       parent: _animController,
       curve: const Interval(0.0, 0.8, curve: Curves.easeInOutCubic),
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.04),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _animController,
-        curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
-      ),
-    );
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _animController,
+            curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
+          ),
+        );
     _animController.forward();
 
     _searchController.addListener(() {
@@ -84,9 +80,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
   List<ConsumerTransaction> get _filteredTransactions {
     final all = _repo.transactions;
     return all
-        .where(
-          (t) => t.effectivePaymentStatus == _activeTransactionTab.status,
-        )
+        .where((t) => t.effectivePaymentStatus == _activeTransactionTab.status)
         .toList();
   }
 
@@ -101,10 +95,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
   }
 
   void _openProductDetail(ConsumerProduct product) {
-    ConsumerRoutes.push(
-      context,
-      ConsumerProductDetailScreen(product: product),
-    );
+    ConsumerRoutes.push(context, ConsumerProductDetailScreen(product: product));
   }
 
   void _openTransactionDetail(ConsumerTransaction transaction) {
@@ -131,10 +122,7 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
             position: _slideAnim,
             child: Column(
               children: [
-                _TopBar(
-                  onProfile: _openProfile,
-                  onMenu: _openDrawer,
-                ),
+                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
                 Expanded(
                   child: CustomScrollView(
                     slivers: [
@@ -193,19 +181,19 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                           sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final product = products[index];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _ProductCard(
-                                    product: product,
-                                    onTap: () => _openProductDetail(product),
-                                  ),
-                                );
-                              },
-                              childCount: products.length,
-                            ),
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              final product = products[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _ProductCard(
+                                  product: product,
+                                  onTap: () => _openProductDetail(product),
+                                ),
+                              );
+                            }, childCount: products.length),
                           ),
                         )
                       else if (transactions.isEmpty)
@@ -217,20 +205,20 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                           sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final transaction = transactions[index];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: _TransactionCard(
-                                    transaction: transaction,
-                                    onTap: () =>
-                                        _openTransactionDetail(transaction),
-                                  ),
-                                );
-                              },
-                              childCount: transactions.length,
-                            ),
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              final transaction = transactions[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _TransactionCard(
+                                  transaction: transaction,
+                                  onTap: () =>
+                                      _openTransactionDetail(transaction),
+                                ),
+                              );
+                            }, childCount: transactions.length),
                           ),
                         ),
                     ],
@@ -250,17 +238,6 @@ enum _DashboardTab { products, transactions }
 enum _TransactionPaymentTab { unpaid, processing, completed }
 
 extension _TransactionPaymentTabX on _TransactionPaymentTab {
-  String get label {
-    switch (this) {
-      case _TransactionPaymentTab.unpaid:
-        return 'Belum Dibayar';
-      case _TransactionPaymentTab.processing:
-        return 'Diproses';
-      case _TransactionPaymentTab.completed:
-        return 'Selesai';
-    }
-  }
-
   ConsumerPaymentStatus get status {
     switch (this) {
       case _TransactionPaymentTab.unpaid:
@@ -360,10 +337,7 @@ class _GreetingBlock extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             profile.location,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.placeholder,
-            ),
+            style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
           ),
         ],
       ],
@@ -429,10 +403,7 @@ class _ScanQrCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.white,
-            ),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.white),
           ],
         ),
       ),
@@ -750,10 +721,7 @@ class _SectionHeader extends StatelessWidget {
         ),
         Text(
           trailing,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.placeholder,
-          ),
+          style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
         ),
       ],
     );
@@ -761,10 +729,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _TransactionCard extends StatelessWidget {
-  const _TransactionCard({
-    required this.transaction,
-    required this.onTap,
-  });
+  const _TransactionCard({required this.transaction, required this.onTap});
 
   final ConsumerTransaction transaction;
   final VoidCallback onTap;
@@ -797,7 +762,10 @@ class _TransactionCard extends StatelessWidget {
               clipBehavior: Clip.antiAlias,
               child: product.imagePath != null && product.imagePath!.isNotEmpty
                   ? Image.asset(product.imagePath!, fit: BoxFit.cover)
-                  : Image.asset('assets/images/durian.png', fit: BoxFit.contain),
+                  : Image.asset(
+                      'assets/images/durian.png',
+                      fit: BoxFit.contain,
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -897,7 +865,8 @@ class _ProductCard extends StatelessWidget {
                 width: 104,
                 child: Container(
                   color: AppColors.surface,
-                  child: product.imagePath != null && product.imagePath!.isNotEmpty
+                  child:
+                      product.imagePath != null && product.imagePath!.isNotEmpty
                       ? Image.asset(
                           product.imagePath!,
                           fit: BoxFit.cover,
@@ -957,7 +926,9 @@ class _ProductCard extends StatelessWidget {
                       _Bullet(text: product.umkmName),
                       _Bullet(text: product.location),
                       _Bullet(text: product.stockLabel),
-                      _Bullet(text: 'Rating ${product.rating.toStringAsFixed(1)}'),
+                      _Bullet(
+                        text: 'Rating ${product.rating.toStringAsFixed(1)}',
+                      ),
                     ],
                   ),
                 ),
@@ -1061,7 +1032,11 @@ class _ImageFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Center(
-      child: Icon(Icons.storefront_outlined, color: AppColors.primary, size: 28),
+      child: Icon(
+        Icons.storefront_outlined,
+        color: AppColors.primary,
+        size: 28,
+      ),
     );
   }
 }

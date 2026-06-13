@@ -84,7 +84,8 @@ class _UmkmOrderListScreenState extends State<UmkmOrderListScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => UmkmOrderDetailScreen(order: order),
+                                builder: (_) =>
+                                    UmkmOrderDetailScreen(order: order),
                               ),
                             );
                           },
@@ -103,10 +104,7 @@ class _UmkmOrderListScreenState extends State<UmkmOrderListScreen> {
 }
 
 class _StatusTabs extends StatelessWidget {
-  const _StatusTabs({
-    required this.active,
-    required this.onChanged,
-  });
+  const _StatusTabs({required this.active, required this.onChanged});
 
   final UmkmOrderStatus active;
   final ValueChanged<UmkmOrderStatus> onChanged;
@@ -230,7 +228,10 @@ class _OrderCard extends StatelessWidget {
               const Spacer(),
               Text(
                 'x${order.quantity}',
-                style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.placeholder,
+                ),
               ),
             ],
           ),

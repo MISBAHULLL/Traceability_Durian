@@ -100,9 +100,12 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
       final supplierName = offer.supplierName.toLowerCase();
       final traceCode = offer.traceCode.toLowerCase();
       final matchesQuery =
-          name.contains(_query) || supplierName.contains(_query) || traceCode.contains(_query);
+          name.contains(_query) ||
+          supplierName.contains(_query) ||
+          traceCode.contains(_query);
       final matchesSupplier =
-          _activeSupplierFilter == null || offer.supplierType == _activeSupplierFilter;
+          _activeSupplierFilter == null ||
+          offer.supplierType == _activeSupplierFilter;
       return matchesQuery && matchesSupplier;
     } catch (_) {
       return false;
@@ -126,7 +129,10 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
           style: const TextStyle(fontSize: 14, color: AppColors.black),
           decoration: InputDecoration(
             hintText: 'Cari durian, pemasok, atau trace code',
-            hintStyle: const TextStyle(fontSize: 14, color: AppColors.placeholder),
+            hintStyle: const TextStyle(
+              fontSize: 14,
+              color: AppColors.placeholder,
+            ),
             prefixIcon: const Icon(
               Icons.search_rounded,
               color: AppColors.placeholder,
@@ -147,7 +153,7 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: categories.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
               final category = categories[index];
               final label = category?.label ?? 'Semua';
@@ -161,7 +167,9 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
                     color: isActive ? AppColors.primary : AppColors.surface,
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
-                      color: isActive ? AppColors.primary : const Color(0xFFE5E7EB),
+                      color: isActive
+                          ? AppColors.primary
+                          : const Color(0xFFE5E7EB),
                     ),
                   ),
                   child: Text(
@@ -304,9 +312,7 @@ class UmkmStockOfferDetailScreen extends StatelessWidget {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: [
-                        _Chip(label: offer.supplierType.label),
-                      ],
+                      children: [_Chip(label: offer.supplierType.label)],
                     ),
                     const SizedBox(height: 16),
                     _InfoTile(label: 'Supplier', value: offer.supplierName),
@@ -336,7 +342,8 @@ class UmkmStockOfferDetailScreen extends StatelessWidget {
                         final created = await Navigator.push<bool>(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => UmkmCreateStockOrderScreen(offer: offer),
+                            builder: (_) =>
+                                UmkmCreateStockOrderScreen(offer: offer),
                           ),
                         );
                         if (created == true && context.mounted) {
@@ -387,13 +394,19 @@ class _SectionTabs extends StatelessWidget {
         children: [
           Expanded(
             child: GestureDetector(
-              onTap: () => onChanged(active is _MainTab ? _MainTab.beli : UmkmStockOrderStatus.diproses),
+              onTap: () => onChanged(
+                active is _MainTab
+                    ? _MainTab.beli
+                    : UmkmStockOrderStatus.diproses,
+              ),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: isBeli ? AppColors.primaryContainer : Colors.transparent,
+                  color: isBeli
+                      ? AppColors.primaryContainer
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -409,13 +422,19 @@ class _SectionTabs extends StatelessWidget {
           ),
           Expanded(
             child: GestureDetector(
-              onTap: () => onChanged(active is _MainTab ? _MainTab.pesanan : UmkmStockOrderStatus.selesai),
+              onTap: () => onChanged(
+                active is _MainTab
+                    ? _MainTab.pesanan
+                    : UmkmStockOrderStatus.selesai,
+              ),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: isBeli ? Colors.transparent : AppColors.primaryContainer,
+                  color: isBeli
+                      ? Colors.transparent
+                      : AppColors.primaryContainer,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -551,7 +570,11 @@ class _StockOrderCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   order.offerName,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.black),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.black,
+                  ),
                 ),
               ),
               _StatusBadge(label: order.status.label, isActive: !isDone),
@@ -577,7 +600,11 @@ class _StockOrderCard extends StatelessWidget {
             children: [
               Text(
                 order.totalLabel,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
               ),
               const Spacer(),
               Text(
@@ -602,10 +629,12 @@ class UmkmCreateStockOrderScreen extends StatefulWidget {
   final UmkmStockOffer offer;
 
   @override
-  State<UmkmCreateStockOrderScreen> createState() => _UmkmCreateStockOrderScreenState();
+  State<UmkmCreateStockOrderScreen> createState() =>
+      _UmkmCreateStockOrderScreenState();
 }
 
-class _UmkmCreateStockOrderScreenState extends State<UmkmCreateStockOrderScreen> {
+class _UmkmCreateStockOrderScreenState
+    extends State<UmkmCreateStockOrderScreen> {
   final _repo = UmkmRepository.instance;
   final _quantityCtrl = TextEditingController(text: '1');
   final _accountCtrl = TextEditingController();
@@ -624,7 +653,8 @@ class _UmkmCreateStockOrderScreenState extends State<UmkmCreateStockOrderScreen>
   }
 
   int get _quantityKg {
-    final value = int.tryParse(_quantityCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+    final value =
+        int.tryParse(_quantityCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
     return value < 1 ? 1 : value;
   }
 
@@ -638,9 +668,12 @@ class _UmkmCreateStockOrderScreenState extends State<UmkmCreateStockOrderScreen>
       return;
     }
 
-    if (_paymentMethod == UmkmStockPaymentMethod.transfer && _accountCtrl.text.trim().isEmpty) {
+    if (_paymentMethod == UmkmStockPaymentMethod.transfer &&
+        _accountCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nomor rekening wajib diisi untuk transfer.')),
+        const SnackBar(
+          content: Text('Nomor rekening wajib diisi untuk transfer.'),
+        ),
       );
       return;
     }
@@ -661,15 +694,26 @@ class _UmkmCreateStockOrderScreenState extends State<UmkmCreateStockOrderScreen>
       paymentMethod: _paymentMethod,
       status: UmkmStockOrderStatus.diproses,
       createdAt: DateTime.now(),
-      bankName: _paymentMethod == UmkmStockPaymentMethod.transfer ? _selectedBank : null,
-      accountNumber: _paymentMethod == UmkmStockPaymentMethod.transfer ? _accountCtrl.text.trim() : null,
-      note: _noteCtrl.text.trim().isEmpty ? 'Tidak ada catatan.' : _noteCtrl.text.trim(),
+      bankName: _paymentMethod == UmkmStockPaymentMethod.transfer
+          ? _selectedBank
+          : null,
+      accountNumber: _paymentMethod == UmkmStockPaymentMethod.transfer
+          ? _accountCtrl.text.trim()
+          : null,
+      note: _noteCtrl.text.trim().isEmpty
+          ? 'Tidak ada catatan.'
+          : _noteCtrl.text.trim(),
     );
 
     _repo.addStockOrder(order);
     _repo.updateStockOffer(
       widget.offer.id,
-      widget.offer.copyWith(stockKg: (widget.offer.stockKg - _quantityKg).clamp(0, widget.offer.stockKg)),
+      widget.offer.copyWith(
+        stockKg: (widget.offer.stockKg - _quantityKg).clamp(
+          0,
+          widget.offer.stockKg,
+        ),
+      ),
     );
 
     if (!mounted) return;
@@ -697,11 +741,26 @@ class _UmkmCreateStockOrderScreenState extends State<UmkmCreateStockOrderScreen>
                     _InfoCard(
                       title: widget.offer.name,
                       children: [
-                        _DetailLine(label: 'Supplier', value: widget.offer.supplierName),
-                        _DetailLine(label: 'Kategori', value: widget.offer.supplierType.label),
-                        _DetailLine(label: 'Trace Code', value: widget.offer.traceCode),
-                        _DetailLine(label: 'Harga', value: widget.offer.priceLabel),
-                        _DetailLine(label: 'Stok tersedia', value: widget.offer.stockLabel),
+                        _DetailLine(
+                          label: 'Supplier',
+                          value: widget.offer.supplierName,
+                        ),
+                        _DetailLine(
+                          label: 'Kategori',
+                          value: widget.offer.supplierType.label,
+                        ),
+                        _DetailLine(
+                          label: 'Trace Code',
+                          value: widget.offer.traceCode,
+                        ),
+                        _DetailLine(
+                          label: 'Harga',
+                          value: widget.offer.priceLabel,
+                        ),
+                        _DetailLine(
+                          label: 'Stok tersedia',
+                          value: widget.offer.stockLabel,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -728,14 +787,19 @@ class _UmkmCreateStockOrderScreenState extends State<UmkmCreateStockOrderScreen>
                                   hintText: '0',
                                 ),
                                 onChanged: (value) {
-                                  final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+                                  final digits = value.replaceAll(
+                                    RegExp(r'[^0-9]'),
+                                    '',
+                                  );
                                   if (digits.isEmpty) return;
                                   final next = int.tryParse(digits) ?? 1;
                                   if (next < 1) return;
                                   if (digits != value) {
                                     _quantityCtrl.value = TextEditingValue(
                                       text: '$next',
-                                      selection: TextSelection.collapsed(offset: '$next'.length),
+                                      selection: TextSelection.collapsed(
+                                        offset: '$next'.length,
+                                      ),
                                     );
                                   }
                                   setState(() {});
@@ -744,7 +808,9 @@ class _UmkmCreateStockOrderScreenState extends State<UmkmCreateStockOrderScreen>
                             ),
                             _StepButton(
                               icon: Icons.add_rounded,
-                              onTap: () => setState(() => _quantityCtrl.text = '${_quantityKg + 1}'),
+                              onTap: () => setState(
+                                () => _quantityCtrl.text = '${_quantityKg + 1}',
+                              ),
                             ),
                           ],
                         ),
@@ -778,19 +844,27 @@ class _UmkmCreateStockOrderScreenState extends State<UmkmCreateStockOrderScreen>
                       children: [
                         _PaymentChoice(
                           label: 'Cash on Delivery',
-                          selected: _paymentMethod == UmkmStockPaymentMethod.cod,
-                          onTap: () => setState(() => _paymentMethod = UmkmStockPaymentMethod.cod),
+                          selected:
+                              _paymentMethod == UmkmStockPaymentMethod.cod,
+                          onTap: () => setState(
+                            () => _paymentMethod = UmkmStockPaymentMethod.cod,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         _PaymentChoice(
                           label: 'Transfer Bank',
-                          selected: _paymentMethod == UmkmStockPaymentMethod.transfer,
-                          onTap: () => setState(() => _paymentMethod = UmkmStockPaymentMethod.transfer),
+                          selected:
+                              _paymentMethod == UmkmStockPaymentMethod.transfer,
+                          onTap: () => setState(
+                            () => _paymentMethod =
+                                UmkmStockPaymentMethod.transfer,
+                          ),
                         ),
-                        if (_paymentMethod == UmkmStockPaymentMethod.transfer) ...[
+                        if (_paymentMethod ==
+                            UmkmStockPaymentMethod.transfer) ...[
                           const SizedBox(height: 12),
                           DropdownButtonFormField<String>(
-                            value: _selectedBank,
+                            initialValue: _selectedBank,
                             items: _banks
                                 .map(
                                   (bank) => DropdownMenuItem(
@@ -861,10 +935,12 @@ class UmkmStockOrderDetailScreen extends StatefulWidget {
   final UmkmStockOrder order;
 
   @override
-  State<UmkmStockOrderDetailScreen> createState() => _UmkmStockOrderDetailScreenState();
+  State<UmkmStockOrderDetailScreen> createState() =>
+      _UmkmStockOrderDetailScreenState();
 }
 
-class _UmkmStockOrderDetailScreenState extends State<UmkmStockOrderDetailScreen> {
+class _UmkmStockOrderDetailScreenState
+    extends State<UmkmStockOrderDetailScreen> {
   final _repo = UmkmRepository.instance;
   late UmkmStockOrder _order;
   bool _isSaving = false;
@@ -918,18 +994,46 @@ class _UmkmStockOrderDetailScreenState extends State<UmkmStockOrderDetailScreen>
                     _InfoCard(
                       title: _order.offerName,
                       children: [
-                        _DetailLine(label: 'Supplier', value: _order.supplierName),
-                        _DetailLine(label: 'Kategori', value: _order.supplierType.label),
-                        _DetailLine(label: 'Trace Code', value: _order.traceCode),
-                        _DetailLine(label: 'Jumlah', value: '${_order.quantityKg} kg'),
+                        _DetailLine(
+                          label: 'Supplier',
+                          value: _order.supplierName,
+                        ),
+                        _DetailLine(
+                          label: 'Kategori',
+                          value: _order.supplierType.label,
+                        ),
+                        _DetailLine(
+                          label: 'Trace Code',
+                          value: _order.traceCode,
+                        ),
+                        _DetailLine(
+                          label: 'Jumlah',
+                          value: '${_order.quantityKg} kg',
+                        ),
                         _DetailLine(label: 'Total', value: _order.totalLabel),
-                        _DetailLine(label: 'Pembayaran', value: _order.paymentMethod.label),
-                        if (_order.paymentMethod == UmkmStockPaymentMethod.transfer) ...[
-                          _DetailLine(label: 'Bank', value: _order.bankName ?? '-'),
-                          _DetailLine(label: 'Rekening', value: _order.accountNumber ?? '-'),
+                        _DetailLine(
+                          label: 'Pembayaran',
+                          value: _order.paymentMethod.label,
+                        ),
+                        if (_order.paymentMethod ==
+                            UmkmStockPaymentMethod.transfer) ...[
+                          _DetailLine(
+                            label: 'Bank',
+                            value: _order.bankName ?? '-',
+                          ),
+                          _DetailLine(
+                            label: 'Rekening',
+                            value: _order.accountNumber ?? '-',
+                          ),
                         ],
-                        _DetailLine(label: 'Status', value: _order.status.label),
-                        _DetailLine(label: 'Catatan', value: _order.note ?? 'Tidak ada catatan'),
+                        _DetailLine(
+                          label: 'Status',
+                          value: _order.status.label,
+                        ),
+                        _DetailLine(
+                          label: 'Catatan',
+                          value: _order.note ?? 'Tidak ada catatan',
+                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -1166,7 +1270,9 @@ class _PaymentChoice extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primary.withValues(alpha: 0.12) : AppColors.surface,
+          color: selected
+              ? AppColors.primary.withValues(alpha: 0.12)
+              : AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected ? AppColors.primary : const Color(0xFFE5E7EB),

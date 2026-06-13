@@ -38,7 +38,7 @@ class ConsumerRepository extends ChangeNotifier {
   void _loadFromLocal() {
     _currentConsumerId =
         LocalStorageService.loadString('consumer_current_id') ??
-            _kSeedConsumerId;
+        _kSeedConsumerId;
 
     final profileJson = LocalStorageService.loadJson('consumer_profile');
     if (profileJson != null) {
@@ -59,121 +59,113 @@ class ConsumerRepository extends ChangeNotifier {
 
     return [
       ConsumerProduct(
-          code: 'UMKM-001',
-          name: 'Pancake Durian Premium',
-          category: ConsumerProductCategory.paket,
-          status: ConsumerProductStatus.readyToSell,
-          priceLabel: 'Rp 68.000',
-          shortDescription:
-              'Paket isi 4 potong dengan isian durian lembut dan kulit tipis.',
-          umkmName: 'UMKM Sari Durian Jember',
-          location: 'Kabupaten Jember, Jawa Timur',
-          rating: 4.9,
-          stockLabel: 'Stok 24 paket',
-          sourceBatchCode: 'DRN-2026-000119',
-          sourceVariety: source('DRN-2026-000119')?.variety,
-          sourceGrade: source('DRN-2026-000119')?.grade,
-          sourceOriginFarm: source('DRN-2026-000119')?.farmName,
-          sourceHarvestDate: source('DRN-2026-000119')?.harvestDate,
-          sourceHarvestMethod: source('DRN-2026-000119')?.harvestMethod,
-          sourceMaturityLevel: source('DRN-2026-000119')?.maturityLevel,
-          sourceShelfLifeEstimate:
-              source('DRN-2026-000119')?.shelfLifeEstimate,
-          sourceVerifiedBy: source('DRN-2026-000119')?.verifiedBy,
-          sourceVerifiedAt: source('DRN-2026-000119')?.verifiedAt,
-          sourceReceivedQuantity: source('DRN-2026-000119')?.receivedQuantity,
-          sourceReceivedFruitCount:
-              source('DRN-2026-000119')?.receivedFruitCount,
-          sourceQualityNotes: source('DRN-2026-000119')?.qualityNotes,
-          sourceNotes: source('DRN-2026-000119')?.notes,
-        ),
+        code: 'UMKM-001',
+        name: 'Pancake Durian Premium',
+        category: ConsumerProductCategory.paket,
+        status: ConsumerProductStatus.readyToSell,
+        priceLabel: 'Rp 68.000',
+        shortDescription:
+            'Paket isi 4 potong dengan isian durian lembut dan kulit tipis.',
+        umkmName: 'UMKM Sari Durian Jember',
+        location: 'Kabupaten Jember, Jawa Timur',
+        rating: 4.9,
+        stockLabel: 'Stok 24 paket',
+        sourceBatchCode: 'DRN-2026-000119',
+        sourceVariety: source('DRN-2026-000119')?.variety,
+        sourceGrade: source('DRN-2026-000119')?.grade,
+        sourceOriginFarm: source('DRN-2026-000119')?.farmName,
+        sourceHarvestDate: source('DRN-2026-000119')?.harvestDate,
+        sourceHarvestMethod: source('DRN-2026-000119')?.harvestMethod,
+        sourceMaturityLevel: source('DRN-2026-000119')?.maturityLevel,
+        sourceShelfLifeEstimate: source('DRN-2026-000119')?.shelfLifeEstimate,
+        sourceVerifiedBy: source('DRN-2026-000119')?.verifiedBy,
+        sourceVerifiedAt: source('DRN-2026-000119')?.verifiedAt,
+        sourceReceivedQuantity: source('DRN-2026-000119')?.receivedQuantity,
+        sourceReceivedFruitCount: source('DRN-2026-000119')?.receivedFruitCount,
+        sourceQualityNotes: source('DRN-2026-000119')?.qualityNotes,
+        sourceNotes: source('DRN-2026-000119')?.notes,
+      ),
       ConsumerProduct(
-          code: 'UMKM-002',
-          name: 'Dodol Durian Lembut',
-          category: ConsumerProductCategory.olahan,
-          status: ConsumerProductStatus.readyToSell,
-          priceLabel: 'Rp 42.000',
-          shortDescription:
-              'Olahan legit dengan tekstur kenyal, cocok untuk oleh-oleh.',
-          umkmName: 'UMKM Manis Jaya',
-          location: 'Kabupaten Jember, Jawa Timur',
-          rating: 4.8,
-          stockLabel: 'Stok 36 bungkus',
-          sourceBatchCode: 'DRN-2026-000103',
-          sourceVariety: source('DRN-2026-000103')?.variety,
-          sourceGrade: source('DRN-2026-000103')?.grade,
-          sourceOriginFarm: source('DRN-2026-000103')?.farmName,
-          sourceHarvestDate: source('DRN-2026-000103')?.harvestDate,
-          sourceHarvestMethod: source('DRN-2026-000103')?.harvestMethod,
-          sourceMaturityLevel: source('DRN-2026-000103')?.maturityLevel,
-          sourceShelfLifeEstimate:
-              source('DRN-2026-000103')?.shelfLifeEstimate,
-          sourceVerifiedBy: source('DRN-2026-000103')?.verifiedBy,
-          sourceVerifiedAt: source('DRN-2026-000103')?.verifiedAt,
-          sourceReceivedQuantity: source('DRN-2026-000103')?.receivedQuantity,
-          sourceReceivedFruitCount:
-              source('DRN-2026-000103')?.receivedFruitCount,
-          sourceQualityNotes: source('DRN-2026-000103')?.qualityNotes,
-          sourceNotes: source('DRN-2026-000103')?.notes,
-        ),
-        ConsumerProduct(
-          code: 'UMKM-003',
-          name: 'Es Krim Durian Cup',
-          category: ConsumerProductCategory.minuman,
-          status: ConsumerProductStatus.readyToSell,
-          priceLabel: 'Rp 22.000',
-          shortDescription:
-              'Dessert dingin dengan rasa durian yang lembut dan segar.',
-          umkmName: 'UMKM Dingin Segar',
-          location: 'Kabupaten Jember, Jawa Timur',
-          rating: 4.7,
-          stockLabel: 'Stok 18 cup',
-          sourceBatchCode: 'DRN-2026-000097',
-          sourceVariety: source('DRN-2026-000097')?.variety,
-          sourceGrade: source('DRN-2026-000097')?.grade,
-          sourceOriginFarm: source('DRN-2026-000097')?.farmName,
-          sourceHarvestDate: source('DRN-2026-000097')?.harvestDate,
-          sourceHarvestMethod: source('DRN-2026-000097')?.harvestMethod,
-          sourceMaturityLevel: source('DRN-2026-000097')?.maturityLevel,
-          sourceShelfLifeEstimate:
-              source('DRN-2026-000097')?.shelfLifeEstimate,
-          sourceVerifiedBy: source('DRN-2026-000097')?.verifiedBy,
-          sourceVerifiedAt: source('DRN-2026-000097')?.verifiedAt,
-          sourceReceivedQuantity: source('DRN-2026-000097')?.receivedQuantity,
-          sourceReceivedFruitCount:
-              source('DRN-2026-000097')?.receivedFruitCount,
-          sourceQualityNotes: source('DRN-2026-000097')?.qualityNotes,
-          sourceNotes: source('DRN-2026-000097')?.notes,
-        ),
+        code: 'UMKM-002',
+        name: 'Dodol Durian Lembut',
+        category: ConsumerProductCategory.olahan,
+        status: ConsumerProductStatus.readyToSell,
+        priceLabel: 'Rp 42.000',
+        shortDescription:
+            'Olahan legit dengan tekstur kenyal, cocok untuk oleh-oleh.',
+        umkmName: 'UMKM Manis Jaya',
+        location: 'Kabupaten Jember, Jawa Timur',
+        rating: 4.8,
+        stockLabel: 'Stok 36 bungkus',
+        sourceBatchCode: 'DRN-2026-000103',
+        sourceVariety: source('DRN-2026-000103')?.variety,
+        sourceGrade: source('DRN-2026-000103')?.grade,
+        sourceOriginFarm: source('DRN-2026-000103')?.farmName,
+        sourceHarvestDate: source('DRN-2026-000103')?.harvestDate,
+        sourceHarvestMethod: source('DRN-2026-000103')?.harvestMethod,
+        sourceMaturityLevel: source('DRN-2026-000103')?.maturityLevel,
+        sourceShelfLifeEstimate: source('DRN-2026-000103')?.shelfLifeEstimate,
+        sourceVerifiedBy: source('DRN-2026-000103')?.verifiedBy,
+        sourceVerifiedAt: source('DRN-2026-000103')?.verifiedAt,
+        sourceReceivedQuantity: source('DRN-2026-000103')?.receivedQuantity,
+        sourceReceivedFruitCount: source('DRN-2026-000103')?.receivedFruitCount,
+        sourceQualityNotes: source('DRN-2026-000103')?.qualityNotes,
+        sourceNotes: source('DRN-2026-000103')?.notes,
+      ),
       ConsumerProduct(
-          code: 'UMKM-004',
-          name: 'Durian Kupas Fresh Pack',
-          category: ConsumerProductCategory.segar,
-          status: ConsumerProductStatus.readyToSell,
-          priceLabel: 'Rp 95.000',
-          shortDescription:
-              'Daging durian kupas pilihan, siap santap dan dikirim cepat.',
-          umkmName: 'UMKM Segar Pagi',
-          location: 'Kabupaten Jember, Jawa Timur',
-          rating: 4.9,
-          stockLabel: 'Stok 12 pack',
-          sourceBatchCode: 'DRN-2026-000128',
-          sourceVariety: source('DRN-2026-000128')?.variety,
-          sourceGrade: source('DRN-2026-000128')?.grade,
-          sourceOriginFarm: source('DRN-2026-000128')?.farmName,
-          sourceHarvestDate: source('DRN-2026-000128')?.harvestDate,
-          sourceHarvestMethod: source('DRN-2026-000128')?.harvestMethod,
-          sourceMaturityLevel: source('DRN-2026-000128')?.maturityLevel,
-          sourceShelfLifeEstimate:
-              source('DRN-2026-000128')?.shelfLifeEstimate,
-          sourceVerifiedBy: source('DRN-2026-000128')?.verifiedBy,
-          sourceVerifiedAt: source('DRN-2026-000128')?.verifiedAt,
-          sourceReceivedQuantity: source('DRN-2026-000128')?.receivedQuantity,
-          sourceReceivedFruitCount:
-              source('DRN-2026-000128')?.receivedFruitCount,
-          sourceQualityNotes: source('DRN-2026-000128')?.qualityNotes,
-          sourceNotes: source('DRN-2026-000128')?.notes,
-        ),
+        code: 'UMKM-003',
+        name: 'Es Krim Durian Cup',
+        category: ConsumerProductCategory.minuman,
+        status: ConsumerProductStatus.readyToSell,
+        priceLabel: 'Rp 22.000',
+        shortDescription:
+            'Dessert dingin dengan rasa durian yang lembut dan segar.',
+        umkmName: 'UMKM Dingin Segar',
+        location: 'Kabupaten Jember, Jawa Timur',
+        rating: 4.7,
+        stockLabel: 'Stok 18 cup',
+        sourceBatchCode: 'DRN-2026-000097',
+        sourceVariety: source('DRN-2026-000097')?.variety,
+        sourceGrade: source('DRN-2026-000097')?.grade,
+        sourceOriginFarm: source('DRN-2026-000097')?.farmName,
+        sourceHarvestDate: source('DRN-2026-000097')?.harvestDate,
+        sourceHarvestMethod: source('DRN-2026-000097')?.harvestMethod,
+        sourceMaturityLevel: source('DRN-2026-000097')?.maturityLevel,
+        sourceShelfLifeEstimate: source('DRN-2026-000097')?.shelfLifeEstimate,
+        sourceVerifiedBy: source('DRN-2026-000097')?.verifiedBy,
+        sourceVerifiedAt: source('DRN-2026-000097')?.verifiedAt,
+        sourceReceivedQuantity: source('DRN-2026-000097')?.receivedQuantity,
+        sourceReceivedFruitCount: source('DRN-2026-000097')?.receivedFruitCount,
+        sourceQualityNotes: source('DRN-2026-000097')?.qualityNotes,
+        sourceNotes: source('DRN-2026-000097')?.notes,
+      ),
+      ConsumerProduct(
+        code: 'UMKM-004',
+        name: 'Durian Kupas Fresh Pack',
+        category: ConsumerProductCategory.segar,
+        status: ConsumerProductStatus.readyToSell,
+        priceLabel: 'Rp 95.000',
+        shortDescription:
+            'Daging durian kupas pilihan, siap santap dan dikirim cepat.',
+        umkmName: 'UMKM Segar Pagi',
+        location: 'Kabupaten Jember, Jawa Timur',
+        rating: 4.9,
+        stockLabel: 'Stok 12 pack',
+        sourceBatchCode: 'DRN-2026-000128',
+        sourceVariety: source('DRN-2026-000128')?.variety,
+        sourceGrade: source('DRN-2026-000128')?.grade,
+        sourceOriginFarm: source('DRN-2026-000128')?.farmName,
+        sourceHarvestDate: source('DRN-2026-000128')?.harvestDate,
+        sourceHarvestMethod: source('DRN-2026-000128')?.harvestMethod,
+        sourceMaturityLevel: source('DRN-2026-000128')?.maturityLevel,
+        sourceShelfLifeEstimate: source('DRN-2026-000128')?.shelfLifeEstimate,
+        sourceVerifiedBy: source('DRN-2026-000128')?.verifiedBy,
+        sourceVerifiedAt: source('DRN-2026-000128')?.verifiedAt,
+        sourceReceivedQuantity: source('DRN-2026-000128')?.receivedQuantity,
+        sourceReceivedFruitCount: source('DRN-2026-000128')?.receivedFruitCount,
+        sourceQualityNotes: source('DRN-2026-000128')?.qualityNotes,
+        sourceNotes: source('DRN-2026-000128')?.notes,
+      ),
     ];
   }
 
@@ -236,11 +228,10 @@ class ConsumerRepository extends ChangeNotifier {
   ConsumerProfile get profile => _profile;
 
   List<ConsumerProduct> get products => List.unmodifiable(
-        _products
-            .where((product) =>
-                product.status == ConsumerProductStatus.readyToSell)
-            .toList(),
-      );
+    _products
+        .where((product) => product.status == ConsumerProductStatus.readyToSell)
+        .toList(),
+  );
 
   List<ConsumerTransaction> get transactions {
     final items = List<ConsumerTransaction>.from(_transactions);
@@ -265,7 +256,8 @@ class ConsumerRepository extends ChangeNotifier {
       final matchFilter =
           filter == ConsumerProductFilter.semua ||
           product.category.label.toLowerCase() == filter.label.toLowerCase();
-      final matchQuery = q.isEmpty ||
+      final matchQuery =
+          q.isEmpty ||
           product.code.toLowerCase().contains(q) ||
           product.name.toLowerCase().contains(q) ||
           product.umkmName.toLowerCase().contains(q);
@@ -275,10 +267,7 @@ class ConsumerRepository extends ChangeNotifier {
 
   ConsumerProduct? findProduct(String code) {
     try {
-      return products.firstWhere(
-        (product) =>
-            product.code == code,
-      );
+      return products.firstWhere((product) => product.code == code);
     } catch (_) {
       return null;
     }
@@ -296,7 +285,8 @@ class ConsumerRepository extends ChangeNotifier {
     String? note,
   }) {
     final now = DateTime.now();
-    final id = 'TRX-${now.year}-${(_transactions.length + 1).toString().padLeft(4, '0')}';
+    final id =
+        'TRX-${now.year}-${(_transactions.length + 1).toString().padLeft(4, '0')}';
     final transaction = ConsumerTransaction(
       id: id,
       product: product,

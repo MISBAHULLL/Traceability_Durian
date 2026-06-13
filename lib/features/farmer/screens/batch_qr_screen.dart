@@ -56,13 +56,13 @@ class _BatchQrScreenState extends State<BatchQrScreen>
       parent: _animController,
       curve: const Interval(0.0, 0.8, curve: Curves.easeInOutCubic),
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.04),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
-    ));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _animController,
+            curve: const Interval(0.0, 0.9, curve: Curves.easeOutCubic),
+          ),
+        );
     _animController.forward();
   }
 
@@ -110,10 +110,7 @@ class _BatchQrScreenState extends State<BatchQrScreen>
               child: Column(
                 children: [
                   // Top bar dengan back kustom (Req 4.6)
-                  AppTopBar(
-                    title: 'QR Batch',
-                    onBack: _handleBack,
-                  ),
+                  AppTopBar(title: 'QR Batch', onBack: _handleBack),
 
                   // Konten utama
                   Expanded(

@@ -39,7 +39,10 @@ class UmkmPurchaseDetailScreen extends StatelessWidget {
               Center(
                 child: Text(
                   'Kode Transaksi: ${purchase.qrCodeData}',
-                  style: const TextStyle(fontSize: 12, color: AppColors.subtitle),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.subtitle,
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -51,7 +54,10 @@ class UmkmPurchaseDetailScreen extends StatelessWidget {
               const SizedBox(height: 12),
               _DetailTile(label: 'Total', value: purchase.totalLabel),
               const SizedBox(height: 12),
-              _DetailTile(label: 'Catatan', value: purchase.note ?? 'Tidak ada catatan'),
+              _DetailTile(
+                label: 'Catatan',
+                value: purchase.note ?? 'Tidak ada catatan',
+              ),
             ],
           ),
         ),
@@ -77,9 +83,23 @@ class _DetailTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.black)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.black,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 13, color: AppColors.subtitle, height: 1.5)),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.subtitle,
+              height: 1.5,
+            ),
+          ),
         ],
       ),
     );

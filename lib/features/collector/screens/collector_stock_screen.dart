@@ -3,11 +3,18 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../collector_routes.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_stock_summary.dart';
+import 'create_shipment_batch_screen.dart';
+import 'collector_shipments_screen.dart';
 
-// [FE - Component Rendering] Screen ini menampilkan stok durian pengepul
-// yang berasal dari batch petani setelah berhasil diverifikasi.
+const _pageBackground = Color(0xFFF4F6F3);
+const _borderColor = Color(0xFFE1E6DF);
+const _mutedSurface = Color(0xFFF8F9F7);
+
+// [FE - Component Rendering] Screen ini menyusun stok pengepul sebagai
+// dashboard inventori: ringkasan, breakdown, daftar batch, dan aksi pengiriman.
 class CollectorStockScreen extends StatefulWidget {
   const CollectorStockScreen({super.key});
 
@@ -30,35 +37,76 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
     super.dispose();
   }
 
+  // [FE - State Management] Listener ini menyegarkan dashboard saat stok atau
+  // status alokasi batch berubah di repository pengepul.
   void _onRepoChanged() {
     if (mounted) setState(() {});
+  }
+
+  // [FE - Event Handler] Aksi utama langsung membuka form agregasi ketika
+  // stok tersedia; daftar pengiriman hanya dibuka saat tidak ada stok bebas.
+  Future<void> _openShipmentAction() async {
+    if (_repo.availableStockBatches.isNotEmpty) {
+      await CollectorRoutes.push<bool>(
+        context,
+        const CreateShipmentBatchScreen(),
+      );
+      return;
+    }
+
+    await CollectorRoutes.push(context, const CollectorShipmentsScreen());
   }
 
   @override
   Widget build(BuildContext context) {
     final stocks = _repo.stockBatches;
     final overview = _repo.stockOverview;
+    final readyCount = _repo.availableStockBatches.length;
 
     return Scaffold(
-      backgroundColor: AppColors.white,
+      backgroundColor: _pageBackground,
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
-            const AppTopBar(title: 'Stok Saya'),
+            const ColoredBox(
+              color: AppColors.white,
+              child: AppTopBar(title: 'Stok Saya'),
+            ),
             Expanded(
               child: stocks.isEmpty
                   ? const _EmptyStock()
                   : ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                       children: [
-                        _StockOverviewPanel(overview: overview),
-                        const SizedBox(height: 18),
-                        const _SectionHeader(title: 'Batch Aktif'),
+                        _WarehouseSummary(overview: overview),
+                        const SizedBox(height: 16),
+                        _BreakdownPanel(
+                          title: 'Stok per Grade',
+                          icon: Icons.workspace_premium_outlined,
+                          items: overview.gradeBreakdown,
+                        ),
+                        const SizedBox(height: 12),
+                        _BreakdownPanel(
+                          title: 'Stok per Varietas',
+                          icon: Icons.eco_outlined,
+                          items: overview.varietyBreakdown,
+                        ),
+                        const SizedBox(height: 22),
+                        _BatchSectionHeader(
+                          totalCount: stocks.length,
+                          readyCount: readyCount,
+                        ),
                         const SizedBox(height: 10),
                         ...stocks.map(
                           (batch) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: _StockCard(batch: batch),
+                            child: _StockCard(
+                              batch: batch,
+                              shipmentCode: _repo
+                                  .shipmentForSourceBatch(batch.code)
+                                  ?.code,
+                            ),
                           ),
                         ),
                       ],
@@ -67,6 +115,14 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
           ],
         ),
       ),
+      // [FE - Component Rendering] Action bar tetap menjaga perintah membuat
+      // pengiriman terpisah jelas dari konten inventori yang dapat digulir.
+      bottomNavigationBar: stocks.isEmpty
+          ? null
+          : _ShipmentActionBar(
+              readyCount: readyCount,
+              onPressed: _openShipmentAction,
+            ),
     );
   }
 }
@@ -82,28 +138,36 @@ class _EmptyStock extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.inventory_2_outlined,
-              size: 58,
-              color: AppColors.placeholder.withValues(alpha: 0.45),
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: AppColors.primaryContainer.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.inventory_2_outlined,
+                size: 34,
+                color: AppColors.primary,
+              ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             const Text(
               'Belum ada stok terverifikasi',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 15,
+                fontSize: 16,
                 fontWeight: FontWeight.w800,
                 color: AppColors.black,
               ),
             ),
             const SizedBox(height: 6),
             const Text(
-              'Batch yang sudah diverifikasi pengepul akan muncul di sini.',
+              'Batch yang selesai diterima dan diverifikasi akan tersimpan di gudang ini.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
-                height: 1.4,
+                height: 1.45,
                 color: AppColors.placeholder,
               ),
             ),
@@ -114,116 +178,113 @@ class _EmptyStock extends StatelessWidget {
   }
 }
 
-// [FE - Component Rendering] Panel ini menampilkan inventory overview dari
-// repository sebagai dashboard gudang pengepul.
-class _StockOverviewPanel extends StatelessWidget {
-  const _StockOverviewPanel({required this.overview});
+// [FE - Component Rendering] Panel utama menonjolkan total berat sebagai
+// metrik primer, sedangkan jumlah butir dan batch menjadi konteks sekunder.
+class _WarehouseSummary extends StatelessWidget {
+  const _WarehouseSummary({required this.overview});
 
   final CollectorStockOverview overview;
 
   String _formatWeight(double value) {
-    final text =
-        value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
-    return '$text kg';
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SectionHeader(title: 'Ringkasan Gudang'),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _SummaryMetricTile(
-                icon: Icons.scale_outlined,
-                label: 'Total Berat',
-                value: _formatWeight(overview.totalWeightKg),
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color.fromARGB(255, 88, 168, 53),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.warehouse_outlined,
+                size: 20,
+                color: Color(0xFFDDF2D4),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _SummaryMetricTile(
-                icon: Icons.inventory_2_outlined,
-                label: 'Total Butir',
-                value: '${overview.totalFruitCount}',
+              SizedBox(width: 8),
+              Text(
+                'Ringkasan Gudang',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFDDF2D4),
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Text(
+            '${_formatWeight(overview.totalWeightKg)} kg',
+            style: const TextStyle(
+              fontSize: 30,
+              fontWeight: FontWeight.w900,
+              color: AppColors.white,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _SummaryMetricTile(
-                icon: Icons.qr_code_2_rounded,
-                label: 'Batch Aktif',
-                value: '${overview.activeBatchCount}',
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            'Total stok diterima',
+            style: TextStyle(fontSize: 12, color: Color(0xFFDDF2D4)),
+          ),
+          const SizedBox(height: 18),
+          Container(height: 1, color: const Color(0xFF4A8236)),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _SummaryValue(
+                  label: 'Jumlah buah',
+                  value: '${overview.totalFruitCount} butir',
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _StockBreakdownSection(
-          title: 'Stok per Grade',
-          items: overview.gradeBreakdown,
-        ),
-        const SizedBox(height: 14),
-        _StockBreakdownSection(
-          title: 'Stok per Varietas',
-          items: overview.varietyBreakdown,
-        ),
-      ],
+              Container(width: 1, height: 38, color: const Color(0xFF4A8236)),
+              Expanded(
+                child: _SummaryValue(
+                  label: 'Batch aktif',
+                  value: '${overview.activeBatchCount} batch',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
-// [FE - Component Rendering] Tile metrik cepat ini membantu pengepul melihat
-// kapasitas gudang tanpa membuka setiap batch.
-class _SummaryMetricTile extends StatelessWidget {
-  const _SummaryMetricTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+class _SummaryValue extends StatelessWidget {
+  const _SummaryValue({required this.label, required this.value});
 
-  final IconData icon;
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 92,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: AppColors.primary),
-          const Spacer(),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontSize: 15,
-              fontWeight: FontWeight.w900,
-              color: AppColors.black,
+              fontWeight: FontWeight.w800,
+              color: AppColors.white,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Text(
             label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 10,
-              height: 1.15,
-              color: AppColors.placeholder,
-            ),
+            style: const TextStyle(fontSize: 11, color: Color(0xFFDDF2D4)),
           ),
         ],
       ),
@@ -231,143 +292,174 @@ class _SummaryMetricTile extends StatelessWidget {
   }
 }
 
-// [FE - Component Rendering] Section breakdown ini memecah stok berdasarkan
-// dimensi operasional seperti grade dan varietas.
-class _StockBreakdownSection extends StatelessWidget {
-  const _StockBreakdownSection({
+// [FE - Component Rendering] Panel breakdown memberi batas section yang jelas
+// dan memakai divider agar setiap grade atau varietas mudah dibandingkan.
+class _BreakdownPanel extends StatelessWidget {
+  const _BreakdownPanel({
     required this.title,
+    required this.icon,
     required this.items,
   });
 
   final String title;
+  final IconData icon;
   final List<CollectorStockBreakdown> items;
 
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SectionHeader(title: title),
-        const SizedBox(height: 8),
-        ...items.map(
-          (item) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _StockBreakdownRow(item: item),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// [FE - Component Rendering] Row breakdown ini menampilkan agregasi kg, butir,
-// dan jumlah batch untuk satu grade/varietas.
-class _StockBreakdownRow extends StatelessWidget {
-  const _StockBreakdownRow({required this.item});
-
-  final CollectorStockBreakdown item;
-
-  String _formatWeight(double value) {
-    final text =
-        value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
-    return '$text kg';
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Text(
-              item.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: AppColors.black,
-              ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 13, 14, 11),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.black,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 10),
-          Text(
-            '${_formatWeight(item.totalWeightKg)} / '
-            '${item.totalFruitCount} butir',
-            textAlign: TextAlign.right,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: AppColors.subtitle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          _TinyCountPill(label: '${item.batchCount} batch'),
+          const Divider(height: 1, color: _borderColor),
+          ...List.generate(items.length, (index) {
+            return Column(
+              children: [
+                _BreakdownRow(item: items[index]),
+                if (index < items.length - 1)
+                  const Divider(height: 1, indent: 14, endIndent: 14),
+              ],
+            );
+          }),
         ],
       ),
     );
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
+class _BreakdownRow extends StatelessWidget {
+  const _BreakdownRow({required this.item});
 
-  final String title;
+  final CollectorStockBreakdown item;
+
+  String _formatWeight(double value) {
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w900,
-        color: AppColors.black,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.black,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${item.batchCount} batch sumber',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.placeholder,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '${_formatWeight(item.totalWeightKg)} kg',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: AppColors.subtitle,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(width: 1, height: 24, color: _borderColor),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 54,
+            child: Text(
+              '${item.totalFruitCount} butir',
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.placeholder,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _TinyCountPill extends StatelessWidget {
-  const _TinyCountPill({required this.label});
+class _BatchSectionHeader extends StatelessWidget {
+  const _BatchSectionHeader({
+    required this.totalCount,
+    required this.readyCount,
+  });
 
-  final String label;
+  final int totalCount;
+  final int readyCount;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.primaryContainer.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          color: AppColors.primary,
+    return Row(
+      children: [
+        const Expanded(
+          child: Text(
+            'Batch Aktif',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: AppColors.black,
+            ),
+          ),
         ),
-      ),
+        Text(
+          '$readyCount siap dari $totalCount',
+          style: const TextStyle(fontSize: 11, color: AppColors.placeholder),
+        ),
+      ],
     );
   }
 }
 
-// [FE - Component Rendering] Kartu stok menggabungkan data panen awal dan
-// metadata verifikasi pengepul sebagai ringkasan operasional.
+// [FE - Component Rendering] Kartu stok menyajikan identitas batch, metrik
+// penerimaan, dan hasil grading dalam urutan baca operasional pengepul.
 class _StockCard extends StatelessWidget {
-  const _StockCard({required this.batch});
+  const _StockCard({required this.batch, this.shipmentCode});
 
   final HarvestBatch batch;
+  final String? shipmentCode;
 
-  String _formatDate(DateTime d) {
+  String _formatDate(DateTime date) {
     const months = [
       'Jan',
       'Feb',
@@ -382,255 +474,373 @@ class _StockCard extends StatelessWidget {
       'Nov',
       'Des',
     ];
-    return '${d.day} ${months[d.month - 1]} ${d.year}';
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  // [UTIL - Helper Function] Formatter ini mengubah grade breakdown menjadi
-  // ringkasan stok yang mudah dibaca di kartu pengepul.
-  String _formatGradeBreakdown(HarvestBatch batch) {
-    if (batch.gradeBreakdown.isEmpty) return '';
-    return batch.gradeBreakdown.map((item) {
-      final weight = item.weightKg % 1 == 0
-          ? item.weightKg.toStringAsFixed(0)
-          : item.weightKg.toStringAsFixed(2);
-      return 'Grade ${item.grade}: $weight kg / ${item.fruitCount} butir';
-    }).join('\n');
+  String _formatWeight(double value) {
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
   }
 
   @override
   Widget build(BuildContext context) {
-    final receivedQty = batch.receivedQuantity ?? batch.quantity;
-    final receivedFruitCount = batch.receivedFruitCount ?? batch.fruitCount;
+    final receivedWeight = batch.receivedQuantity ?? batch.quantity;
+    final receivedFruit = batch.receivedFruitCount ?? batch.fruitCount;
     final verifiedGrade = batch.verifiedGrade?.isNotEmpty == true
         ? batch.verifiedGrade!
         : batch.grade;
-    final gradeBreakdownText = _formatGradeBreakdown(batch);
+    final isAllocated = shipmentCode != null;
 
     return Container(
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryContainer.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isAllocated
+                        ? const Color(0xFFFFF3D8)
+                        : const Color(0xFFEAF4E6),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    isAllocated
+                        ? Icons.local_shipping_outlined
+                        : Icons.inventory_2_outlined,
+                    size: 21,
+                    color: isAllocated
+                        ? const Color(0xFF9A6700)
+                        : AppColors.primary,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.inventory_2_outlined,
-                  color: AppColors.primary,
-                  size: 23,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      batch.code,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.primary,
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        batch.code,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Durian ${batch.variety}',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.black,
+                      const SizedBox(height: 3),
+                      Text(
+                        'Durian ${batch.variety}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.black,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              _StatusPill(label: 'Siap Distribusi'),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _InfoGrid(
-            items: [
-              _InfoData(
-                label: 'Berat Diterima',
-                value: '${receivedQty.toStringAsFixed(0)} ${batch.unit}',
-              ),
-              _InfoData(
-                label: 'Grade Pengepul',
-                value: 'Dominan Grade $verifiedGrade',
-              ),
-              _InfoData(
-                label: 'Jumlah Diterima',
-                value: receivedFruitCount == null
-                    ? '-'
-                    : '$receivedFruitCount butir',
-              ),
-              _InfoData(
-                label: 'Tanggal Verifikasi',
-                value: batch.verifiedAt == null
-                    ? '-'
-                    : _formatDate(batch.verifiedAt!),
-              ),
-            ],
-          ),
-          if (gradeBreakdownText.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _GradeBreakdownBox(text: gradeBreakdownText),
-          ],
-          if (batch.qualityNotes != null && batch.qualityNotes!.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                batch.qualityNotes!,
-                style: const TextStyle(
-                  fontSize: 12,
-                  height: 1.35,
-                  color: AppColors.subtitle,
+                const SizedBox(width: 8),
+                _StatusBadge(
+                  isAllocated: isAllocated,
+                  label: isAllocated ? 'Dialokasikan' : 'Siap digabung',
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
+          const Divider(height: 1, color: _borderColor),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _BatchMetric(
+                    label: 'Berat',
+                    value: '${_formatWeight(receivedWeight)} kg',
+                  ),
+                ),
+                const _MetricDivider(),
+                Expanded(
+                  child: _BatchMetric(
+                    label: 'Jumlah',
+                    value: receivedFruit == null ? '-' : '$receivedFruit butir',
+                  ),
+                ),
+                const _MetricDivider(),
+                Expanded(
+                  child: _BatchMetric(
+                    label: 'Diverifikasi',
+                    value: batch.verifiedAt == null
+                        ? '-'
+                        : _formatDate(batch.verifiedAt!),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _GradeSummary(
+            dominantGrade: verifiedGrade,
+            breakdown: batch.gradeBreakdown,
+          ),
+          if (isAllocated) _AllocationNotice(code: shipmentCode!),
+          if (batch.qualityNotes?.trim().isNotEmpty == true)
+            _QualityNote(note: batch.qualityNotes!.trim()),
         ],
       ),
     );
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label});
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.isAllocated, required this.label});
 
+  final bool isAllocated;
   final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.primaryContainer.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
+        color: isAllocated ? const Color(0xFFFFF3D8) : const Color(0xFFEAF4E6),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w800,
-          color: AppColors.primary,
+          color: isAllocated ? const Color(0xFF8A5A00) : AppColors.primary,
         ),
       ),
     );
   }
 }
 
-// [FE - Component Rendering] Box ini menampilkan komposisi grade riil hasil
-// sortir agar stok gudang bisa dilihat per mutu.
-class _GradeBreakdownBox extends StatelessWidget {
-  const _GradeBreakdownBox({required this.text});
+class _BatchMetric extends StatelessWidget {
+  const _BatchMetric({required this.label, required this.value});
 
-  final String text;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: AppColors.placeholder),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 12,
+            height: 1.25,
+            fontWeight: FontWeight.w800,
+            color: AppColors.subtitle,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MetricDivider extends StatelessWidget {
+  const _MetricDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 40,
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+      color: _borderColor,
+    );
+  }
+}
+
+// [FE - Component Rendering] Ringkasan grading mempertahankan grade dominan
+// sekaligus rincian hasil sortir sebagai data traceability pengepul.
+class _GradeSummary extends StatelessWidget {
+  const _GradeSummary({required this.dominantGrade, required this.breakdown});
+
+  final String dominantGrade;
+  final List<BatchGradeBreakdown> breakdown;
+
+  String _formatWeight(double value) {
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.primaryContainer.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
+      color: _mutedSurface,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.fact_check_outlined,
+                size: 17,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                'Hasil sortir · Dominan Grade $dominantGrade',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.subtitle,
+                ),
+              ),
+            ],
+          ),
+          if (breakdown.isNotEmpty) ...[
+            const SizedBox(height: 9),
+            Wrap(
+              spacing: 8,
+              runSpacing: 7,
+              children: breakdown.map((item) {
+                return Text(
+                  'Grade ${item.grade}: ${_formatWeight(item.weightKg)} kg / '
+                  '${item.fruitCount} butir',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.placeholder,
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AllocationNotice extends StatelessWidget {
+  const _AllocationNotice({required this.code});
+
+  final String code;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFF8E8),
+        border: Border(top: BorderSide(color: Color(0xFFF0D79B))),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.account_tree_outlined,
+            size: 17,
+            color: Color(0xFF9A6700),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Dialokasikan ke batch pengiriman $code',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF7A5100),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QualityNote extends StatelessWidget {
+  const _QualityNote({required this.note});
+
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: _borderColor)),
       ),
       child: Text(
-        text,
+        'Catatan: $note',
         style: const TextStyle(
-          fontSize: 12,
-          height: 1.45,
-          fontWeight: FontWeight.w700,
-          color: AppColors.subtitle,
+          fontSize: 11,
+          height: 1.4,
+          color: AppColors.placeholder,
         ),
       ),
     );
   }
 }
 
-class _InfoData {
-  const _InfoData({
-    required this.label,
-    required this.value,
-  });
+class _ShipmentActionBar extends StatelessWidget {
+  const _ShipmentActionBar({required this.readyCount, required this.onPressed});
 
-  final String label;
-  final String value;
-}
-
-class _InfoGrid extends StatelessWidget {
-  const _InfoGrid({required this.items});
-
-  final List<_InfoData> items;
+  final int readyCount;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: items.map((item) {
-        return SizedBox(
-          width: (MediaQuery.of(context).size.width - 62) / 2,
-          child: _InfoTile(data: item),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _InfoTile extends StatelessWidget {
-  const _InfoTile({required this.data});
-
-  final _InfoData data;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            data.label,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppColors.placeholder,
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          border: Border(top: BorderSide(color: _borderColor)),
+        ),
+        child: SizedBox(
+          height: 50,
+          child: ElevatedButton.icon(
+            onPressed: onPressed,
+            icon: const Icon(Icons.local_shipping_outlined, size: 20),
+            label: Text(
+              readyCount > 0
+                  ? 'Buat Batch Pengiriman ($readyCount siap)'
+                  : 'Kelola Batch Pengiriman',
+            ),
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              backgroundColor: AppColors.primaryContainer,
+              foregroundColor: AppColors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            data.value,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: AppColors.black,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

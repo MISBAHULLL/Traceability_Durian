@@ -107,11 +107,7 @@ class _DescriptionBox extends StatelessWidget {
         'DurianTrace membantu pengepul memverifikasi batch panen durian, '
         'mencatat hasil sortir, menerima stok terverifikasi, dan menjaga '
         'alur traceability dari petani ke rantai pasok berikutnya.',
-        style: TextStyle(
-          fontSize: 14,
-          color: AppColors.subtitle,
-          height: 1.5,
-        ),
+        style: TextStyle(fontSize: 14, color: AppColors.subtitle, height: 1.5),
       ),
     );
   }

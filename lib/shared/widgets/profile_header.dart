@@ -57,7 +57,9 @@ class ProfileHeader extends StatelessWidget {
   }
 
   static Widget _defaultAvatar(String fullName, double size) {
-    final initial = fullName.isNotEmpty ? fullName.trim().substring(0, 1).toUpperCase() : '?';
+    final initial = fullName.isNotEmpty
+        ? fullName.trim().substring(0, 1).toUpperCase()
+        : '?';
     return Container(
       width: size,
       height: size,

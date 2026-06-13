@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
-import '../../../shared/widgets/qr_preview.dart';
 import '../models/umkm_product.dart';
 
 class UmkmProductDetailScreen extends StatelessWidget {
@@ -48,10 +47,12 @@ class UmkmProductDetailScreen extends StatelessWidget {
                         _InfoRow(label: 'Status', value: product.status.label),
                         _InfoRow(label: 'Harga', value: product.priceLabel),
                         _InfoRow(label: 'Stok', value: product.stockLabel),
-                        _InfoRow(label: 'Deskripsi', value: product.description),
+                        _InfoRow(
+                          label: 'Deskripsi',
+                          value: product.description,
+                        ),
                       ],
                     ),
-                    
                   ],
                 ),
               ),
@@ -115,10 +116,7 @@ class _HeaderCard extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.children,
-  });
+  const _SectionCard({required this.title, required this.children});
 
   final String title;
   final List<Widget> children;
@@ -204,7 +202,7 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.12),
+        color: AppColors.primary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(

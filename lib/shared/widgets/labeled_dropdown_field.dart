@@ -146,10 +146,7 @@ class _DropdownContainer<T> extends StatelessWidget {
               ),
             ),
           ),
-          style: const TextStyle(
-            fontSize: 14,
-            color: AppColors.black,
-          ),
+          style: const TextStyle(fontSize: 14, color: AppColors.black),
           dropdownColor: AppColors.white,
           borderRadius: BorderRadius.circular(10),
           onChanged: onChanged,
@@ -160,10 +157,7 @@ class _DropdownContainer<T> extends StatelessWidget {
                 padding: const EdgeInsets.only(left: 14),
                 child: Text(
                   itemLabel(item),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.black,
-                  ),
+                  style: const TextStyle(fontSize: 14, color: AppColors.black),
                 ),
               ),
             );

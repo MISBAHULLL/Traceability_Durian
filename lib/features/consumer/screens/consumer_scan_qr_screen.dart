@@ -1,0 +1,425 @@
+import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+
+import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/primary_pill_button.dart';
+import '../../../shared/widgets/top_notification_banner.dart';
+import '../consumer_routes.dart';
+import '../data/consumer_repository.dart';
+import '../models/consumer_product.dart';
+import 'consumer_product_detail_screen.dart';
+
+/// Screen scan QR untuk konsumen.
+///
+/// Layout dibuat sejajar dengan scan QR collector, tetapi targetnya produk
+/// UMKM yang siap dibeli.
+class ConsumerScanQrScreen extends StatefulWidget {
+  const ConsumerScanQrScreen({super.key});
+
+  @override
+  State<ConsumerScanQrScreen> createState() => _ConsumerScanQrScreenState();
+}
+
+class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
+  final _repo = ConsumerRepository.instance;
+  final _codeCtrl = TextEditingController();
+  final _notification = TopNotification();
+  final _scannerController = MobileScannerController();
+
+  bool _isCameraMode = true;
+  bool _isHandlingScan = false;
+
+  @override
+  void dispose() {
+    _notification.dispose();
+    _codeCtrl.dispose();
+    _scannerController.dispose();
+    super.dispose();
+  }
+
+  String _extractProductCode(String raw) {
+    final text = raw.trim();
+    final match =
+        RegExp(r'UMKM-\d{3}', caseSensitive: false).firstMatch(text);
+    return (match?.group(0) ?? text).toUpperCase();
+  }
+
+  Future<void> _handleScanSubmit() async {
+    FocusScope.of(context).unfocus();
+
+    final code = _extractProductCode(_codeCtrl.text);
+    if (code.isEmpty) {
+      _notification.show(
+        context,
+        'Masukkan kode produk terlebih dahulu.',
+        isError: true,
+      );
+      return;
+    }
+
+    final product = _repo.findProduct(code);
+    if (product == null) {
+      _notification.show(
+        context,
+        'QR tidak valid atau produk belum tersedia.',
+        isError: true,
+      );
+      return;
+    }
+
+    await _openProductDetail(product);
+  }
+
+  Future<void> _handleCameraDetect(BarcodeCapture capture) async {
+    if (_isHandlingScan) return;
+
+    final rawValue = capture.barcodes
+        .map((barcode) => barcode.rawValue)
+        .whereType<String>()
+        .firstWhere((value) => value.trim().isNotEmpty, orElse: () => '');
+
+    if (rawValue.isEmpty) return;
+
+    setState(() => _isHandlingScan = true);
+    await _scannerController.stop();
+
+    final code = _extractProductCode(rawValue);
+    final product = _repo.findProduct(code);
+    if (product == null) {
+      if (!mounted) return;
+      _notification.show(
+        context,
+        'QR tidak valid atau produk belum tersedia.',
+        isError: true,
+      );
+      await Future.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
+      setState(() => _isHandlingScan = false);
+      await _scannerController.start();
+      return;
+    }
+
+    await _openProductDetail(product);
+  }
+
+  Future<void> _openProductDetail(ConsumerProduct product) async {
+    await ConsumerRoutes.push(
+      context,
+      ConsumerProductDetailScreen(product: product),
+    );
+
+    if (!mounted) return;
+    setState(() => _isHandlingScan = false);
+    if (_isCameraMode) {
+      await _scannerController.start();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const AppTopBar(title: 'Scan QR Produk'),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryContainer,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.qr_code_scanner_rounded,
+                            size: 34,
+                            color: AppColors.white,
+                          ),
+                          SizedBox(height: 14),
+                          Text(
+                            'Scan QR Produk',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.white,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Gunakan kamera atau input kode produk secara manual.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.35,
+                              color: Color(0xFFEAF7E5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    _ScanModeToggle(
+                      isCameraMode: _isCameraMode,
+                      onChanged: (value) async {
+                        setState(() {
+                          _isCameraMode = value;
+                          _isHandlingScan = false;
+                        });
+                        if (value) {
+                          await _scannerController.start();
+                        } else {
+                          await _scannerController.stop();
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    if (_isCameraMode) ...[
+                      _CameraScannerBox(
+                        controller: _scannerController,
+                        isHandlingScan: _isHandlingScan,
+                        onDetect: _handleCameraDetect,
+                      ),
+                    ] else ...[
+                      const _FieldLabel(label: 'Kode / URL QR Produk'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _codeCtrl,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: InputDecoration(
+                          hintText: 'Contoh: UMKM-001',
+                          hintStyle: const TextStyle(
+                            color: Color(0xFFB8B8B8),
+                            fontSize: 14,
+                          ),
+                          filled: true,
+                          fillColor: AppColors.white,
+                          prefixIcon: const Icon(
+                            Icons.qr_code_2_rounded,
+                            color: AppColors.placeholder,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Color(0xFFE5E7EB)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Color(0xFFE5E7EB)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: AppColors.primaryContainer,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                        onSubmitted: (_) => _handleScanSubmit(),
+                      ),
+                      const SizedBox(height: 18),
+                      PrimaryPillButton(
+                        label: 'LANJUT',
+                        onPressed: _handleScanSubmit,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: AppColors.subtitle,
+      ),
+    );
+  }
+}
+
+class _ScanModeToggle extends StatelessWidget {
+  const _ScanModeToggle({
+    required this.isCameraMode,
+    required this.onChanged,
+  });
+
+  final bool isCameraMode;
+  final Future<void> Function(bool value) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _ModeButton(
+              icon: Icons.photo_camera_outlined,
+              label: 'Kamera',
+              isActive: isCameraMode,
+              onTap: () {
+                onChanged(true);
+              },
+            ),
+          ),
+          Expanded(
+            child: _ModeButton(
+              icon: Icons.keyboard_alt_outlined,
+              label: 'Input Kode',
+              isActive: !isCameraMode,
+              onTap: () {
+                onChanged(false);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeButton extends StatelessWidget {
+  const _ModeButton({
+    required this.icon,
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isActive ? AppColors.white : AppColors.placeholder;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.primaryContainer : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 17, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CameraScannerBox extends StatelessWidget {
+  const _CameraScannerBox({
+    required this.controller,
+    required this.isHandlingScan,
+    required this.onDetect,
+  });
+
+  final MobileScannerController controller;
+  final bool isHandlingScan;
+  final void Function(BarcodeCapture capture) onDetect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 280,
+      width: double.infinity,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppColors.black,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          MobileScanner(
+            controller: controller,
+            onDetect: onDetect,
+          ),
+          Center(
+            child: Container(
+              width: 210,
+              height: 210,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: AppColors.white.withValues(alpha: 0.85),
+                  width: 2,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                isHandlingScan
+                    ? 'QR terbaca, membuka detail produk...'
+                    : 'Arahkan kamera ke QR produk.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

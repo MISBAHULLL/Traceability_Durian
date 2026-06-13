@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/logout_confirmation_dialog.dart';
 import '../../auth/screens/home_screen.dart';
 import '../data/umkm_repository.dart';
 import '../screens/umkm_add_product_screen.dart';
@@ -100,26 +101,12 @@ class UmkmDrawer extends StatelessWidget {
   }
 
   Future<void> _confirmLogout(BuildContext context) async {
-    Navigator.pop(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('Keluar'),
-        content: const Text('Yakin ingin keluar dari akun UMKM?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text('Keluar'),
-          ),
-        ],
-      ),
-    );
+    final navigator = Navigator.of(context);
+    final confirmed = await showLogoutConfirmationDialog(context);
 
     if (confirmed != true) return;
+    if (!context.mounted) return;
+    navigator.pop();
     UmkmRoutes.replaceAll(context, const HomeScreen());
   }
 }

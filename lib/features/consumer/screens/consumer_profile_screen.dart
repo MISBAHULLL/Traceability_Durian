@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/logout_confirmation_dialog.dart';
 import '../../../shared/widgets/profile_header.dart';
 import '../../../shared/widgets/profile_info_tile.dart';
 import '../data/consumer_repository.dart';
@@ -77,7 +78,10 @@ class ConsumerProfileScreen extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: () {
+                      onPressed: () async {
+                        final confirmed = await showLogoutConfirmationDialog(context);
+                        if (!confirmed) return;
+                        if (!context.mounted) return;
                         ConsumerRepository.instance.logout();
                         ConsumerRoutes.replaceAll(context, const HomeScreen());
                       },

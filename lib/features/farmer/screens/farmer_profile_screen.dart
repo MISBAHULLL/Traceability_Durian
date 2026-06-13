@@ -4,8 +4,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/profile_header.dart';
 import '../../../shared/widgets/profile_info_tile.dart';
-import '../../../shared/widgets/primary_pill_button.dart';
-import '../../../shared/widgets/top_notification_banner.dart';
+import '../../../shared/widgets/logout_confirmation_dialog.dart';
 import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
 import '../models/harvest_batch.dart';
@@ -35,13 +34,10 @@ class FarmerProfileScreen extends StatefulWidget {
 class _FarmerProfileScreenState extends State<FarmerProfileScreen>
     with SingleTickerProviderStateMixin {
   final _repo = FarmerRepository.instance;
-  final _notification = TopNotification();
 
   late final AnimationController _animController;
   late final Animation<double> _fadeAnim;
   late final Animation<Offset> _slideAnim;
-
-  bool _isLoggingOut = false;
 
   @override
   void initState() {
@@ -69,7 +65,6 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
   @override
   void dispose() {
     _repo.removeListener(_onRepoChanged);
-    _notification.dispose();
     _animController.dispose();
     super.dispose();
   }
@@ -84,21 +79,13 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
     await FarmerRoutes.push(context, const EditProfileScreen());
   }
 
-  // [FE - Event Handler] _handleLogout menangani aksi keluar: reset mock
-  // repository lalu ganti seluruh stack navigasi ke HomeScreen (login).
-  /// Menangani aksi keluar: reset sesi mock lalu bersihkan stack ke login.
+  // [FE - Event Handler] _handleLogout menutup sesi petani tanpa dialog
+  // agar polanya konsisten dengan role lain.
   Future<void> _handleLogout() async {
-    setState(() => _isLoggingOut = true);
-
-    // Simulasi delay singkat agar transisi terasa natural
-    await Future.delayed(const Duration(milliseconds: 300));
-
+    final confirmed = await showLogoutConfirmationDialog(context);
+    if (!confirmed) return;
     if (!mounted) return;
-
-    // Reset state mock repository (Req 6.4)
     _repo.logout();
-
-    // Ganti seluruh stack navigasi ke layar login (Req 6.4)
     FarmerRoutes.replaceAll(context, const HomeScreen());
   }
 
@@ -165,9 +152,29 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
                         const SizedBox(height: 40),
 
                         // ── Tombol Keluar (Req 6.3) ──────────────────────
-                        _LogoutButton(
-                          isLoading: _isLoggingOut,
-                          onPressed: _handleLogout,
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _handleLogout,
+                            icon: const Icon(
+                              Icons.logout_rounded,
+                              color: Color(0xFFDC2626),
+                            ),
+                            label: const Text(
+                              'Keluar',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFDC2626),
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFFDC2626)),
+                              shape: const StadiumBorder(),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              foregroundColor: const Color(0xFFDC2626),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -242,72 +249,5 @@ class _ProfileInfoSection extends StatelessWidget {
     if (parts.isNotEmpty) return parts.join(', ');
     // Fallback ke ringkasan lokasi bila ada, selain itu penanda kosong.
     return p.location.isNotEmpty ? p.location : _kNotSet;
-  }
-}
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tombol Keluar
-// ─────────────────────────────────────────────────────────────────────────────
-
-// [FE - Component Rendering] _LogoutButton menggunakan warna merah untuk
-// memberi sinyal visual bahwa ini adalah aksi destruktif (logout),
-// berbeda dari tombol aksi utama hijau di layar lain.
-/// Tombol logout dengan gaya pill merah agar berbeda dari aksi utama hijau.
-///
-/// Menggunakan [PrimaryPillButton] sebagai referensi pola, namun dengan
-/// warna merah untuk memberi sinyal destruktif (Req 6.3, 8.2).
-class _LogoutButton extends StatelessWidget {
-  const _LogoutButton({
-    required this.isLoading,
-    required this.onPressed,
-  });
-
-  final bool isLoading;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: isLoading ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFDC2626),
-          disabledBackgroundColor:
-              const Color(0xFFDC2626).withValues(alpha: 0.55),
-          foregroundColor: AppColors.white,
-          disabledForegroundColor: AppColors.white.withValues(alpha: 0.7),
-          elevation: 0,
-          shape: const StadiumBorder(),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-        ),
-        child: isLoading
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
-                ),
-              )
-            : const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.logout_rounded, size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    'KELUAR',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.5,
-                      color: AppColors.white,
-                    ),
-                  ),
-                ],
-              ),
-      ),
-    );
   }
 }

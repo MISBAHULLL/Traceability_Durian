@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/logout_confirmation_dialog.dart';
 import '../../auth/screens/home_screen.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
@@ -112,35 +113,7 @@ class CollectorDrawer extends StatelessWidget {
   // mengakhiri sesi — mencegah logout tak sengaja.
   Future<void> _confirmLogout(BuildContext context) async {
     final navigator = Navigator.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppColors.white,
-        title: const Text('Keluar dari akun?'),
-        content: const Text(
-          'Anda akan keluar dari sesi ini dan kembali ke halaman masuk.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text(
-              'Batal',
-              style: TextStyle(color: AppColors.placeholder),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text(
-              'Keluar',
-              style: TextStyle(
-                color: Color(0xFFDC2626),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    final confirmed = await showLogoutConfirmationDialog(context);
 
     if (confirmed != true) return;
     if (!context.mounted) return;

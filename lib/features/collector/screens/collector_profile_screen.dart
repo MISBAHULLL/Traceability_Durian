@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/logout_confirmation_dialog.dart';
 import '../../../shared/widgets/profile_header.dart';
 import '../../../shared/widgets/profile_info_tile.dart';
 import '../../auth/screens/home_screen.dart';
@@ -49,35 +50,7 @@ class _CollectorProfileScreenState extends State<CollectorProfileScreen> {
   // mengakhiri sesi, lalu membersihkan stack ke layar masuk.
   Future<void> _confirmLogout() async {
     final navigator = Navigator.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppColors.white,
-        title: const Text('Keluar dari akun?'),
-        content: const Text(
-          'Anda akan keluar dari sesi ini dan kembali ke halaman masuk.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text(
-              'Batal',
-              style: TextStyle(color: AppColors.placeholder),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text(
-              'Keluar',
-              style: TextStyle(
-                color: Color(0xFFDC2626),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    final confirmed = await showLogoutConfirmationDialog(context);
 
     if (confirmed != true) return;
     if (!mounted) return;

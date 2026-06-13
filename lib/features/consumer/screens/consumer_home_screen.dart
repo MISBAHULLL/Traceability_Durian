@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/widgets/top_notification_banner.dart';
-import '../../umkm/umkm_routes.dart';
-import '../../umkm/screens/umkm_home_screen.dart';
-import '../../umkm/screens/umkm_add_product_screen.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../consumer_routes.dart';
 import '../data/consumer_repository.dart';
@@ -14,6 +9,7 @@ import '../models/consumer_transaction.dart';
 import '../widgets/consumer_drawer.dart';
 import 'consumer_profile_screen.dart';
 import 'consumer_product_detail_screen.dart';
+import 'consumer_scan_qr_screen.dart';
 import 'consumer_transaction_detail_screen.dart';
 
 /// Beranda untuk role Konsumen.
@@ -29,7 +25,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
   final _repo = ConsumerRepository.instance;
   final _searchController = TextEditingController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-  final _notif = TopNotification();
 
   ConsumerProductFilter _activeFilter = ConsumerProductFilter.semua;
   _DashboardTab _activeTab = _DashboardTab.products;
@@ -72,7 +67,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
   @override
   void dispose() {
     _repo.removeListener(_onRepoChanged);
-    _notif.dispose();
     _animController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -98,21 +92,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
     await ConsumerRoutes.push(context, const ConsumerProfileScreen());
   }
 
-  Future<void> _openBuyStock() async {
-    UmkmRoutes.push(context, const UmkmHomeScreen());
-  }
-
-  Future<void> _openAddProduct() async {
-    UmkmRoutes.push(context, const UmkmAddProductScreen());
-  }
-
-  Future<void> _openCamera() async {
-    try {
-      final picker = ImagePicker();
-      await picker.pickImage(source: ImageSource.camera);
-    } catch (_) {
-      // Camera was not available or permission denied.
-    }
+  Future<void> _openScanQr() async {
+    await ConsumerRoutes.push(context, const ConsumerScanQrScreen());
   }
 
   void _openProductDetail(ConsumerProduct product) {
@@ -134,7 +115,6 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
     final products = _filteredProducts;
     final transactions = _filteredTransactions;
     final profile = _repo.profile;
-    final uniqueUmkm = _repo.products.map((p) => p.umkmName).toSet().length;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -164,28 +144,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
                               _SearchField(controller: _searchController),
                               const SizedBox(height: 14),
                             ],
-                            _PrimaryActionCard(onTap: _openBuyStock),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: PrimaryPillButton(
-                                    label: 'Tambahkan Produk',
-                                    onPressed: _openAddProduct,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            if (_activeTab == _DashboardTab.products) ...[
-                              _UmkmCard(
-                                count: uniqueUmkm,
-                                onTap: () {
-                                  UmkmRoutes.push(context, const UmkmHomeScreen());
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                            ],
+                            _ScanQrCard(onTap: _openScanQr),
+                            const SizedBox(height: 16),
                             _DashboardTabs(
                               active: _activeTab,
                               onChanged: (tab) => setState(() {
@@ -353,13 +313,23 @@ class _GreetingBlock extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 2),
-        Text(
-          profile.roleLabel,
-          style: const TextStyle(
-            fontSize: 13,
-            color: AppColors.primary,
-            fontWeight: FontWeight.w600,
-          ),
+        Row(
+          children: [
+            const Icon(
+              Icons.person_outline_rounded,
+              size: 15,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              profile.roleLabel,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.primary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
         if (profile.location.isNotEmpty) ...[
           const SizedBox(height: 2),
@@ -376,32 +346,21 @@ class _GreetingBlock extends StatelessWidget {
   }
 }
 
-class _ScannerCard extends StatelessWidget {
-  const _ScannerCard({required this.onTap});
+class _ScanQrCard extends StatelessWidget {
+  const _ScanQrCard({required this.onTap});
 
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox.shrink();
-  }
-}
-
-class _PrimaryActionCard extends StatelessWidget {
-  const _PrimaryActionCard({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
+    return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
         decoration: BoxDecoration(
-          color: AppColors.primary,
+          color: AppColors.primaryContainer,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
@@ -415,8 +374,8 @@ class _PrimaryActionCard extends StatelessWidget {
               ),
               alignment: Alignment.center,
               child: const Icon(
-                Icons.add_rounded,
-                color: AppColors.primary,
+                Icons.qr_code_scanner_rounded,
+                color: AppColors.primaryContainer,
                 size: 26,
               ),
             ),
@@ -426,7 +385,7 @@ class _PrimaryActionCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
                   Text(
-                    'Beli Stok Durian',
+                    'Scan QR Produk',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -435,7 +394,7 @@ class _PrimaryActionCard extends StatelessWidget {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Pilih produk durian yang ingin Anda beli untuk menambah stok.',
+                    'Arahkan kamera ke QR produk untuk melihat detail dan melanjutkan pembelian.',
                     style: TextStyle(
                       fontSize: 12,
                       color: Color(0xFFEAF7E5),
@@ -448,76 +407,6 @@ class _PrimaryActionCard extends StatelessWidget {
             const Icon(
               Icons.chevron_right_rounded,
               color: AppColors.white,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _UmkmCard extends StatelessWidget {
-  const _UmkmCard({required this.count, required this.onTap});
-
-  final int count;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.storefront_outlined,
-                color: AppColors.primary,
-                size: 26,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'UMKM Terdaftar',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$count UMKM aktif di katalog',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.placeholder,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.subtitle,
             ),
           ],
         ),
@@ -729,7 +618,7 @@ class _SearchField extends StatelessWidget {
       controller: controller,
       style: const TextStyle(fontSize: 14, color: AppColors.black),
       decoration: InputDecoration(
-        hintText: 'Cari produk UMKM',
+        hintText: 'Cari produk',
         hintStyle: const TextStyle(fontSize: 14, color: AppColors.placeholder),
         prefixIcon: const Icon(
           Icons.search_rounded,

@@ -137,7 +137,6 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
             child: Column(
               children: [
                 _TopBar(
-                  onBack: () => Navigator.maybePop(context),
                   onProfile: _openProfile,
                   onMenu: _openDrawer,
                 ),
@@ -203,63 +202,40 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
 // Top bar
 // ─────────────────────────────────────────────────────────────────────────────
 
-// [FE - Component Rendering] _TopBar mereplikasi top bar prototype: tombol
-// back di kiri, judul "Beranda" di tengah, ikon profil & menu di kanan.
+// [FE - Component Rendering] _TopBar mengikuti pola beranda petani:
+// judul "Beranda" di kiri dan ikon aksi di kanan.
 class _TopBar extends StatelessWidget {
   const _TopBar({
-    required this.onBack,
     required this.onProfile,
     required this.onMenu,
   });
 
-  final VoidCallback onBack;
   final VoidCallback onProfile;
   final VoidCallback onMenu;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
-      child: Stack(
-        alignment: Alignment.center,
+      padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
+      child: Row(
         children: [
-          // Judul di tengah
           const Text(
             'Beranda',
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-              letterSpacing: -0.2,
-            ),
-          ),
-          // Tombol back di kiri
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _IconButton(
-              icon: Icons.arrow_back_ios_new_rounded,
               color: AppColors.black,
-              onTap: onBack,
             ),
           ),
-          // Aksi di kanan
-          Align(
-            alignment: Alignment.centerRight,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _IconButton(
-                  icon: Icons.person_rounded,
-                  color: AppColors.primary,
-                  onTap: onProfile,
-                ),
-                _IconButton(
-                  icon: Icons.menu_rounded,
-                  color: AppColors.black,
-                  onTap: onMenu,
-                ),
-              ],
-            ),
+          const Spacer(),
+          _IconButton(
+            icon: Icons.person_outline_rounded,
+            onTap: onProfile,
+          ),
+          const SizedBox(width: 4),
+          _IconButton(
+            icon: Icons.menu_rounded,
+            onTap: onMenu,
           ),
         ],
       ),
@@ -268,21 +244,16 @@ class _TopBar extends StatelessWidget {
 }
 
 class _IconButton extends StatelessWidget {
-  const _IconButton({
-    required this.icon,
-    required this.onTap,
-    required this.color,
-  });
+  const _IconButton({required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
       onPressed: onTap,
-      icon: Icon(icon, color: color, size: 24),
+      icon: Icon(icon, color: AppColors.black, size: 24),
       splashRadius: 22,
     );
   }
@@ -299,9 +270,6 @@ class _GreetingBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final secondaryLabel =
-        profile.businessName.isEmpty ? profile.roleLabel : profile.businessName;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -314,12 +282,23 @@ class _GreetingBlock extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 2),
-        Text(
-          secondaryLabel,
-          style: const TextStyle(
-            fontSize: 13,
-            color: AppColors.placeholder,
-          ),
+        Row(
+          children: [
+            const Icon(
+              Icons.person_outline_rounded,
+              size: 15,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              profile.roleLabel,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.primary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
         // [FE - Component Rendering] Lokasi operasional ditampilkan bila ada
         // agar pengepul langsung tahu konteks akun yang sedang aktif.

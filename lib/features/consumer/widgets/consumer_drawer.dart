@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/logout_confirmation_dialog.dart';
 import '../../auth/screens/home_screen.dart';
 import '../consumer_routes.dart';
 import '../data/consumer_repository.dart';
@@ -32,10 +33,10 @@ class ConsumerDrawer extends StatelessWidget {
                 );
               },
             ),
-            const SizedBox(height: 8),
+            const Divider(height: 1, color: Color(0xFFE5E7EB)),
             Expanded(
               child: ListView(
-                padding: EdgeInsets.zero,
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
                   _DrawerItem(
                     icon: Icons.home_rounded,
@@ -81,7 +82,7 @@ class ConsumerDrawer extends StatelessWidget {
                 ],
               ),
             ),
-            const Divider(height: 1),
+            const Divider(height: 1, color: Color(0xFFE5E7EB)),
             _DrawerItem(
               icon: Icons.logout_rounded,
               label: 'Keluar',
@@ -95,26 +96,12 @@ class ConsumerDrawer extends StatelessWidget {
   }
 
   Future<void> _confirmLogout(BuildContext context) async {
-    Navigator.pop(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('Keluar'),
-        content: const Text('Yakin ingin keluar dari akun konsumen?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text('Keluar'),
-          ),
-        ],
-      ),
-    );
+    final navigator = Navigator.of(context);
+    final confirmed = await showLogoutConfirmationDialog(context);
 
     if (confirmed != true) return;
+    if (!context.mounted) return;
+    navigator.pop();
     ConsumerRepository.instance.logout();
     ConsumerRoutes.replaceAll(context, const HomeScreen());
   }
@@ -132,17 +119,14 @@ class _DrawerHeader extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-        decoration: const BoxDecoration(
-          color: AppColors.primaryContainer,
-        ),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
         child: Row(
           children: [
             Container(
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: AppColors.white.withValues(alpha: 0.15),
+                color: AppColors.primary,
                 shape: BoxShape.circle,
               ),
               alignment: Alignment.center,
@@ -167,16 +151,31 @@ class _DrawerHeader extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.white,
+                      color: AppColors.black,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    profile.roleLabel,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFFEAF7E5),
-                    ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.person_outline_rounded,
+                        size: 14,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          profile.roleLabel,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.primary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -203,20 +202,31 @@ class _DrawerItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: isDestructive ? const Color(0xFFB91C1C) : AppColors.primary,
-      ),
-      title: Text(
-        label,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: isDestructive ? const Color(0xFFB91C1C) : AppColors.black,
+    final itemColor = isDestructive ? const Color(0xFFB91C1C) : AppColors.black;
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: isDestructive ? const Color(0xFFB91C1C) : AppColors.primary,
+            ),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: itemColor,
+              ),
+            ),
+          ],
         ),
       ),
-      onTap: onTap,
     );
   }
 }

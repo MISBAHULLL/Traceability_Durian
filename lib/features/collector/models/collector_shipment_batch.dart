@@ -4,6 +4,21 @@ import 'collector_stock_summary.dart';
 // milik pengepul sebelum nanti dipindahkan ke state backend/blockchain.
 enum CollectorShipmentStatus { readyToShip, sent, completed }
 
+// [DB - Model/Entity] Enum ini membedakan penerima manifest agar pengiriman
+// langsung ke UMKM tidak masuk ke antrean operasional distributor.
+enum ShipmentDestinationType { umkm, distributor }
+
+extension ShipmentDestinationTypeX on ShipmentDestinationType {
+  String get label {
+    switch (this) {
+      case ShipmentDestinationType.umkm:
+        return 'UMKM';
+      case ShipmentDestinationType.distributor:
+        return 'Distributor';
+    }
+  }
+}
+
 extension CollectorShipmentStatusX on CollectorShipmentStatus {
   String get label {
     switch (this) {
@@ -30,6 +45,7 @@ class CollectorShipmentBatch {
     required this.varietyBreakdown,
     required this.packagedAt,
     required this.status,
+    this.destinationType = ShipmentDestinationType.distributor,
     this.warehouseNote,
     this.sentAt,
     this.completedAt,
@@ -44,6 +60,7 @@ class CollectorShipmentBatch {
   final List<CollectorStockBreakdown> varietyBreakdown;
   final DateTime packagedAt;
   final CollectorShipmentStatus status;
+  final ShipmentDestinationType destinationType;
   final String? warehouseNote;
   final DateTime? sentAt;
   final DateTime? completedAt;
@@ -52,6 +69,7 @@ class CollectorShipmentBatch {
   // pengiriman tanpa membuat UI tahu detail struktur model.
   CollectorShipmentBatch copyWith({
     CollectorShipmentStatus? status,
+    ShipmentDestinationType? destinationType,
     String? warehouseNote,
     DateTime? sentAt,
     DateTime? completedAt,
@@ -66,6 +84,7 @@ class CollectorShipmentBatch {
       varietyBreakdown: varietyBreakdown,
       packagedAt: packagedAt,
       status: status ?? this.status,
+      destinationType: destinationType ?? this.destinationType,
       warehouseNote: warehouseNote ?? this.warehouseNote,
       sentAt: sentAt ?? this.sentAt,
       completedAt: completedAt ?? this.completedAt,
@@ -82,6 +101,7 @@ class CollectorShipmentBatch {
     'varietyBreakdown': varietyBreakdown.map((e) => e.toJson()).toList(),
     'packagedAt': packagedAt.toIso8601String(),
     'status': status.name,
+    'destinationType': destinationType.name,
     'warehouseNote': warehouseNote,
     'sentAt': sentAt?.toIso8601String(),
     'completedAt': completedAt?.toIso8601String(),
@@ -116,6 +136,10 @@ class CollectorShipmentBatch {
       status: CollectorShipmentStatus.values.firstWhere(
         (e) => e.name == json['status'],
         orElse: () => CollectorShipmentStatus.readyToShip,
+      ),
+      destinationType: ShipmentDestinationType.values.firstWhere(
+        (e) => e.name == json['destinationType'],
+        orElse: () => ShipmentDestinationType.distributor,
       ),
       warehouseNote: json['warehouseNote'] as String?,
       sentAt: json['sentAt'] == null

@@ -41,7 +41,7 @@ class _ShipmentQrScreenState extends State<ShipmentQrScreen> {
     if (mounted) setState(() {});
   }
 
-  // [FE - Event Handler] Handler ini mensimulasikan distributor berhasil
+  // [FE - Event Handler] Handler ini mensimulasikan pihak tujuan berhasil
   // scan QR lalu mengonfirmasi pengiriman mulai berjalan.
   Future<void> _markSent() async {
     setState(() => _isSubmitting = true);
@@ -50,10 +50,12 @@ class _ShipmentQrScreenState extends State<ShipmentQrScreen> {
 
     final ok = _repo.markShipmentSent(widget.shipmentCode);
     setState(() => _isSubmitting = false);
+    final shipment = _repo.findShipmentBatch(widget.shipmentCode);
+    final receiver = shipment?.destinationType.label ?? 'Penerima';
     _notification.show(
       context,
       ok
-          ? 'Distributor mengonfirmasi batch dikirim.'
+          ? '$receiver mengonfirmasi batch dikirim.'
           : 'Status batch tidak bisa diubah.',
       isError: !ok,
     );
@@ -101,7 +103,8 @@ class _ShipmentQrScreenState extends State<ShipmentQrScreen> {
                         if (shipment.status ==
                             CollectorShipmentStatus.readyToShip)
                           PrimaryPillButton(
-                            label: 'SIMULASI DISTRIBUTOR KONFIRMASI',
+                            label:
+                                'SIMULASI ${shipment.destinationType.label.toUpperCase()} KONFIRMASI',
                             onPressed: _isSubmitting ? null : _markSent,
                             isLoading: _isSubmitting,
                           )
@@ -227,6 +230,7 @@ class _ShipmentInfoCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _InfoRow(label: 'Status', value: shipment.status.label),
+          _InfoRow(label: 'Tujuan', value: shipment.destinationType.label),
           _InfoRow(
             label: 'Total Berat',
             value: _formatWeight(shipment.totalWeightKg),

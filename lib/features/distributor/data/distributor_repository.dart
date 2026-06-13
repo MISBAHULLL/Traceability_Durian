@@ -132,9 +132,16 @@ class DistributorRepository extends ChangeNotifier {
 
   // ── Shipments & Metrics ────────────────────────────────────────────────────
 
-  /// Mengambil semua shipment batch dari CollectorRepository.
-  List<CollectorShipmentBatch> get allShipments =>
-      CollectorRepository.instance.shipmentBatches;
+  // [FE - State Management] Distributor hanya membaca manifest yang tujuan
+  // penerimanya distributor; pengiriman langsung UMKM tetap terisolasi.
+  List<CollectorShipmentBatch> get allShipments => CollectorRepository
+      .instance
+      .shipmentBatches
+      .where(
+        (shipment) =>
+            shipment.destinationType == ShipmentDestinationType.distributor,
+      )
+      .toList();
 
   // [FE - State Management] Lookup ini menjadi jembatan detail distributor
   // dari kode shipment PGL ke data agregat pengepul yang sedang dipilih.

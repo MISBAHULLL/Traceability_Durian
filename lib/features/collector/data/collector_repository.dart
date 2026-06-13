@@ -96,6 +96,20 @@ class CollectorRepository extends ChangeNotifier {
     _farmerRepo.markBatchesInDistribution(
       sourceBatchCodes: distributedSourceCodes,
     );
+
+    // [FE - State Management] Shipment langsung yang sudah selesai di UMKM
+    // dipulihkan ke status penerimaan akhir setelah restart aplikasi.
+    final receivedByUmkmCodes = _shipmentBatches
+        .where(
+          (shipment) =>
+              shipment.status == CollectorShipmentStatus.completed &&
+              shipment.destinationType == ShipmentDestinationType.umkm,
+        )
+        .expand((shipment) => shipment.sourceBatchCodes)
+        .toSet();
+    _farmerRepo.markBatchesReceivedByUmkm(
+      sourceBatchCodes: receivedByUmkmCodes,
+    );
   }
 
   // [FE - State Management] Migrasi ini memperbaiki PGL demo lama agar hanya
@@ -273,8 +287,7 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - State Management] Stok pengepul dibentuk dari batch petani yang
   // sudah diverifikasi pengepul dan siap masuk flow distribusi berikutnya.
-  List<HarvestBatch> get stockBatches =>
-      _farmerRepo.batchesForCollectorStock;
+  List<HarvestBatch> get stockBatches => _farmerRepo.batchesForCollectorStock;
 
   // [FE - State Management] Batch tersedia untuk agregasi mengecualikan
   // source batch yang sudah pernah masuk batch pengiriman pengepul.
@@ -338,10 +351,11 @@ class CollectorRepository extends ChangeNotifier {
   // beberapa batch petani terverifikasi tanpa menyentuh blockchain/backend.
   CollectorShipmentBatch? createShipmentBatch({
     required List<String> sourceBatchCodes,
+    required ShipmentDestinationType destinationType,
     String? warehouseNote,
   }) {
     final cleanCodes = sourceBatchCodes.toSet().toList();
-    if (cleanCodes.length < 2) return null;
+    if (cleanCodes.isEmpty) return null;
 
     final availableByCode = {
       for (final batch in availableStockBatches) batch.code: batch,
@@ -351,13 +365,6 @@ class CollectorRepository extends ChangeNotifier {
         .whereType<HarvestBatch>()
         .toList();
     if (selectedBatches.length != cleanCodes.length) return null;
-
-    // [FE - State Management] Satu PGL menjaga satu varietas agar manifest,
-    // grading, dan penelusuran fisik tidak ambigu saat diterima distributor.
-    final selectedVarieties = selectedBatches
-        .map((batch) => batch.variety.trim().toLowerCase())
-        .toSet();
-    if (selectedVarieties.length != 1) return null;
 
     final overview = _overviewForBatches(selectedBatches);
     final shipment = CollectorShipmentBatch(
@@ -370,6 +377,7 @@ class CollectorRepository extends ChangeNotifier {
       varietyBreakdown: overview.varietyBreakdown,
       packagedAt: DateTime.now(),
       status: CollectorShipmentStatus.readyToShip,
+      destinationType: destinationType,
       warehouseNote: warehouseNote?.trim().isEmpty == true
           ? null
           : warehouseNote?.trim(),
@@ -425,12 +433,16 @@ class CollectorRepository extends ChangeNotifier {
       completedAt: DateTime.now(),
       warehouseNote: warehouseNote,
     );
-    // [FE - State Management] Complete shipment tetap memastikan source batch
-    // berada di IN_DISTRIBUTION; status RECEIVED_BY_UMKM sengaja menunggu
-    // aksi role UMKM agar alur bisnis tidak lompat melewati penerima akhir.
+    // [FE - State Management] Distributor mempertahankan status distribusi,
+    // sedangkan konfirmasi tujuan UMKM menutup handover sebagai penerimaan.
     _farmerRepo.markBatchesInDistribution(
       sourceBatchCodes: existing.sourceBatchCodes,
     );
+    if (existing.destinationType == ShipmentDestinationType.umkm) {
+      _farmerRepo.markBatchesReceivedByUmkm(
+        sourceBatchCodes: existing.sourceBatchCodes,
+      );
+    }
     _saveToLocal();
     notifyListeners();
     return true;

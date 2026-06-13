@@ -239,6 +239,11 @@ class _ShipmentCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _BreakdownText(
+            title: 'Tujuan Pengiriman',
+            text: shipment.destinationType.label,
+          ),
+          const SizedBox(height: 10),
+          _BreakdownText(
             title: 'Source Batch',
             text: shipment.sourceBatchCodes.join(', '),
           ),

@@ -6,6 +6,7 @@ import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../data/collector_repository.dart';
+import '../models/collector_shipment_batch.dart';
 
 // [FE - Component Rendering] Screen ini menjadi form agregasi stok pengepul
 // menjadi batch pengiriman baru tanpa menyentuh backend/blockchain.
@@ -22,6 +23,7 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
   final _noteCtrl = TextEditingController();
   final _notification = TopNotification();
   final Set<String> _selectedCodes = {};
+  ShipmentDestinationType? _destinationType;
   bool _isSubmitting = false;
 
   @override
@@ -45,21 +47,6 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
   // [FE - Event Handler] Handler ini memilih/melepas source batch yang akan
   // masuk ke provenance tree batch pengiriman.
   void _toggleBatch(HarvestBatch batch) {
-    if (!_selectedCodes.contains(batch.code) && _selectedCodes.isNotEmpty) {
-      final selectedBatch = _repo.availableStockBatches.firstWhere(
-        (item) => _selectedCodes.contains(item.code),
-      );
-      if (selectedBatch.variety.trim().toLowerCase() !=
-          batch.variety.trim().toLowerCase()) {
-        _notification.show(
-          context,
-          'Satu batch PGL hanya boleh berisi satu varietas durian.',
-          isError: true,
-        );
-        return;
-      }
-    }
-
     setState(() {
       if (_selectedCodes.contains(batch.code)) {
         _selectedCodes.remove(batch.code);
@@ -72,10 +59,20 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
   // [FE - Event Handler] Submit ini membuat batch agregat FE-only dan
   // menyimpan mapping source batch untuk mencegah alokasi ganda.
   Future<void> _handleSubmit() async {
-    if (_selectedCodes.length < 2) {
+    if (_selectedCodes.isEmpty) {
       _notification.show(
         context,
-        'Pilih minimal dua batch stok untuk digabungkan.',
+        'Pilih minimal satu batch stok untuk dikirim.',
+        isError: true,
+      );
+      return;
+    }
+
+    final destinationType = _destinationType;
+    if (destinationType == null) {
+      _notification.show(
+        context,
+        'Pilih tujuan pengiriman: UMKM atau distributor.',
         isError: true,
       );
       return;
@@ -87,6 +84,7 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
 
     final shipment = _repo.createShipmentBatch(
       sourceBatchCodes: _selectedCodes.toList(),
+      destinationType: destinationType,
       warehouseNote: _noteCtrl.text,
     );
 
@@ -134,7 +132,18 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
                             ),
                           ),
                         ),
+                        const SizedBox(height: 10),
+                        const _SectionTitle(title: 'Tujuan Pengiriman'),
                         const SizedBox(height: 8),
+                        // [FE - Component Rendering] Tujuan dipilih eksplisit
+                        // karena jumlah batch tidak menentukan jenis penerima.
+                        _DestinationSelector(
+                          selected: _destinationType,
+                          onChanged: (value) {
+                            setState(() => _destinationType = value);
+                          },
+                        ),
+                        const SizedBox(height: 18),
                         const _SectionTitle(title: 'Catatan Kondisi Gudang'),
                         const SizedBox(height: 8),
                         // [FE - Component Rendering] Catatan gudang menjadi
@@ -192,7 +201,7 @@ class _EmptyAvailableBatch extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(28),
         child: Text(
-          'Belum ada minimal dua batch stok yang tersedia untuk digabungkan.',
+          'Belum ada batch stok yang tersedia untuk dibuatkan pengiriman.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 13,
@@ -201,6 +210,78 @@ class _EmptyAvailableBatch extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// [FE - Component Rendering] Selector ini memisahkan jalur handover langsung
+// ke UMKM dan jalur skala besar melalui distributor tanpa aturan jumlah kaku.
+class _DestinationSelector extends StatelessWidget {
+  const _DestinationSelector({required this.selected, required this.onChanged});
+
+  final ShipmentDestinationType? selected;
+  final ValueChanged<ShipmentDestinationType> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: ShipmentDestinationType.values.map((type) {
+        final isSelected = selected == type;
+        final isLast = type == ShipmentDestinationType.values.last;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: isLast ? 0 : 10),
+            child: InkWell(
+              onTap: () => onChanged(type),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primaryContainer.withValues(alpha: 0.08)
+                      : AppColors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isSelected
+                        ? AppColors.primaryContainer
+                        : const Color(0xFFE5E7EB),
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      type == ShipmentDestinationType.umkm
+                          ? Icons.storefront_outlined
+                          : Icons.warehouse_outlined,
+                      size: 20,
+                      color: isSelected
+                          ? AppColors.primary
+                          : AppColors.placeholder,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        type.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.subtitle,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

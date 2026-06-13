@@ -6,6 +6,7 @@ import '../../farmer/models/harvest_batch.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_stock_summary.dart';
+import 'create_shipment_batch_screen.dart';
 import 'collector_shipments_screen.dart';
 
 const _pageBackground = Color(0xFFF4F6F3);
@@ -42,9 +43,17 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
     if (mounted) setState(() {});
   }
 
-  // [FE - Event Handler] Aksi utama ini membuka pengelolaan batch pengiriman
-  // sebagai tahap lanjutan setelah stok diterima di gudang pengepul.
-  Future<void> _openShipments() async {
+  // [FE - Event Handler] Aksi utama langsung membuka form agregasi ketika
+  // stok tersedia; daftar pengiriman hanya dibuka saat tidak ada stok bebas.
+  Future<void> _openShipmentAction() async {
+    if (_repo.availableStockBatches.isNotEmpty) {
+      await CollectorRoutes.push<bool>(
+        context,
+        const CreateShipmentBatchScreen(),
+      );
+      return;
+    }
+
     await CollectorRoutes.push(context, const CollectorShipmentsScreen());
   }
 
@@ -112,7 +121,7 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
           ? null
           : _ShipmentActionBar(
               readyCount: readyCount,
-              onPressed: _openShipments,
+              onPressed: _openShipmentAction,
             ),
     );
   }

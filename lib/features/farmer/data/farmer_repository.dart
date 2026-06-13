@@ -790,6 +790,32 @@ class FarmerRepository extends ChangeNotifier {
     return true;
   }
 
+  // [FE - State Management] Transisi ini mencatat handover akhir untuk jalur
+  // pengepul langsung ke UMKM setelah source batch berada dalam distribusi.
+  bool markBatchesReceivedByUmkm({required Iterable<String> sourceBatchCodes}) {
+    final cleanCodes = sourceBatchCodes
+        .map((code) => code.trim())
+        .where((code) => code.isNotEmpty)
+        .toSet();
+    if (cleanCodes.isEmpty) return false;
+
+    var changed = false;
+    for (var i = 0; i < _batches.length; i++) {
+      final batch = _batches[i];
+      if (!cleanCodes.contains(batch.code)) continue;
+      if (batch.status != BatchStatus.inDistribution) continue;
+
+      _batches[i] = batch.copyWith(status: BatchStatus.receivedByUmkm);
+      changed = true;
+    }
+
+    if (!changed) return false;
+
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
   // [FE - State Management] eventsFor membangkitkan timeline dari status
   // batch saat ini — pada fase FE-only ini bersifat deterministik;
   // di masa depan akan diganti dengan event nyata dari backend.

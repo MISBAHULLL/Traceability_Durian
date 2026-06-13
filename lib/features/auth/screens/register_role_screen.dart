@@ -60,7 +60,7 @@ const List<_RoleOption> _roles = [
 ///
 /// Saat aktif di debug, alur register akan langsung seed data dummy dan
 /// masuk ke halaman role masing-masing tanpa lewat form register.
-const bool _kBypassRegisterFormForUiTesting = true;
+const bool _kBypassRegisterFormForUiTesting = false;
 
 /// Halaman pemilihan peran saat pendaftaran akun baru.
 ///

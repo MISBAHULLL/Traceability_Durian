@@ -11,10 +11,6 @@ import '../screens/distributor_profile_screen.dart';
 import '../screens/distributor_scan_qr_screen.dart';
 import 'distributor_avatar.dart';
 
-// [FE - Component Rendering] DistributorDrawer adalah navigation drawer utama
-// role Distributor — dibuka dari ikon hamburger Beranda. Pola identik dengan
-// FarmerDrawer dan CollectorDrawer agar konsisten di seluruh aplikasi.
-/// Drawer navigasi utama untuk Beranda Distributor.
 class DistributorDrawer extends StatelessWidget {
   const DistributorDrawer({super.key});
 
@@ -23,138 +19,168 @@ class DistributorDrawer extends StatelessWidget {
     final profile = DistributorRepository.instance.profile;
 
     return Drawer(
-      backgroundColor: AppColors.white,
-      child: SafeArea(
-        child: Column(
-          children: [
-            _DrawerHeader(
-              profile: profile,
-              onTap: () => _go(context, const DistributorProfileScreen()),
+      backgroundColor: AppColors.surface,
+      elevation: 0,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(28)),
+      ),
+      child: Column(
+        children: [
+          _DrawerHeader(
+            profile: profile,
+            onTap: () => _go(context, const DistributorProfileScreen()),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              physics: const BouncingScrollPhysics(),
+              children: [
+                _DrawerItem(
+                  icon: Icons.home_rounded,
+                  label: 'Beranda',
+                  onTap: () => Navigator.pop(context),
+                ),
+                _DrawerItem(
+                  icon: Icons.qr_code_scanner_rounded,
+                  label: 'Scan QR Pengiriman',
+                  onTap: () => _go(context, const DistributorScanQrScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.local_shipping_outlined,
+                  label: 'Pengiriman Aktif',
+                  onTap: () =>
+                      _go(context, const DistributorActiveShipmentsScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.history_rounded,
+                  label: 'Riwayat Aktivitas',
+                  onTap: () => _go(context, const DistributorHistoryScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Profil',
+                  onTap: () => _go(context, const DistributorProfileScreen()),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                  child: Divider(color: Color(0xFFE5E7EB), height: 1),
+                ),
+                _DrawerItem(
+                  icon: Icons.help_outline_rounded,
+                  label: 'Bantuan & Panduan',
+                  onTap: () => Navigator.pop(context),
+                ),
+                _DrawerItem(
+                  icon: Icons.info_outline_rounded,
+                  label: 'Tentang',
+                  onTap: () => Navigator.pop(context),
+                ),
+              ],
             ),
-            const Divider(height: 1, color: Color(0xFFE5E7EB)),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                children: [
-                  _DrawerItem(
-                    icon: Icons.home_rounded,
-                    label: 'Beranda',
-                    onTap: () => Navigator.pop(context),
-                  ),
-                  _DrawerItem(
-                    icon: Icons.qr_code_scanner_rounded,
-                    label: 'Scan QR Pengiriman',
-                    onTap: () => _go(context, const DistributorScanQrScreen()),
-                  ),
-                  _DrawerItem(
-                    icon: Icons.local_shipping_outlined,
-                    label: 'Pengiriman Aktif',
-                    onTap: () =>
-                        _go(context, const DistributorActiveShipmentsScreen()),
-                  ),
-                  _DrawerItem(
-                    icon: Icons.history_rounded,
-                    label: 'Riwayat Aktivitas',
-                    onTap: () => _go(context, const DistributorHistoryScreen()),
-                  ),
-                  _DrawerItem(
-                    icon: Icons.person_outline_rounded,
-                    label: 'Profil',
-                    onTap: () => _go(context, const DistributorProfileScreen()),
-                  ),
-                  const Divider(
-                    height: 18,
-                    color: Color(0xFFE5E7EB),
-                    indent: 20,
-                    endIndent: 20,
-                  ),
-                  _DrawerItem(
-                    icon: Icons.help_outline_rounded,
-                    label: 'Bantuan & Panduan',
-                    onTap: () {
-                      Navigator.pop(context);
-                      // Screen bantuan akan dihubungkan di sini.
-                    },
-                  ),
-                  _DrawerItem(
-                    icon: Icons.info_outline_rounded,
-                    label: 'Tentang',
-                    onTap: () {
-                      Navigator.pop(context);
-                      // Screen tentang aplikasi akan dihubungkan di sini.
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1, color: Color(0xFFE5E7EB)),
-            _DrawerItem(
-              icon: Icons.logout_rounded,
+          ),
+          const SizedBox(height: 16),
+          SafeArea(
+            top: false,
+            child: _DrawerItem(
+              icon: Icons.power_settings_new_rounded,
               label: 'Keluar',
               color: const Color(0xFFDC2626),
               onTap: () => _confirmLogout(context),
             ),
-            const SizedBox(height: 8),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
 
-  // [FE - Event Handler] _go menutup drawer lalu mendorong [page].
   void _go(BuildContext context, Widget page) {
-    Navigator.pop(context); // tutup drawer
+    Navigator.pop(context);
     DistributorRoutes.push(context, page);
   }
 
-  // [FE - Event Handler] _confirmLogout menampilkan dialog konfirmasi sebelum
-  // mengakhiri sesi — mencegah logout tak sengaja.
   Future<void> _confirmLogout(BuildContext context) async {
     final navigator = Navigator.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.white,
-        title: const Text('Keluar dari akun?'),
-        content: const Text(
-          'Anda akan keluar dari sesi ini dan kembali ke halaman masuk.',
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_rounded, color: Color(0xFFDC2626), size: 28),
+            SizedBox(width: 12),
+            Text(
+              'Keluar Akun?',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text(
-              'Batal',
-              style: TextStyle(color: AppColors.placeholder),
-            ),
+        content: const Text(
+          'Anda akan keluar dari sesi ini dan kembali ke halaman masuk. Pastikan semua data telah tersimpan.',
+          style: TextStyle(
+            color: AppColors.subtitle,
+            height: 1.5,
+            fontSize: 15,
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text(
-              'Keluar',
-              style: TextStyle(
-                color: Color(0xFFDC2626),
-                fontWeight: FontWeight.w700,
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Batal',
+                    style: TextStyle(
+                      color: AppColors.placeholder,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: const Color(0xFFDC2626),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Keluar',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
 
-    if (confirmed != true) return;
-    if (!context.mounted) return;
+    if (confirmed != true || !context.mounted) return;
 
     DistributorRepository.instance.logout();
-    navigator.pop(); // tutup drawer
+    navigator.pop();
     DistributorRoutes.replaceAll(context, const HomeScreen());
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-widgets
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Header drawer berisi avatar foto/inisial, nama, dan label peran distributor.
 class _DrawerHeader extends StatelessWidget {
   const _DrawerHeader({required this.profile, required this.onTap});
 
@@ -163,58 +189,99 @@ class _DrawerHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
     final subtitle = profile.businessName.isEmpty
         ? profile.roleLabel
         : profile.businessName;
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-        child: Row(
-          children: [
-            DistributorAvatar(profile: profile, size: 52),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    profile.fullName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.black,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ],
-              ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Ink(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [AppColors.primary, AppColors.primaryContainer],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.placeholder,
-              size: 22,
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(24, topPadding + 32, 24, 32),
+            child: Row(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: DistributorAvatar(profile: profile, size: 58),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        profile.fullName,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.white70,
+                  size: 26,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Satu baris item menu di dalam drawer.
 class _DrawerItem extends StatelessWidget {
   const _DrawerItem({
     required this.icon,
@@ -230,24 +297,52 @@ class _DrawerItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final itemColor = color ?? AppColors.black;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        child: Row(
-          children: [
-            Icon(icon, size: 22, color: color ?? AppColors.primary),
-            const SizedBox(width: 16),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: itemColor,
-              ),
+    final isDestructive = color != null;
+    final itemColor = color ?? AppColors.primary;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Material(
+        color: isDestructive ? const Color(0xFFFEF2F2) : Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: itemColor.withValues(alpha: 0.1),
+          highlightColor: itemColor.withValues(alpha: 0.05),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: itemColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 22, color: itemColor),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: isDestructive ? itemColor : AppColors.subtitle,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                ),
+                if (!isDestructive)
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: AppColors.placeholder.withValues(alpha: 0.5),
+                  ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

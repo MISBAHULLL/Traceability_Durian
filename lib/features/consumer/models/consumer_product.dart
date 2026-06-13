@@ -132,6 +132,8 @@ class ConsumerProduct {
 /// Profil konsumen yang login.
 @immutable
 class ConsumerProfile {
+  static const Object _unset = Object();
+
   const ConsumerProfile({
     required this.consumerId,
     required this.fullName,
@@ -157,7 +159,7 @@ class ConsumerProfile {
     String? contact,
     String? email,
     String? location,
-    String? avatarPath,
+    Object? avatarPath = _unset,
   }) {
     return ConsumerProfile(
       consumerId: consumerId ?? this.consumerId,
@@ -166,7 +168,9 @@ class ConsumerProfile {
       contact: contact ?? this.contact,
       email: email ?? this.email,
       location: location ?? this.location,
-      avatarPath: avatarPath ?? this.avatarPath,
+      avatarPath: avatarPath == _unset
+          ? this.avatarPath
+          : avatarPath as String?,
     );
   }
 

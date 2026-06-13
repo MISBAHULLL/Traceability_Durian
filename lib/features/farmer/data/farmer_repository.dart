@@ -678,8 +678,7 @@ class FarmerRepository extends ChangeNotifier {
   // verifikasi dan penolakan tetap terlihat pada riwayat pengepul mock.
   List<HarvestBatch> get batchesForCollectorHistory {
     final items = _batches.where((batch) {
-      return batch.status == BatchStatus.verifiedByCollector ||
-          batch.status == BatchStatus.rejected;
+      return batch.verifiedAt != null || batch.rejectedAt != null;
     }).toList();
     items.sort((a, b) {
       final aDate =

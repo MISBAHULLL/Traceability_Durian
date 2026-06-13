@@ -67,7 +67,7 @@ class CollectorDrawer extends StatelessWidget {
                   ),
                   _DrawerItem(
                     icon: Icons.history_rounded,
-                    label: 'Riwayat Transaksi',
+                    label: 'Riwayat Aktivitas',
                     onTap: () => _go(context, const CollectorHistoryScreen()),
                   ),
                   _DrawerItem(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
@@ -6,6 +7,7 @@ import '../../../shared/widgets/primary_pill_button.dart';
 import '../consumer_routes.dart';
 import '../data/consumer_repository.dart';
 import '../models/consumer_product.dart';
+import '../models/consumer_transaction.dart';
 import 'consumer_transaction_qr_screen.dart';
 
 class ConsumerCreateTransactionScreen extends StatefulWidget {
@@ -21,17 +23,22 @@ class ConsumerCreateTransactionScreen extends StatefulWidget {
 }
 
 class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransactionScreen> {
-  final _addressController = TextEditingController(text: 'Desa Pakis, Kec. Panti, Kab. Jember');
-  final _coordinateController = TextEditingController(text: '-8.2285, 113.6204');
-  final _paymentMethods = ['Transfer Bank', 'Cash on Delivery', 'Virtual Account'];
-  String _paymentMethod = 'Transfer Bank';
+  final _addressController = TextEditingController();
+  final _coordinateController = TextEditingController();
+  final _accountNumberController = TextEditingController();
+  final _paymentMethods = ['QRIS', 'Transfer Bank', 'Cash on Delivery'];
+  final _bankOptions = ['BCA', 'BNI', 'BRI'];
+  String _paymentMethod = 'QRIS';
+  String _selectedBank = 'BCA';
   int _quantity = 1;
   bool _isSubmitting = false;
+  bool _isLocating = false;
 
   @override
   void dispose() {
     _addressController.dispose();
     _coordinateController.dispose();
+    _accountNumberController.dispose();
     super.dispose();
   }
 
@@ -45,22 +52,113 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
     }
   }
 
+  Future<void> _fillCurrentLocation() async {
+    if (_isLocating) return;
+
+    setState(() => _isLocating = true);
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _showMessage(
+          'Aktifkan layanan lokasi/GPS dulu agar koordinat bisa diambil.',
+          isError: true,
+        );
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied) {
+        _showMessage(
+          'Izin lokasi ditolak. Koordinat tidak bisa diambil.',
+          isError: true,
+        );
+        return;
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        _showMessage(
+          'Izin lokasi ditolak permanen. Aktifkan dari pengaturan perangkat.',
+          isError: true,
+        );
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _coordinateController.text =
+            '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
+      });
+
+      _showMessage(
+        'Koordinat berhasil diisi dari GPS perangkat.',
+        isError: false,
+      );
+    } catch (_) {
+      _showMessage(
+        'Gagal mengambil lokasi. Coba lagi beberapa saat.',
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLocating = false);
+      }
+    }
+  }
+
+  void _showMessage(String message, {required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red.shade700 : AppColors.primary,
+      ),
+    );
+  }
+
   Future<void> _submit() async {
+    if (_paymentMethod == 'Transfer Bank' &&
+        _accountNumberController.text.trim().isEmpty) {
+      _showMessage('Nomor rekening harus diisi untuk transfer bank.', isError: true);
+      return;
+    }
+
     setState(() => _isSubmitting = true);
     final repo = ConsumerRepository.instance;
+    final isTransferBank = _paymentMethod == 'Transfer Bank';
+    final paymentStatus =
+        _paymentMethod == 'QRIS'
+            ? ConsumerPaymentStatus.unpaid
+            : ConsumerPaymentStatus.processing;
     final transaction = repo.addTransaction(
       widget.product,
       quantity: _quantity,
       buyerAddress: _addressController.text.trim(),
       buyerCoordinates: _coordinateController.text.trim(),
       paymentMethod: _paymentMethod,
+      paymentStatus: paymentStatus,
+      bankName: isTransferBank ? _selectedBank : null,
+      accountNumber: isTransferBank ? _accountNumberController.text.trim() : null,
       note: 'Transaksi dibuat dari detail produk.',
     );
-    await ConsumerRoutes.push(
-      context,
-      ConsumerTransactionQrScreen(transaction: transaction),
-    );
-    setState(() => _isSubmitting = false);
+    try {
+      await ConsumerRoutes.push(
+        context,
+        ConsumerTransactionQrScreen(transaction: transaction),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   @override
@@ -114,6 +212,36 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
                     _SectionCard(
                       title: 'Alamat Pengiriman',
                       children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _isLocating ? null : _fillCurrentLocation,
+                            icon: _isLocating
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.my_location_rounded, size: 18),
+                            label: Text(
+                              _isLocating ? 'Mengambil Lokasi...' : 'Tambahkan Lokasi',
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(color: Color(0xFFD1D5DB)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
                         _TextFieldRow(
                           controller: _addressController,
                           hintText: 'Masukkan alamat lengkap',
@@ -144,10 +272,12 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
                             ),
                           ),
                           items: _paymentMethods
-                              .map((payment) => DropdownMenuItem(
-                                    value: payment,
-                                    child: Text(payment),
-                                  ))
+                              .map(
+                                (payment) => DropdownMenuItem(
+                                  value: payment,
+                                  child: Text(payment),
+                                ),
+                              )
                               .toList(),
                           onChanged: (value) {
                             if (value != null) {
@@ -155,6 +285,43 @@ class _ConsumerCreateTransactionScreenState extends State<ConsumerCreateTransact
                             }
                           },
                         ),
+                        if (_paymentMethod == 'Transfer Bank') ...[
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: _selectedBank,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: AppColors.surface,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
+                            ),
+                            items: _bankOptions
+                                .map(
+                                  (bank) => DropdownMenuItem(
+                                    value: bank,
+                                    child: Text(bank),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() => _selectedBank = value);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          _TextFieldRow(
+                            controller: _accountNumberController,
+                            hintText: 'Nomor rekening tujuan',
+                            keyboardType: TextInputType.number,
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -280,15 +447,18 @@ class _TextFieldRow extends StatelessWidget {
   const _TextFieldRow({
     required this.controller,
     required this.hintText,
+    this.keyboardType,
   });
 
   final TextEditingController controller;
   final String hintText;
+  final TextInputType? keyboardType;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      keyboardType: keyboardType,
       style: const TextStyle(fontSize: 13, color: AppColors.black),
       decoration: InputDecoration(
         hintText: hintText,

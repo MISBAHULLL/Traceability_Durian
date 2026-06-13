@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -6,14 +9,14 @@ import '../data/umkm_repository.dart';
 import '../models/umkm_order.dart';
 import '../models/umkm_product.dart';
 import '../models/umkm_profile.dart';
-import '../models/umkm_purchase.dart';
+import '../models/umkm_stock_order.dart';
 import '../widgets/umkm_drawer.dart';
 import 'umkm_add_product_screen.dart';
 import 'umkm_add_purchase_screen.dart';
+import 'umkm_data_screen.dart';
 import 'umkm_order_detail_screen.dart';
 import 'umkm_order_list_screen.dart';
 import 'umkm_product_detail_screen.dart';
-import 'umkm_purchase_detail_screen.dart';
 import 'umkm_profile_screen.dart';
 
 class UmkmHomeScreen extends StatefulWidget {
@@ -96,6 +99,13 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
     );
   }
 
+  Future<void> _openEditUmkm() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => UmkmDataScreen()),
+    );
+  }
+
   Future<void> _openProductDetail(UmkmProduct product) async {
     await Navigator.push(
       context,
@@ -110,10 +120,10 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
     );
   }
 
-  Future<void> _openPurchaseDetail(UmkmPurchase purchase) async {
+  Future<void> _openPurchaseDetail(UmkmStockOrder order) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => UmkmPurchaseDetailScreen(purchase: purchase)),
+      MaterialPageRoute(builder: (_) => UmkmStockOrderDetailScreen(order: order)),
     );
   }
 
@@ -131,7 +141,9 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
         })
         .toList();
     final orders = _repo.orders;
-    final purchases = _repo.purchases;
+    final purchases = _repo.stockOrders
+        .where((order) => order.status == UmkmStockOrderStatus.selesai)
+        .toList();
     final categories = [
       'Semua',
       ...{for (final item in _repo.products) item.category},
@@ -139,7 +151,7 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
 
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.white,
       endDrawer: const UmkmDrawer(),
       body: SafeArea(
         child: FadeTransition(
@@ -165,7 +177,7 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
                               profile: profile,
                               productCount: products.length,
                               orderCount: orders.length,
-                              onEdit: _openProfile,
+                              onEdit: _openEditUmkm,
                             ),
                             const SizedBox(height: 20),
                             _DashboardActions(
@@ -244,7 +256,7 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
                         sliver: SliverList(
                           delegate: SliverChildListDelegate([
                             _SectionHeader(
-                              title: 'Pembelian dari Pengepul',
+                              title: 'Pembelian durian',
                               count: purchases.length,
                             ),
                           ]),
@@ -322,6 +334,8 @@ class _IconButton extends StatelessWidget {
       onPressed: onTap,
       icon: Icon(icon, color: AppColors.black, size: 24),
       splashRadius: 22,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
     );
   }
 }
@@ -349,13 +363,24 @@ class _GreetingBlock extends StatelessWidget {
         const SizedBox(height: 2),
         Align(
           alignment: Alignment.centerLeft,
-          child: Text(
-            'Dashboard UMKM',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primary,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(
+                Icons.storefront_rounded,
+                size: 16,
+                color: AppColors.primaryContainer,
+              ),
+              SizedBox(width: 6),
+              Text(
+                'UMKM',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryContainer,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -473,10 +498,10 @@ class _CategoryChips extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: isActive ? AppColors.primary : AppColors.surface,
+                color: isActive ? AppColors.primaryContainer : AppColors.surface,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: isActive ? AppColors.primary : const Color(0xFFE5E7EB),
+                  color: isActive ? AppColors.primaryContainer : const Color(0xFFE5E7EB),
                 ),
               ),
               child: Text(
@@ -484,7 +509,7 @@ class _CategoryChips extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: isActive ? AppColors.white : AppColors.subtitle,
+                  color: isActive ? AppColors.white : AppColors.black,
                 ),
               ),
             ),
@@ -521,9 +546,33 @@ class _ProfileCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            width: double.infinity,
+            height: 128,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: profile.imageBytes != null
+                ? Image.memory(
+                    profile.imageBytes!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const _UmkmImagePlaceholder(),
+                  )
+                : (!kIsWeb && profile.imagePath != null && profile.imagePath!.isNotEmpty)
+                    ? Image.file(
+                        File(profile.imagePath!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const _UmkmImagePlaceholder(),
+                      )
+                    : const _UmkmImagePlaceholder(),
+          ),
+          const SizedBox(height: 14),
           Row(
             children: [
-              const Icon(Icons.storefront_rounded, color: AppColors.primary, size: 24),
+              const Icon(Icons.storefront_rounded, color: AppColors.primaryContainer, size: 24),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -596,12 +645,12 @@ class _ActionTile extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.white,
+          color: AppColors.primaryContainer,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: AppColors.primaryContainer),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: AppColors.primaryContainer.withValues(alpha: 0.14),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
@@ -609,16 +658,7 @@ class _ActionTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.primaryContainer.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              alignment: Alignment.center,
-              child: Icon(icon, color: AppColors.primary, size: 26),
-            ),
+            Icon(icon, color: AppColors.white, size: 30),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -626,19 +666,51 @@ class _ActionTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.white,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     subtitle,
-                    style: const TextStyle(fontSize: 12, color: AppColors.placeholder, height: 1.5),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFFF7FAF7),
+                      height: 1.5,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.subtitle),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.white),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _UmkmImagePlaceholder extends StatelessWidget {
+  const _UmkmImagePlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.storefront_outlined, size: 42, color: AppColors.placeholder),
+          SizedBox(height: 8),
+          Text(
+            'Gambar UMKM',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.placeholder,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -661,7 +733,7 @@ class _SectionHeader extends StatelessWidget {
         ),
         Text(
           '$count item',
-          style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
+          style: const TextStyle(fontSize: 12, color: AppColors.black),
         ),
       ],
     );
@@ -934,7 +1006,7 @@ class _OrderCard extends StatelessWidget {
 class _PurchaseCard extends StatelessWidget {
   const _PurchaseCard({required this.purchase, required this.onTap});
 
-  final UmkmPurchase purchase;
+  final UmkmStockOrder purchase;
   final VoidCallback onTap;
 
   @override
@@ -965,7 +1037,7 @@ class _PurchaseCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              purchase.productName,
+              purchase.offerName,
               style: const TextStyle(fontSize: 12, color: AppColors.subtitle),
             ),
             const SizedBox(height: 10),
@@ -977,7 +1049,7 @@ class _PurchaseCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  'x${purchase.quantity}',
+                  'x${purchase.quantityKg}',
                   style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
                 ),
               ],
@@ -1002,12 +1074,12 @@ class _InfoLabel extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: AppColors.primary),
+          Icon(icon, size: 16, color: AppColors.primaryContainer),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(fontSize: 12, color: AppColors.subtitle),
+              style: const TextStyle(fontSize: 12, color: AppColors.black),
               overflow: TextOverflow.ellipsis,
             ),
           ),

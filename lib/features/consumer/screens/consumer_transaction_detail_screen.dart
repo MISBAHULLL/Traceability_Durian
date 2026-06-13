@@ -3,6 +3,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../models/consumer_product.dart';
 import '../models/consumer_transaction.dart';
 
 /// Detail transaksi konsumen.
@@ -17,6 +18,11 @@ class ConsumerTransactionDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final product = transaction.product;
+    final isQris = transaction.paymentMethod == 'QRIS';
+    final paymentStatus = transaction.effectivePaymentStatus;
+    final showQr = isQris && paymentStatus == ConsumerPaymentStatus.unpaid;
+    final showDeliveryFlow = paymentStatus != ConsumerPaymentStatus.unpaid;
+    final paymentStatusLabel = paymentStatus.label;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -151,62 +157,73 @@ class ConsumerTransactionDetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'QR Transaksi',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Center(
-                          child: QrImageView(
-                            data: transaction.qrCodeData,
-                            version: QrVersions.auto,
-                            size: 160,
-                            backgroundColor: AppColors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Center(
-                          child: Text(
-                            transaction.id,
-                            style: const TextStyle(
+                  _ProductInfoCard(product: product),
+                  if (showQr) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Text(
+                            'QR Transaksi',
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
-                              letterSpacing: 0.6,
+                              color: AppColors.black,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 14),
+                          Center(
+                            child: QrImageView(
+                              data: transaction.qrCodeData,
+                              version: QrVersions.auto,
+                              size: 160,
+                              backgroundColor: AppColors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Center(
+                            child: Text(
+                              transaction.id,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _DeliveryTimeline(status: transaction.status),
+                  ],
+                  if (showDeliveryFlow) ...[
+                    const SizedBox(height: 16),
+                    _DeliveryTimeline(status: transaction.status),
+                  ],
+                  if (transaction.status == ConsumerTransactionStatus.completed) ...[
+                    const SizedBox(height: 16),
+                    _PurchasedProductQrCard(transaction: transaction),
+                  ],
                   const SizedBox(height: 16),
 
                   _SectionCard(
                     title: 'Informasi Transaksi',
                     children: [
                       _InfoRow(label: 'Kode', value: transaction.id),
-                      _InfoRow(
-                        label: 'Status',
-                        value: transaction.status.label,
-                        valueColor: transaction.status.color,
-                      ),
+                      if (showDeliveryFlow)
+                        _InfoRow(
+                          label: 'Status',
+                          value: transaction.status.label,
+                          valueColor: transaction.status.color,
+                        ),
                       _InfoRow(
                         label: 'Tanggal',
                         value: _formatDateTime(transaction.createdAt),
@@ -218,7 +235,22 @@ class ConsumerTransactionDetailScreen extends StatelessWidget {
                       _InfoRow(label: 'Total', value: transaction.totalLabel),
                       _InfoRow(label: 'Alamat', value: transaction.buyerAddress),
                       _InfoRow(label: 'Koordinat', value: transaction.buyerCoordinates),
+                      _InfoRow(
+                        label: 'Status Pembayaran',
+                        value: paymentStatusLabel,
+                        valueColor: paymentStatus.color,
+                      ),
+                      if (transaction.status == ConsumerTransactionStatus.completed)
+                        _InfoRow(
+                          label: 'Kode Produk',
+                          value: transaction.purchasedProductCode,
+                        ),
                       _InfoRow(label: 'Pembayaran', value: transaction.paymentMethod),
+                      if (transaction.bankName != null && transaction.bankName!.isNotEmpty)
+                        _InfoRow(label: 'Bank', value: transaction.bankName!),
+                      if (transaction.accountNumber != null &&
+                          transaction.accountNumber!.isNotEmpty)
+                        _InfoRow(label: 'Rekening', value: transaction.accountNumber!),
                       if (transaction.note != null && transaction.note!.isNotEmpty)
                         _InfoRow(label: 'Catatan', value: transaction.note!),
                     ],
@@ -379,6 +411,115 @@ class _DeliveryTimeline extends StatelessWidget {
               ),
             );
           }),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductInfoCard extends StatelessWidget {
+  const _ProductInfoCard({required this.product});
+
+  final ConsumerProduct product;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Informasi Produk',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppColors.black,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _InfoRow(label: 'Nama Produk', value: product.name),
+          _InfoRow(label: 'Kategori', value: product.category.label),
+          _InfoRow(
+            label: 'Status',
+            value: product.status.label,
+            valueColor: product.status.color,
+          ),
+          _InfoRow(label: 'Harga', value: product.priceLabel),
+          _InfoRow(label: 'Stok', value: product.stockLabel),
+          _InfoRow(label: 'Rating', value: product.rating.toStringAsFixed(1)),
+          _InfoRow(label: 'UMKM', value: product.umkmName),
+          _InfoRow(label: 'Lokasi UMKM', value: product.location),
+          _InfoRow(label: 'Deskripsi', value: product.shortDescription),
+        ],
+      ),
+    );
+  }
+}
+
+class _PurchasedProductQrCard extends StatelessWidget {
+  const _PurchasedProductQrCard({required this.transaction});
+
+  final ConsumerTransaction transaction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'QR Produk Pembelian',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Kode unik ini menandai produk yang sudah berhasil dibeli.',
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.placeholder,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Center(
+            child: QrImageView(
+              data: transaction.purchasedProductQrData,
+              version: QrVersions.auto,
+              size: 160,
+              backgroundColor: AppColors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: Text(
+              transaction.purchasedProductCode,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
         ],
       ),
     );

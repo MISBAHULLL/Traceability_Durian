@@ -51,27 +51,7 @@ class UmkmProductDetailScreen extends StatelessWidget {
                         _InfoRow(label: 'Deskripsi', value: product.description),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    _SectionCard(
-                      title: 'QR Produk',
-                      children: [
-                        Center(
-                          child: QrPreview(data: product.qrCodeData, size: 180),
-                        ),
-                        const SizedBox(height: 12),
-                        Center(
-                          child: Text(
-                            product.code,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
-                              letterSpacing: 0.6,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    
                   ],
                 ),
               ),

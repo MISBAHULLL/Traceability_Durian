@@ -39,6 +39,42 @@ class _UmkmOrderDetailScreenState extends State<UmkmOrderDetailScreen> {
     );
   }
 
+  Future<void> _cancelOrder() async {
+    final shouldCancel = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Batalkan pesanan?'),
+          content: const Text(
+            'Pesanan akan dihapus dari daftar pesanan aktif dan tidak bisa dikembalikan.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Tidak'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Ya, batalkan'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldCancel != true) return;
+
+    setState(() => _isSaving = true);
+    await Future.delayed(const Duration(milliseconds: 300));
+    _repo.deleteOrder(_order.id);
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Pesanan dibatalkan.')),
+    );
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final product = _findProductByName(_order.productName);
@@ -90,56 +126,54 @@ class _UmkmOrderDetailScreenState extends State<UmkmOrderDetailScreen> {
                         _InfoRow(label: 'Catatan', value: _order.note ?? 'Tidak ada catatan'),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    _SectionCard(
-                      title: 'QR Pesanan',
-                      children: [
-                        Center(
-                          child: QrPreview(data: _order.qrCodeData, size: 180),
-                        ),
-                        const SizedBox(height: 12),
-                        Center(
-                          child: Text(
-                            _order.qrCodeData,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
-                              letterSpacing: 0.6,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    
                     const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: _isSaving || _order.status == UmkmOrderStatus.selesai
-                                ? null
-                                : () => _updateStatus(UmkmOrderStatus.selesai),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryContainer,
-                              disabledBackgroundColor: AppColors.primaryContainer.withValues(alpha: 0.35),
-                              foregroundColor: AppColors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    if (_order.status == UmkmOrderStatus.diproses) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: _isSaving ? null : () => _updateStatus(UmkmOrderStatus.selesai),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryContainer,
+                                disabledBackgroundColor: AppColors.primaryContainer.withValues(alpha: 0.35),
+                                foregroundColor: AppColors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              child: _isSaving
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.4,
+                                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                                      ),
+                                    )
+                                  : const Text('selesai'),
                             ),
-                            child: _isSaving
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.4,
-                                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
-                                    ),
-                                  )
-                                : const Text('Tandai Selesai'),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _isSaving ? null : _cancelOrder,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFDC2626),
+                                side: const BorderSide(color: Color(0xFFFECACA)),
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                backgroundColor: const Color(0xFFFFF5F5),
+                              ),
+                              child: const Text('Batalkan Pesanan'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

@@ -3,7 +3,9 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../consumer_routes.dart';
 import '../models/consumer_transaction.dart';
+import 'consumer_home_screen.dart';
 
 class ConsumerTransactionQrScreen extends StatelessWidget {
   const ConsumerTransactionQrScreen({
@@ -15,12 +17,23 @@ class ConsumerTransactionQrScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isQris = transaction.paymentMethod == 'QRIS';
+    final paymentStatus = transaction.effectivePaymentStatus;
+    final showQr = isQris && paymentStatus == ConsumerPaymentStatus.unpaid;
+    final statusLabel = paymentStatus.label;
+
     return Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(
         child: Column(
           children: [
-            const AppTopBar(title: 'QR Transaksi'),
+            AppTopBar(
+              title: showQr ? 'QR Bayar' : 'Detail Pembayaran',
+              onBack: () => ConsumerRoutes.replaceAll(
+                context,
+                const ConsumerHomeScreen(),
+              ),
+            ),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
@@ -28,34 +41,85 @@ class ConsumerTransactionQrScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                    if (showQr)
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: QrImageView(
+                          data: transaction.qrCodeData,
+                          version: QrVersions.auto,
+                          size: 220,
+                          backgroundColor: AppColors.white,
+                        ),
+                      )
+                    else
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Detail Pembayaran',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            if (isQris) ...[
+                              _MiniInfoRow(
+                                label: 'Status',
+                                value: statusLabel,
+                              ),
+                              const SizedBox(height: 10),
+                              _MiniInfoRow(
+                                label: 'Kode Transaksi',
+                                value: transaction.id,
+                              ),
+                            ] else ...[
+                              _MiniInfoRow(
+                                label: 'Bank',
+                                value: transaction.bankName ?? '-',
+                              ),
+                              const SizedBox(height: 10),
+                              _MiniInfoRow(
+                                label: 'Nomor Rekening',
+                                value: transaction.accountNumber ?? '-',
+                              ),
+                              const SizedBox(height: 10),
+                              _MiniInfoRow(
+                                label: 'Status',
+                                value: statusLabel,
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                      child: QrImageView(
-                        data: transaction.qrCodeData,
-                        version: QrVersions.auto,
-                        size: 220,
-                        backgroundColor: AppColors.white,
-                      ),
-                    ),
                     const SizedBox(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          'Kode Transaksi: ',
-                          style: TextStyle(
+                        Text(
+                          showQr ? 'Kode Transaksi: ' : 'Status Pembayaran: ',
+                          style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: AppColors.subtitle,
                           ),
                         ),
                         Text(
-                          transaction.id,
+                          showQr ? transaction.id : statusLabel,
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
@@ -77,20 +141,20 @@ class ConsumerTransactionQrScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Status Transaksi',
-                            style: TextStyle(
+                          Text(
+                            showQr ? 'Status Pembayaran' : 'Status Pembayaran',
+                            style: const TextStyle(
                               fontSize: 12,
                               color: AppColors.placeholder,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            transaction.status.label,
+                            statusLabel,
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
-                              color: transaction.status.color,
+                              color: paymentStatus.color,
                             ),
                           ),
                         ],
@@ -106,6 +170,14 @@ class ConsumerTransactionQrScreen extends StatelessWidget {
                     _MiniInfoRow(label: 'Koordinat', value: transaction.buyerCoordinates),
                     const SizedBox(height: 10),
                     _MiniInfoRow(label: 'Pembayaran', value: transaction.paymentMethod),
+                    if (transaction.bankName != null && transaction.bankName!.isNotEmpty)
+                      _MiniInfoRow(label: 'Bank', value: transaction.bankName!),
+                    if (transaction.accountNumber != null &&
+                        transaction.accountNumber!.isNotEmpty)
+                      _MiniInfoRow(
+                        label: 'Rekening',
+                        value: transaction.accountNumber!,
+                      ),
                   ],
                 ),
               ),
@@ -129,7 +201,7 @@ class _MiniInfoRow extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            '$label',
+            label,
             style: const TextStyle(fontSize: 12, color: AppColors.placeholder),
           ),
         ),

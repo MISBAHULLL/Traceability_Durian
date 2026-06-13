@@ -202,6 +202,8 @@ class _RegisterRoleScreenState extends State<RegisterRoleScreen>
             email: 'umkm.demo@example.com',
             location: 'Kabupaten Jember, Jawa Timur',
             about: 'Akun dummy untuk testing UI UMKM.',
+            imagePath: null,
+            imageBytes: null,
           ),
         );
         destination = const UmkmHomeScreen();

@@ -28,7 +28,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
 
   ConsumerProductFilter _activeFilter = ConsumerProductFilter.semua;
   _DashboardTab _activeTab = _DashboardTab.products;
-  ConsumerTransactionStatus? _activeTransactionStatus;
+  _TransactionPaymentTab _activeTransactionTab =
+      _TransactionPaymentTab.unpaid;
   String _query = '';
 
   late final AnimationController _animController;
@@ -82,8 +83,11 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
 
   List<ConsumerTransaction> get _filteredTransactions {
     final all = _repo.transactions;
-    if (_activeTransactionStatus == null) return all;
-    return all.where((t) => t.status == _activeTransactionStatus).toList();
+    return all
+        .where(
+          (t) => t.effectivePaymentStatus == _activeTransactionTab.status,
+        )
+        .toList();
   }
 
   void _openDrawer() => _scaffoldKey.currentState?.openEndDrawer();
@@ -148,13 +152,8 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
                             const SizedBox(height: 16),
                             _DashboardTabs(
                               active: _activeTab,
-                              onChanged: (tab) => setState(() {
-                                _activeTab = tab;
-                                if (tab == _DashboardTab.transactions) {
-                                  _activeTransactionStatus ??=
-                                      ConsumerTransactionStatus.processing;
-                                }
-                              }),
+                              onChanged: (tab) =>
+                                  setState(() => _activeTab = tab),
                             ),
                             const SizedBox(height: 16),
                             if (_activeTab == _DashboardTab.products) ...[
@@ -170,9 +169,9 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
                               ),
                             ] else ...[
                               _TransactionStatusTabs(
-                                activeStatus: _activeTransactionStatus,
-                                onChanged: (status) =>
-                                    setState(() => _activeTransactionStatus = status),
+                                activeTab: _activeTransactionTab,
+                                onChanged: (tab) =>
+                                    setState(() => _activeTransactionTab = tab),
                               ),
                               const SizedBox(height: 12),
                               _SectionHeader(
@@ -247,6 +246,32 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
 }
 
 enum _DashboardTab { products, transactions }
+
+enum _TransactionPaymentTab { unpaid, processing, completed }
+
+extension _TransactionPaymentTabX on _TransactionPaymentTab {
+  String get label {
+    switch (this) {
+      case _TransactionPaymentTab.unpaid:
+        return 'Belum Dibayar';
+      case _TransactionPaymentTab.processing:
+        return 'Diproses';
+      case _TransactionPaymentTab.completed:
+        return 'Selesai';
+    }
+  }
+
+  ConsumerPaymentStatus get status {
+    switch (this) {
+      case _TransactionPaymentTab.unpaid:
+        return ConsumerPaymentStatus.unpaid;
+      case _TransactionPaymentTab.processing:
+        return ConsumerPaymentStatus.processing;
+      case _TransactionPaymentTab.completed:
+        return ConsumerPaymentStatus.paid;
+    }
+  }
+}
 
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.onProfile, required this.onMenu});
@@ -489,21 +514,26 @@ class _TabButton extends StatelessWidget {
 
 class _TransactionStatusTabs extends StatelessWidget {
   const _TransactionStatusTabs({
-    required this.activeStatus,
+    required this.activeTab,
     required this.onChanged,
   });
 
-  final ConsumerTransactionStatus? activeStatus;
-  final ValueChanged<ConsumerTransactionStatus?> onChanged;
+  final _TransactionPaymentTab activeTab;
+  final ValueChanged<_TransactionPaymentTab> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final repo = ConsumerRepository.instance;
+    final unpaidCount = repo.transactions
+        .where((t) => t.effectivePaymentStatus == ConsumerPaymentStatus.unpaid)
+        .length;
     final processingCount = repo.transactions
-        .where((t) => t.status == ConsumerTransactionStatus.processing)
+        .where(
+          (t) => t.effectivePaymentStatus == ConsumerPaymentStatus.processing,
+        )
         .length;
     final completedCount = repo.transactions
-        .where((t) => t.status == ConsumerTransactionStatus.completed)
+        .where((t) => t.effectivePaymentStatus == ConsumerPaymentStatus.paid)
         .length;
 
     return Container(
@@ -517,26 +547,26 @@ class _TransactionStatusTabs extends StatelessWidget {
         children: [
           Expanded(
             child: _TransactionStatusButton(
+              label: 'Belum Dibayar',
+              count: unpaidCount,
+              isActive: activeTab == _TransactionPaymentTab.unpaid,
+              onTap: () => onChanged(_TransactionPaymentTab.unpaid),
+            ),
+          ),
+          Expanded(
+            child: _TransactionStatusButton(
               label: 'Diproses',
               count: processingCount,
-              isActive: activeStatus == ConsumerTransactionStatus.processing,
-              onTap: () => onChanged(
-                activeStatus == ConsumerTransactionStatus.processing
-                    ? null
-                    : ConsumerTransactionStatus.processing,
-              ),
+              isActive: activeTab == _TransactionPaymentTab.processing,
+              onTap: () => onChanged(_TransactionPaymentTab.processing),
             ),
           ),
           Expanded(
             child: _TransactionStatusButton(
               label: 'Selesai',
               count: completedCount,
-              isActive: activeStatus == ConsumerTransactionStatus.completed,
-              onTap: () => onChanged(
-                activeStatus == ConsumerTransactionStatus.completed
-                    ? null
-                    : ConsumerTransactionStatus.completed,
-              ),
+              isActive: activeTab == _TransactionPaymentTab.completed,
+              onTap: () => onChanged(_TransactionPaymentTab.completed),
             ),
           ),
         ],
@@ -742,6 +772,7 @@ class _TransactionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final product = transaction.product;
+    final paymentStatus = transaction.effectivePaymentStatus;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -785,7 +816,7 @@ class _TransactionCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      _TransactionBadge(transaction.status),
+                      _TransactionBadge(paymentStatus),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -818,7 +849,7 @@ class _TransactionCard extends StatelessWidget {
 class _TransactionBadge extends StatelessWidget {
   const _TransactionBadge(this.status);
 
-  final ConsumerTransactionStatus status;
+  final ConsumerPaymentStatus status;
 
   @override
   Widget build(BuildContext context) {

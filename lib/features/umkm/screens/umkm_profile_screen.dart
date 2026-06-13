@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -138,10 +141,53 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasImage = (profile.imagePath != null && profile.imagePath!.isNotEmpty) ||
+        profile.imageBytes != null;
     return ProfileHeader(
       fullName: profile.ownerName,
       roleLabel: 'Pemilik UMKM',
       avatarSize: 96,
+      avatar: hasImage
+          ? Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: profile.imageBytes != null
+                  ? Image.memory(
+                      profile.imageBytes!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const _ImageFallback(),
+                    )
+                  : (!kIsWeb && profile.imagePath != null && profile.imagePath!.isNotEmpty)
+                      ? Image.file(
+                          File(profile.imagePath!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const _ImageFallback(),
+                        )
+                      : const _ImageFallback(),
+            )
+          : null,
+    );
+  }
+}
+
+class _ImageFallback extends StatelessWidget {
+  const _ImageFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surface,
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.storefront_outlined,
+        color: AppColors.placeholder,
+        size: 30,
+      ),
     );
   }
 }

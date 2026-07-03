@@ -132,64 +132,71 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
       key: _scaffoldKey,
       backgroundColor: AppColors.white,
       endDrawer: const CollectorDrawer(),
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: Column(
-              children: [
-                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
-                Expanded(
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _GreetingBlock(profile: profile),
-                            const SizedBox(height: 16),
-                            _AddTransactionCard(onTap: _openScanQr),
-                            const SizedBox(height: 16),
-                            _SearchField(controller: _searchController),
-                            const SizedBox(height: 14),
-                            _CategoryChips(
-                              active: _activeCategory,
-                              onChanged: (c) =>
-                                  setState(() => _activeCategory = c),
-                            ),
-                            const SizedBox(height: 16),
-                          ]),
-                        ),
-                      ),
-                      if (products.isEmpty)
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _EmptyState(),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final product = products[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _ProductCard(
-                                  product: product,
-                                  onTap: () => _onProductTap(product),
+      body: ColoredBox(
+        color: AppColors.homeHeaderSurface,
+        child: SafeArea(
+          bottom: false,
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: Column(
+                children: [
+                  _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
+                  Expanded(
+                    child: ColoredBox(
+                      color: AppColors.white,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _GreetingBlock(profile: profile),
+                                const SizedBox(height: 16),
+                                _AddTransactionCard(onTap: _openScanQr),
+                                const SizedBox(height: 16),
+                                _SearchField(controller: _searchController),
+                                const SizedBox(height: 14),
+                                _CategoryChips(
+                                  active: _activeCategory,
+                                  onChanged: (c) =>
+                                      setState(() => _activeCategory = c),
                                 ),
-                              );
-                            }, childCount: products.length),
+                                const SizedBox(height: 16),
+                              ]),
+                            ),
                           ),
-                        ),
-                    ],
+                          if (products.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyState(),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate((
+                                  context,
+                                  index,
+                                ) {
+                                  final product = products[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _ProductCard(
+                                      product: product,
+                                      onTap: () => _onProductTap(product),
+                                    ),
+                                  );
+                                }, childCount: products.length),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -212,7 +219,11 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Container(
+      // [FE - Component Rendering] Band header ini memberi warna pembatas
+      // untuk area navigasi utama di beranda pengepul.
+      width: double.infinity,
+      color: AppColors.homeHeaderSurface,
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
       child: Row(
         children: [

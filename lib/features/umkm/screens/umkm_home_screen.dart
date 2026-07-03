@@ -156,146 +156,154 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
       key: _scaffoldKey,
       backgroundColor: AppColors.white,
       endDrawer: const UmkmDrawer(),
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: Column(
-              children: [
-                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
-                Expanded(
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _GreetingBlock(profile: profile),
-                            const SizedBox(height: 16),
-                            _ProfileCard(
-                              profile: profile,
-                              productCount: products.length,
-                              orderCount: orders.length,
-                              onEdit: _openEditUmkm,
-                            ),
-                            const SizedBox(height: 20),
-                            _DashboardActions(
-                              onAddProduct: _openAddProduct,
-                              onAddPurchase: _openAddPurchase,
-                              onViewOrders: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const UmkmOrderListScreen(),
+      body: ColoredBox(
+        color: AppColors.homeHeaderSurface,
+        child: SafeArea(
+          bottom: false,
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: Column(
+                children: [
+                  _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
+                  Expanded(
+                    child: ColoredBox(
+                      color: AppColors.white,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _GreetingBlock(profile: profile),
+                                const SizedBox(height: 16),
+                                _ProfileCard(
+                                  profile: profile,
+                                  productCount: products.length,
+                                  orderCount: orders.length,
+                                  onEdit: _openEditUmkm,
                                 ),
-                              ),
+                                const SizedBox(height: 20),
+                                _DashboardActions(
+                                  onAddProduct: _openAddProduct,
+                                  onAddPurchase: _openAddPurchase,
+                                  onViewOrders: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const UmkmOrderListScreen(),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 22),
+                                _SearchField(
+                                  controller: _searchController,
+                                  hintText: 'Cari produk atau kategori',
+                                ),
+                                const SizedBox(height: 16),
+                                _CategoryChips(
+                                  categories: categories,
+                                  activeCategory: _activeCategory,
+                                  onChanged: (value) =>
+                                      setState(() => _activeCategory = value),
+                                ),
+                                const SizedBox(height: 22),
+                                _SectionHeader(
+                                  title: 'Produk UMKM',
+                                  count: products.length,
+                                ),
+                              ]),
                             ),
-                            const SizedBox(height: 22),
-                            _SearchField(
-                              controller: _searchController,
-                              hintText: 'Cari produk atau kategori',
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
                             ),
-                            const SizedBox(height: 16),
-                            _CategoryChips(
-                              categories: categories,
-                              activeCategory: _activeCategory,
-                              onChanged: (value) =>
-                                  setState(() => _activeCategory = value),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                final product = products[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _ProductCard(
+                                    product: product,
+                                    onTap: () => _openProductDetail(product),
+                                  ),
+                                );
+                              }, childCount: products.length),
                             ),
-                            const SizedBox(height: 22),
-                            _SectionHeader(
-                              title: 'Produk UMKM',
-                              count: products.length,
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _SectionHeader(
+                                  title: 'Pesanan Masuk',
+                                  count: orders.length,
+                                ),
+                              ]),
                             ),
-                          ]),
-                        ),
-                      ),
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final product = products[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _ProductCard(
-                                product: product,
-                                onTap: () => _openProductDetail(product),
-                              ),
-                            );
-                          }, childCount: products.length),
-                        ),
-                      ),
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _SectionHeader(
-                              title: 'Pesanan Masuk',
-                              count: orders.length,
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
                             ),
-                          ]),
-                        ),
-                      ),
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final order = orders[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _OrderCard(
-                                order: order,
-                                onTap: () => _openOrderDetail(order),
-                              ),
-                            );
-                          }, childCount: orders.length),
-                        ),
-                      ),
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _SectionHeader(
-                              title: 'Pembelian durian',
-                              count: purchases.length,
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                final order = orders[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _OrderCard(
+                                    order: order,
+                                    onTap: () => _openOrderDetail(order),
+                                  ),
+                                );
+                              }, childCount: orders.length),
                             ),
-                          ]),
-                        ),
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _SectionHeader(
+                                  title: 'Pembelian durian',
+                                  count: purchases.length,
+                                ),
+                              ]),
+                            ),
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                final purchase = purchases[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _PurchaseCard(
+                                    purchase: purchase,
+                                    onTap: () => _openPurchaseDetail(purchase),
+                                  ),
+                                );
+                              }, childCount: purchases.length),
+                            ),
+                          ),
+                        ],
                       ),
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final purchase = purchases[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _PurchaseCard(
-                                purchase: purchase,
-                                onTap: () => _openPurchaseDetail(purchase),
-                              ),
-                            );
-                          }, childCount: purchases.length),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -312,7 +320,11 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Container(
+      // [FE - Component Rendering] Band header ini memisahkan navigasi
+      // beranda UMKM dari dashboard produk dan pesanan.
+      width: double.infinity,
+      color: AppColors.homeHeaderSurface,
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
       child: Row(
         children: [

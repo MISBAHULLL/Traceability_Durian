@@ -136,70 +136,77 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
       key: _scaffoldKey,
       backgroundColor: AppColors.white,
       endDrawer: const FarmerDrawer(),
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: Column(
-              children: [
-                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
-                Expanded(
-                  child: CustomScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _GreetingBlock(profile: profile),
-                            const SizedBox(height: 16),
-                            _StatRow(repo: _repo),
-                            const SizedBox(height: 16),
-                            _AddBatchCard(onTap: _openAddBatch),
-                            const SizedBox(height: 16),
-                            _SearchField(controller: _searchController),
-                            const SizedBox(height: 14),
-                            _FilterChips(
-                              active: _activeFilter,
-                              onChanged: (f) =>
-                                  setState(() => _activeFilter = f),
-                            ),
-                            const SizedBox(height: 16),
-                            _SectionHeader(count: batches.length),
-                            const SizedBox(height: 12),
-                          ]),
-                        ),
-                      ),
-                      if (batches.isEmpty)
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _EmptyState(),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final batch = batches[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _BatchCard(
-                                  batch: batch,
-                                  onTap: () => _openBatchDetail(batch.code),
-                                  onShowQr: () => _openBatchQr(batch.code),
+      body: ColoredBox(
+        color: AppColors.homeHeaderSurface,
+        child: SafeArea(
+          bottom: false,
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: Column(
+                children: [
+                  _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
+                  Expanded(
+                    child: ColoredBox(
+                      color: AppColors.white,
+                      child: CustomScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _GreetingBlock(profile: profile),
+                                const SizedBox(height: 16),
+                                _StatRow(repo: _repo),
+                                const SizedBox(height: 16),
+                                _AddBatchCard(onTap: _openAddBatch),
+                                const SizedBox(height: 16),
+                                _SearchField(controller: _searchController),
+                                const SizedBox(height: 14),
+                                _FilterChips(
+                                  active: _activeFilter,
+                                  onChanged: (f) =>
+                                      setState(() => _activeFilter = f),
                                 ),
-                              );
-                            }, childCount: batches.length),
+                                const SizedBox(height: 16),
+                                _SectionHeader(count: batches.length),
+                                const SizedBox(height: 12),
+                              ]),
+                            ),
                           ),
-                        ),
-                    ],
+                          if (batches.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyState(),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate((
+                                  context,
+                                  index,
+                                ) {
+                                  final batch = batches[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _BatchCard(
+                                      batch: batch,
+                                      onTap: () => _openBatchDetail(batch.code),
+                                      onShowQr: () => _openBatchQr(batch.code),
+                                    ),
+                                  );
+                                }, childCount: batches.length),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -227,7 +234,11 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Container(
+      // [FE - Component Rendering] Band header ini menjadi pembatas visual
+      // antara area sistem atas dan konten utama beranda.
+      width: double.infinity,
+      color: AppColors.homeHeaderSurface,
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       child: Row(
         children: [

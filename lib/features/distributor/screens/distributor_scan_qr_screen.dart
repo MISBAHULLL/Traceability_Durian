@@ -347,7 +347,7 @@ class _CameraScanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 300,
+      height: 330,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: AppColors.black,
@@ -363,40 +363,66 @@ class _CameraScanner extends StatelessWidget {
                 MobileScannerFeedback(error: error),
             placeholderBuilder: (context) => const MobileScannerLoading(),
           ),
-          Center(
-            child: Container(
-              width: 220,
-              height: 220,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.white, width: 2),
-              ),
-            ),
-          ),
+          // [FE - Component Rendering] Frame scan dibuat kompak di area kamera
+          // penuh agar tidak memanjang sampai caption instruksi.
           Positioned(
-            left: 14,
-            right: 14,
-            bottom: 14,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
-              decoration: BoxDecoration(
-                color: AppColors.black.withValues(alpha: 0.60),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                isHandlingScan
-                    ? 'QR terbaca, memeriksa pengiriman...'
-                    : 'Arahkan kamera ke QR pengiriman pengepul.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.white,
+            top: 28,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                width: 240,
+                height: 240,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.9),
+                    width: 2,
+                  ),
                 ),
               ),
             ),
           ),
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 18,
+            child: Center(
+              child: _ScannerCaption(
+                text: isHandlingScan
+                    ? 'QR terbaca, memeriksa pengiriman...'
+                    : 'Arahkan kamera ke QR pengiriman pengepul.',
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _ScannerCaption extends StatelessWidget {
+  const _ScannerCaption({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 280),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.black.withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: AppColors.white,
+        ),
       ),
     );
   }

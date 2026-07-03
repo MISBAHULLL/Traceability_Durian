@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/network/auth_api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../collector/data/collector_repository.dart';
 import '../../collector/screens/collector_home_screen.dart';
@@ -346,6 +347,101 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
       passwordError,
       confirmPasswordError,
     ].every((error) => error == null);
+  }
+
+  Widget? _destinationForRole(String role) {
+    switch (role) {
+      case 'petani':
+        return const FarmerHomeScreen();
+      case 'pengepul':
+        return const CollectorHomeScreen();
+      case 'distributor':
+        return const DistributorHomeScreen();
+      case 'umkm':
+        return const UmkmHomeScreen();
+      case 'konsumen':
+        return const ConsumerHomeScreen();
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _handleRegisterApi() async {
+    FocusScope.of(context).unfocus();
+
+    if (!_validateRegisterFields()) return;
+
+    final firstName = _firstNameCtrl.text.trim();
+    final lastName = _lastNameCtrl.text.trim();
+    final phone = _normalizeIndonesianPhone(_phoneCtrl.text);
+    final email = _normalizeEmail(_emailCtrl.text);
+    final password = _passwordCtrl.text;
+    final confirmPassword = _confirmPasswordCtrl.text;
+
+    if (password != confirmPassword) {
+      _showTopNotification(
+        'Password dan konfirmasi tidak cocok.',
+        isError: true,
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final result = await AuthApiService.instance.register(
+        firstName: firstName,
+        lastName: lastName,
+        phone: phone,
+        email: email,
+        password: password,
+        passwordConfirmation: confirmPassword,
+        role: widget.role,
+      );
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      final destination = _destinationForRole(
+        result.dashboard.isNotEmpty ? result.dashboard : widget.role,
+      );
+      if (destination == null) {
+        _showTopNotification(
+          'Role belum memiliki dashboard tujuan.',
+          isError: true,
+        );
+        return;
+      }
+
+      _showTopNotification(
+        result.message.isNotEmpty ? result.message : 'Pendaftaran berhasil!',
+        isError: false,
+      );
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 500),
+          pageBuilder: (_, _, _) => destination,
+          transitionsBuilder: (_, animation, _, child) => FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeInOutCubic,
+            ),
+            child: child,
+          ),
+        ),
+        (route) => false,
+      );
+    } on AuthApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showTopNotification(e.message, isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showTopNotification('Terjadi kesalahan. Coba lagi.', isError: true);
+    }
   }
 
   void _handleRegister() async {
@@ -712,7 +808,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                             prefixIcon: Icons.lock_outline_rounded,
                             obscureText: true,
                             textInputAction: TextInputAction.done,
-                            onSubmitted: (_) => _handleRegister(),
+                            onSubmitted: (_) => _handleRegisterApi(),
                           ),
                           _InlineFieldMessage(
                             message: _confirmPasswordError,
@@ -722,7 +818,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
 
                           // ── Tombol DAFTAR ─────────────────────────────────
                           _RegisterButton(
-                            onPressed: _handleRegister,
+                            onPressed: _handleRegisterApi,
                             isLoading: _isLoading,
                           ),
                           const SizedBox(height: 20),

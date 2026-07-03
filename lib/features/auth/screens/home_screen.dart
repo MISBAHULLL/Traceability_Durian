@@ -2,11 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
+import '../../../core/network/auth_api_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/labeled_dropdown_field.dart';
 import 'register_role_screen.dart';
+import '../../consumer/screens/consumer_home_screen.dart';
 import '../../farmer/screens/farmer_home_screen.dart';
 import '../../collector/screens/collector_home_screen.dart';
 import '../../distributor/screens/distributor_home_screen.dart';
+import '../../umkm/screens/umkm_home_screen.dart';
+
+const Map<String, String> _loginRoleLabels = {
+  'petani': 'Petani Durian',
+  'pengepul': 'Pengepul Durian',
+  'distributor': 'Distributor Durian',
+  'umkm': 'UMKM Durian',
+  'konsumen': 'Konsumen Durian',
+};
+
+const List<String> _loginRoles = [
+  'petani',
+  'pengepul',
+  'distributor',
+  'umkm',
+  'konsumen',
+];
 
 /// Landing + login screen for DurianTrace.
 ///
@@ -27,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _identifierController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  String? _selectedRole;
 
   final FocusNode _identifierFocus = FocusNode();
   final FocusNode _passwordFocus = FocusNode();
@@ -95,6 +116,103 @@ class _HomeScreenState extends State<HomeScreen>
     overlay.insert(entry);
   }
 
+  Future<void> _handleLoginApi() async {
+    FocusScope.of(context).unfocus();
+    final identifier = _identifierController.text.trim();
+    final password = _passwordController.text;
+
+    if (identifier.isEmpty && password.isEmpty) {
+      _showTopNotification(
+        'Email/Username dan password wajib diisi.',
+        isError: true,
+      );
+      return;
+    }
+    if (identifier.isEmpty) {
+      _showTopNotification('Email/Username wajib diisi.', isError: true);
+      return;
+    }
+    if (password.isEmpty) {
+      _showTopNotification('Password wajib diisi.', isError: true);
+      return;
+    }
+    if (password.length < 6) {
+      _showTopNotification('Password minimal 6 karakter.', isError: true);
+      return;
+    }
+    if (_selectedRole == null) {
+      _showTopNotification('Role login wajib dipilih.', isError: true);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    if (!kDebugMode) {
+      final connectivity = await Connectivity().checkConnectivity();
+      if (!mounted) return;
+      if (connectivity.contains(ConnectivityResult.none) ||
+          connectivity.isEmpty) {
+        setState(() => _isLoading = false);
+        _showTopNotification(
+          'Tidak ada koneksi internet. Periksa jaringan Anda.',
+          isError: true,
+        );
+        return;
+      }
+    }
+
+    try {
+      final result = await AuthApiService.instance.login(
+        identifier: identifier,
+        password: password,
+        role: _selectedRole!,
+      );
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      final destination = _destinationForRole(
+        result.dashboard.isNotEmpty ? result.dashboard : _selectedRole!,
+      );
+      if (destination == null) {
+        _showTopNotification(
+          'Role belum memiliki dashboard tujuan.',
+          isError: true,
+        );
+        return;
+      }
+
+      _showTopNotification(
+        result.message.isNotEmpty ? result.message : 'Masuk berhasil!',
+        isError: false,
+      );
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 400),
+          pageBuilder: (_, _, _) => destination,
+          transitionsBuilder: (_, animation, _, child) => FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeInOutCubic,
+            ),
+            child: child,
+          ),
+        ),
+        (route) => false,
+      );
+    } on AuthApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showTopNotification(e.message, isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showTopNotification('Terjadi kesalahan. Coba lagi.', isError: true);
+    }
+  }
+
   void _handleLogin() async {
     FocusScope.of(context).unfocus();
     final identifier = _identifierController.text.trim();
@@ -146,6 +264,11 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
 
+    if (_selectedRole == null) {
+      _showTopNotification('Role login wajib dipilih.', isError: true);
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     // Cek koneksi dan timeout hanya aktif di release mode
@@ -176,6 +299,9 @@ class _HomeScreenState extends State<HomeScreen>
       }
 
       // Integrasikan dengan API autentikasi saat backend tersedia.
+      // Payload yang disarankan:
+      // { identifier, password, role }
+      // Backend harus memvalidasi bahwa role akun sesuai dengan role yang dipilih.
       // Contoh penanganan response BE:
       // if (response.statusCode == 404) {
       //   _showTopNotification('Email tidak terdaftar. Periksa kembali atau daftar akun baru.', isError: true);
@@ -189,15 +315,7 @@ class _HomeScreenState extends State<HomeScreen>
       if (!mounted) return;
       setState(() => _isLoading = false);
 
-      Widget? destination;
-      final query = identifier.toLowerCase().trim();
-      if (query.contains('petani')) {
-        destination = const FarmerHomeScreen();
-      } else if (query.contains('pengepul')) {
-        destination = const CollectorHomeScreen();
-      } else if (query.contains('distributor') || query.contains('andi')) {
-        destination = const DistributorHomeScreen();
-      }
+      final destination = _destinationForRole(_selectedRole!);
 
       if (destination != null) {
         _showTopNotification('Masuk berhasil!', isError: false);
@@ -218,7 +336,10 @@ class _HomeScreenState extends State<HomeScreen>
           (route) => false,
         );
       } else {
-        _showTopNotification('Form siap dikirim ke backend.', isError: false);
+        _showTopNotification(
+          'Role belum memiliki dashboard tujuan.',
+          isError: true,
+        );
       }
     } catch (e) {
       if (!mounted) return;
@@ -230,6 +351,23 @@ class _HomeScreenState extends State<HomeScreen>
             : 'Terjadi kesalahan. Coba lagi.',
         isError: true,
       );
+    }
+  }
+
+  Widget? _destinationForRole(String role) {
+    switch (role) {
+      case 'petani':
+        return const FarmerHomeScreen();
+      case 'pengepul':
+        return const CollectorHomeScreen();
+      case 'distributor':
+        return const DistributorHomeScreen();
+      case 'umkm':
+        return const UmkmHomeScreen();
+      case 'konsumen':
+        return const ConsumerHomeScreen();
+      default:
+        return null;
     }
   }
 
@@ -271,7 +409,9 @@ class _HomeScreenState extends State<HomeScreen>
                     passwordController: _passwordController,
                     identifierFocus: _identifierFocus,
                     passwordFocus: _passwordFocus,
-                    onLogin: _handleLogin,
+                    selectedRole: _selectedRole,
+                    onRoleChanged: (role) => setState(() => _selectedRole = role),
+                    onLogin: _handleLoginApi,
                     onRegisterTap: _handleRegisterTap,
                     isLoading: _isLoading,
                   ),
@@ -350,6 +490,8 @@ class _LoginPanel extends StatelessWidget {
     required this.passwordController,
     required this.identifierFocus,
     required this.passwordFocus,
+    required this.selectedRole,
+    required this.onRoleChanged,
     required this.onLogin,
     required this.onRegisterTap,
     required this.isLoading,
@@ -359,6 +501,8 @@ class _LoginPanel extends StatelessWidget {
   final TextEditingController passwordController;
   final FocusNode identifierFocus;
   final FocusNode passwordFocus;
+  final String? selectedRole;
+  final ValueChanged<String?> onRoleChanged;
   final VoidCallback onLogin;
   final VoidCallback onRegisterTap;
   final bool isLoading;
@@ -385,11 +529,20 @@ class _LoginPanel extends StatelessWidget {
                     _RoundedTextField(
                       controller: identifierController,
                       focusNode: identifierFocus,
-                      hintText: 'Masukan Email / Username',
+                      hintText: 'Masukan Email',
                       textInputAction: TextInputAction.next,
                       keyboardType: TextInputType.emailAddress,
                       onSubmitted: (_) =>
                           FocusScope.of(context).requestFocus(passwordFocus),
+                    ),
+                    const SizedBox(height: 20),
+                    LabeledDropdownField<String>(
+                      label: 'Role Login',
+                      hint: 'Pilih role',
+                      value: selectedRole,
+                      items: _loginRoles,
+                      itemLabel: (role) => _loginRoleLabels[role] ?? role,
+                      onChanged: onRoleChanged,
                     ),
                     const SizedBox(height: 20),
                     _RoundedTextField(

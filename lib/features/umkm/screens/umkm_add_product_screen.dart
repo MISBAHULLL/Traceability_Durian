@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -49,18 +50,62 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
     super.dispose();
   }
 
+  // [FE - Event Handler] Picker ini menyediakan kamera dan galeri untuk
+  // foto produk UMKM, sehingga form tidak bergantung pada flow web saja.
   Future<void> _pickImage() async {
     if (_isPickingImage) return;
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_camera_outlined,
+                color: AppColors.primary,
+              ),
+              title: const Text('Ambil dari Kamera'),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library_outlined,
+                color: AppColors.primary,
+              ),
+              title: const Text('Pilih dari Galeri'),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || source == null) return;
 
     setState(() => _isPickingImage = true);
     try {
       final image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
+        maxWidth: 1024,
         imageQuality: 85,
       );
       if (!mounted) return;
       if (image == null) return;
       setState(() => _selectedImagePath = image.path);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal mengambil foto produk.')),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isPickingImage = false);
@@ -463,11 +508,17 @@ class _ImagePickerCard extends StatelessWidget {
             ),
             clipBehavior: Clip.antiAlias,
             child: imagePath != null && imagePath!.isNotEmpty
-                ? Image.file(
-                    File(imagePath!),
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const _ImagePlaceholder(),
-                  )
+                ? kIsWeb
+                      ? Image.network(
+                          imagePath!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const _ImagePlaceholder(),
+                        )
+                      : Image.file(
+                          File(imagePath!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const _ImagePlaceholder(),
+                        )
                 : const _ImagePlaceholder(),
           ),
           const SizedBox(height: 12),

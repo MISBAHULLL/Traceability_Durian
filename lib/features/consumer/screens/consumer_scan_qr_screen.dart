@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/mobile_scanner_feedback.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../consumer_routes.dart';
@@ -376,7 +377,13 @@ class _CameraScannerBox extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(controller: controller, onDetect: onDetect),
+          MobileScanner(
+            controller: controller,
+            onDetect: onDetect,
+            errorBuilder: (context, error) =>
+                MobileScannerFeedback(error: error),
+            placeholderBuilder: (context) => const MobileScannerLoading(),
+          ),
           Center(
             child: Container(
               width: 210,

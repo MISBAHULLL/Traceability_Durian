@@ -56,17 +56,62 @@ class _UmkmDataScreenState extends State<UmkmDataScreen> {
     super.dispose();
   }
 
+  // [FE - Event Handler] Picker ini menjadi adapter kamera/galeri untuk
+  // profil UMKM agar input gambar berjalan di mobile dan tetap aman di web.
   Future<void> _pickImage() async {
-    final image = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_camera_outlined,
+                color: AppColors.primary,
+              ),
+              title: const Text('Ambil dari Kamera'),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library_outlined,
+                color: AppColors.primary,
+              ),
+              title: const Text('Pilih dari Galeri'),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
-    if (!mounted || image == null) return;
-    final bytes = await image.readAsBytes();
-    setState(() {
-      _imagePath = image.path;
-      _imageBytes = bytes;
-    });
+
+    if (!mounted || source == null) return;
+
+    try {
+      final image = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        imageQuality: 85,
+      );
+      if (!mounted || image == null) return;
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _imagePath = image.path;
+        _imageBytes = bytes;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal mengambil foto UMKM.')),
+      );
+    }
   }
 
   Future<void> _saveProfile() async {
@@ -129,7 +174,7 @@ class _UmkmDataScreenState extends State<UmkmDataScreen> {
                           imagePath: _imagePath,
                           imageBytes: _imageBytes,
                           onPick: _pickImage,
-                          onClear: _imagePath == null
+                          onClear: _imagePath == null && _imageBytes == null
                               ? null
                               : () => setState(() {
                                   _imagePath = null;
@@ -285,7 +330,7 @@ class _ImagePickerCard extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: onPick,
                   icon: const Icon(Icons.photo_library_outlined, size: 18),
-                  label: const Text('Pilih Foto UMKM'),
+                  label: const Text('Ambil / Pilih Foto'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primaryContainer,
                     side: const BorderSide(color: Color(0xFFE5E7EB)),

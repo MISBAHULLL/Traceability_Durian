@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
+import '../../../shared/widgets/qr_preview.dart';
 import '../../trace/screens/public_trace_screen.dart';
 import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
@@ -131,12 +131,7 @@ class _BatchQrScreenState extends State<BatchQrScreen>
                                 color: const Color(0xFFE5E7EB),
                               ),
                             ),
-                            child: QrImageView(
-                              data: url,
-                              version: QrVersions.auto,
-                              size: 220,
-                              backgroundColor: AppColors.white,
-                            ),
+                            child: ResponsiveQrCode(data: url, size: 220),
                           ),
 
                           const SizedBox(height: 28),

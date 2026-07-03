@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/mobile_scanner_feedback.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../collector_routes.dart';
@@ -405,7 +406,7 @@ class _CameraScannerBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 280,
+      height: 320,
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -415,16 +416,29 @@ class _CameraScannerBox extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(controller: controller, onDetect: onDetect),
-          Center(
-            child: Container(
-              width: 210,
-              height: 210,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: AppColors.white.withValues(alpha: 0.85),
-                  width: 2,
+          MobileScanner(
+            controller: controller,
+            onDetect: onDetect,
+            errorBuilder: (context, error) =>
+                MobileScannerFeedback(error: error),
+            placeholderBuilder: (context) => const MobileScannerLoading(),
+          ),
+          // [FE - Component Rendering] Frame scan diletakkan lebih tinggi agar
+          // area instruksi tidak menimpa target QR.
+          Positioned(
+            top: 24,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                width: 210,
+                height: 210,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.85),
+                    width: 2,
+                  ),
                 ),
               ),
             ),

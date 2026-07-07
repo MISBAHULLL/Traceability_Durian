@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/product_media_tile.dart';
 import '../consumer_routes.dart';
 import '../data/consumer_repository.dart';
 import '../models/consumer_product.dart';
@@ -933,85 +934,144 @@ class _ProductCard extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
         clipBehavior: Clip.antiAlias,
-        child: IntrinsicHeight(
+        child: Padding(
+          padding: const EdgeInsets.all(10),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(
-                width: 104,
-                child: Container(
-                  color: AppColors.surface,
-                  child:
-                      product.imagePath != null && product.imagePath!.isNotEmpty
-                      ? Image.asset(
-                          product.imagePath!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const _ImageFallback(),
-                        )
-                      : Image.asset(
-                          'assets/images/durian.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const _ImageFallback(),
-                        ),
-                ),
-              ),
+              _ProductImageTile(product: product),
+              const SizedBox(width: 12),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              product.name,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.black,
-                              ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            product.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              height: 1.25,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.black,
                             ),
                           ),
-                          _StatusBadge(product.status),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      _CategoryBadge(label: product.category.label),
-                      const SizedBox(height: 6),
-                      Text(
-                        product.priceLabel,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        product.shortDescription,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          height: 1.35,
-                          color: AppColors.placeholder,
+                        const SizedBox(width: 8),
+                        _StatusBadge(product.status),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _CategoryBadge(label: product.category.label),
+                        Text(
+                          product.priceLabel,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.primary,
+                          ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      product.shortDescription,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        height: 1.35,
+                        color: AppColors.placeholder,
                       ),
-                      const SizedBox(height: 8),
-                      _Bullet(text: product.umkmName),
-                      _Bullet(text: product.location),
-                      _Bullet(text: product.stockLabel),
-                      _Bullet(
-                        text: 'Rating ${product.rating.toStringAsFixed(1)}',
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 8),
+                    _ProductMetaGrid(product: product),
+                  ],
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ProductImageTile extends StatelessWidget {
+  const _ProductImageTile({required this.product});
+
+  final ConsumerProduct product;
+
+  @override
+  Widget build(BuildContext context) {
+    // [FE - Component Rendering] Media tile ini memisahkan visual produk dari
+    // tinggi card agar gambar tidak terpaksa memanjang mengikuti teks.
+    return ProductMediaTile(imagePath: product.imagePath);
+  }
+}
+
+class _ProductMetaGrid extends StatelessWidget {
+  const _ProductMetaGrid({required this.product});
+
+  final ConsumerProduct product;
+
+  @override
+  Widget build(BuildContext context) {
+    // [FE - Component Rendering] Metadata produk dibuat ringkas agar card
+    // tidak terlalu tinggi tetapi informasi penting tetap terbaca.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _MetaLine(icon: Icons.storefront_outlined, text: product.umkmName),
+        _MetaLine(icon: Icons.location_on_outlined, text: product.location),
+        _MetaLine(icon: Icons.inventory_2_outlined, text: product.stockLabel),
+        _MetaLine(
+          icon: Icons.star_outline_rounded,
+          text: 'Rating ${product.rating.toStringAsFixed(1)}',
+        ),
+      ],
+    );
+  }
+}
+
+class _MetaLine extends StatelessWidget {
+  const _MetaLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 12, color: AppColors.placeholder),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10,
+                height: 1.25,
+                color: AppColors.placeholder,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1067,6 +1127,7 @@ class _CategoryBadge extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _Bullet extends StatelessWidget {
   const _Bullet({required this.text});
 
@@ -1102,6 +1163,7 @@ class _Bullet extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _ImageFallback extends StatelessWidget {
   const _ImageFallback();
 

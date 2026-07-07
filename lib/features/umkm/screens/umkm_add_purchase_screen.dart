@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
+import '../../../shared/widgets/product_media_tile.dart';
 import '../../../shared/widgets/qr_preview.dart';
 import '../data/umkm_repository.dart';
 import '../models/umkm_purchase.dart';
@@ -468,79 +469,104 @@ class _OfferCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight(
+      child: Padding(
+        padding: const EdgeInsets.all(10),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            SizedBox(
-              width: 108,
-              child: Container(
-                color: AppColors.surface,
-                child: Image.asset(
-                  offer.imagePath ?? 'assets/images/durian.png',
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const _ImageFallback(),
-                ),
-              ),
-            ),
+            ProductMediaTile(imagePath: offer.imagePath),
+            const SizedBox(width: 12),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            offer.name,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.black,
-                            ),
-                          ),
-                        ),
-                      ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    offer.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      height: 1.25,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.black,
                     ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        _MiniChip(label: offer.supplierType.label),
-                        _MiniChip(label: offer.traceCode),
-                      ],
+                  ),
+                  const SizedBox(height: 7),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _MiniChip(label: offer.supplierType.label),
+                      _MiniChip(label: offer.traceCode),
+                    ],
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    offer.priceLabel,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.primary,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      offer.priceLabel,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.primary,
-                      ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    offer.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      height: 1.35,
+                      color: AppColors.placeholder,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      offer.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        height: 1.4,
-                        color: AppColors.placeholder,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _Bullet(text: offer.stockLabel),
-                    _Bullet(text: offer.supplierName),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+                  _OfferMetaLine(
+                    icon: Icons.inventory_2_outlined,
+                    text: offer.stockLabel,
+                  ),
+                  _OfferMetaLine(
+                    icon: Icons.storefront_outlined,
+                    text: offer.supplierName,
+                  ),
+                ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _OfferMetaLine extends StatelessWidget {
+  const _OfferMetaLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        children: [
+          Icon(icon, size: 12, color: AppColors.placeholder),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10,
+                height: 1.25,
+                color: AppColors.placeholder,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1291,6 +1317,7 @@ class _PaymentChoice extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _Bullet extends StatelessWidget {
   const _Bullet({required this.text});
 
@@ -1360,6 +1387,7 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _ImageFallback extends StatelessWidget {
   const _ImageFallback();
 

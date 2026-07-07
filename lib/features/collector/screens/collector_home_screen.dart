@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/product_media_tile.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
@@ -517,74 +518,51 @@ class _ProductCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.black),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: IntrinsicHeight(
+        child: Padding(
+          padding: const EdgeInsets.all(10),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Thumbnail produk (1/3 lebar)
-              SizedBox(
-                width: 104,
-                child: Container(
-                  color: AppColors.surface,
-                  child:
-                      (product.imagePath != null &&
-                          product.imagePath!.isNotEmpty)
-                      ? Image.asset(
-                          product.imagePath!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const _ImageFallback(),
-                        )
-                      : Image.asset(
-                          'assets/images/durian.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const _ImageFallback(),
-                        ),
-                ),
-              ),
-              // Detail produk (2/3 lebar)
+              // [FE - Component Rendering] Media tile menjaga gambar batch
+              // tidak memanjang mengikuti tinggi detail traceability.
+              ProductMediaTile(imagePath: product.imagePath),
+              const SizedBox(width: 12),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        product.name,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.black,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      product.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.25,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.black,
                       ),
-                      const SizedBox(height: 6),
-                      _Bullet(text: 'Berat : ${product.weightRange}'),
-                      if (product.taste.trim() != '-')
-                        _Bullet(text: 'Rasa : ${product.taste}'),
-                      // [FE - Component Rendering] Jumlah buah dari petani
-                      // membantu pengepul membaca batch dalam satuan butir.
-                      if (product.fruitCount != null)
-                        _Bullet(
-                          text: 'Jumlah Buah : ${product.fruitCount} butir',
-                        ),
+                    ),
+                    const SizedBox(height: 7),
+                    _Bullet(text: 'Berat : ${product.weightRange}'),
+                    if (product.taste.trim() != '-')
+                      _Bullet(text: 'Rasa : ${product.taste}'),
+                    if (product.fruitCount != null)
                       _Bullet(
-                        text: 'Daging Buah : ${product.fleshDescription}',
+                        text: 'Jumlah Buah : ${product.fruitCount} butir',
                       ),
-                      // [FE - Component Rendering] Info traceability dari
-                      // petani ditampilkan ringkas di kartu antrean pengepul.
-                      if (product.shelfLifeEstimate != null &&
-                          product.shelfLifeEstimate!.isNotEmpty)
-                        _Bullet(
-                          text: 'Masa Simpan : ${product.shelfLifeEstimate}',
-                        ),
-                      _Bullet(text: 'Lokasi : ${product.location}'),
+                    _Bullet(text: 'Daging Buah : ${product.fleshDescription}'),
+                    if (product.shelfLifeEstimate != null &&
+                        product.shelfLifeEstimate!.isNotEmpty)
                       _Bullet(
-                        text:
-                            'Waktu Panen : ${_formatDate(product.harvestDate)}',
+                        text: 'Masa Simpan : ${product.shelfLifeEstimate}',
                       ),
-                      _Bullet(text: 'Pemilik Pohon : ${product.treeOwner}'),
-                    ],
-                  ),
+                    _Bullet(text: 'Lokasi : ${product.location}'),
+                    _Bullet(
+                      text: 'Waktu Panen : ${_formatDate(product.harvestDate)}',
+                    ),
+                    _Bullet(text: 'Pemilik Pohon : ${product.treeOwner}'),
+                  ],
                 ),
               ),
             ],
@@ -595,6 +573,7 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _ImageFallback extends StatelessWidget {
   const _ImageFallback();
 

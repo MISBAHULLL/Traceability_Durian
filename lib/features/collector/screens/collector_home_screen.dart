@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/product_media_tile.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
@@ -132,64 +133,71 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
       key: _scaffoldKey,
       backgroundColor: AppColors.white,
       endDrawer: const CollectorDrawer(),
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: Column(
-              children: [
-                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
-                Expanded(
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _GreetingBlock(profile: profile),
-                            const SizedBox(height: 16),
-                            _AddTransactionCard(onTap: _openScanQr),
-                            const SizedBox(height: 16),
-                            _SearchField(controller: _searchController),
-                            const SizedBox(height: 14),
-                            _CategoryChips(
-                              active: _activeCategory,
-                              onChanged: (c) =>
-                                  setState(() => _activeCategory = c),
-                            ),
-                            const SizedBox(height: 16),
-                          ]),
-                        ),
-                      ),
-                      if (products.isEmpty)
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _EmptyState(),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final product = products[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _ProductCard(
-                                  product: product,
-                                  onTap: () => _onProductTap(product),
+      body: ColoredBox(
+        color: AppColors.homeHeaderSurface,
+        child: SafeArea(
+          bottom: false,
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: Column(
+                children: [
+                  _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
+                  Expanded(
+                    child: ColoredBox(
+                      color: AppColors.white,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _GreetingBlock(profile: profile),
+                                const SizedBox(height: 16),
+                                _AddTransactionCard(onTap: _openScanQr),
+                                const SizedBox(height: 16),
+                                _SearchField(controller: _searchController),
+                                const SizedBox(height: 14),
+                                _CategoryChips(
+                                  active: _activeCategory,
+                                  onChanged: (c) =>
+                                      setState(() => _activeCategory = c),
                                 ),
-                              );
-                            }, childCount: products.length),
+                                const SizedBox(height: 16),
+                              ]),
+                            ),
                           ),
-                        ),
-                    ],
+                          if (products.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyState(),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate((
+                                  context,
+                                  index,
+                                ) {
+                                  final product = products[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _ProductCard(
+                                      product: product,
+                                      onTap: () => _onProductTap(product),
+                                    ),
+                                  );
+                                }, childCount: products.length),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -212,7 +220,11 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Container(
+      // [FE - Component Rendering] Band header ini memberi warna pembatas
+      // untuk area navigasi utama di beranda pengepul.
+      width: double.infinity,
+      color: AppColors.homeHeaderSurface,
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
       child: Row(
         children: [
@@ -506,74 +518,51 @@ class _ProductCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.black),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: IntrinsicHeight(
+        child: Padding(
+          padding: const EdgeInsets.all(10),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Thumbnail produk (1/3 lebar)
-              SizedBox(
-                width: 104,
-                child: Container(
-                  color: AppColors.surface,
-                  child:
-                      (product.imagePath != null &&
-                          product.imagePath!.isNotEmpty)
-                      ? Image.asset(
-                          product.imagePath!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const _ImageFallback(),
-                        )
-                      : Image.asset(
-                          'assets/images/durian.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const _ImageFallback(),
-                        ),
-                ),
-              ),
-              // Detail produk (2/3 lebar)
+              // [FE - Component Rendering] Media tile menjaga gambar batch
+              // tidak memanjang mengikuti tinggi detail traceability.
+              ProductMediaTile(imagePath: product.imagePath),
+              const SizedBox(width: 12),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        product.name,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.black,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      product.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.25,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.black,
                       ),
-                      const SizedBox(height: 6),
-                      _Bullet(text: 'Berat : ${product.weightRange}'),
-                      if (product.taste.trim() != '-')
-                        _Bullet(text: 'Rasa : ${product.taste}'),
-                      // [FE - Component Rendering] Jumlah buah dari petani
-                      // membantu pengepul membaca batch dalam satuan butir.
-                      if (product.fruitCount != null)
-                        _Bullet(
-                          text: 'Jumlah Buah : ${product.fruitCount} butir',
-                        ),
+                    ),
+                    const SizedBox(height: 7),
+                    _Bullet(text: 'Berat : ${product.weightRange}'),
+                    if (product.taste.trim() != '-')
+                      _Bullet(text: 'Rasa : ${product.taste}'),
+                    if (product.fruitCount != null)
                       _Bullet(
-                        text: 'Daging Buah : ${product.fleshDescription}',
+                        text: 'Jumlah Buah : ${product.fruitCount} butir',
                       ),
-                      // [FE - Component Rendering] Info traceability dari
-                      // petani ditampilkan ringkas di kartu antrean pengepul.
-                      if (product.shelfLifeEstimate != null &&
-                          product.shelfLifeEstimate!.isNotEmpty)
-                        _Bullet(
-                          text: 'Masa Simpan : ${product.shelfLifeEstimate}',
-                        ),
-                      _Bullet(text: 'Lokasi : ${product.location}'),
+                    _Bullet(text: 'Daging Buah : ${product.fleshDescription}'),
+                    if (product.shelfLifeEstimate != null &&
+                        product.shelfLifeEstimate!.isNotEmpty)
                       _Bullet(
-                        text:
-                            'Waktu Panen : ${_formatDate(product.harvestDate)}',
+                        text: 'Masa Simpan : ${product.shelfLifeEstimate}',
                       ),
-                      _Bullet(text: 'Pemilik Pohon : ${product.treeOwner}'),
-                    ],
-                  ),
+                    _Bullet(text: 'Lokasi : ${product.location}'),
+                    _Bullet(
+                      text: 'Waktu Panen : ${_formatDate(product.harvestDate)}',
+                    ),
+                    _Bullet(text: 'Pemilik Pohon : ${product.treeOwner}'),
+                  ],
                 ),
               ),
             ],
@@ -584,6 +573,7 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _ImageFallback extends StatelessWidget {
   const _ImageFallback();
 

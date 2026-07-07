@@ -139,14 +139,22 @@ class ConsumerAvatar extends StatelessWidget {
       return;
     }
 
-    final file = await ImagePicker().pickImage(
-      source: action == _AvatarAction.camera
-          ? ImageSource.camera
-          : ImageSource.gallery,
-      maxWidth: 512,
-      imageQuality: 85,
-    );
-    if (file != null) ConsumerRepository.instance.updateAvatar(file.path);
+    try {
+      final file = await ImagePicker().pickImage(
+        source: action == _AvatarAction.camera
+            ? ImageSource.camera
+            : ImageSource.gallery,
+        maxWidth: 512,
+        imageQuality: 85,
+      );
+      if (file != null) ConsumerRepository.instance.updateAvatar(file.path);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal mengambil foto profil.')),
+        );
+      }
+    }
   }
 }
 

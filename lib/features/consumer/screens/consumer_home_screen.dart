@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/product_media_tile.dart';
 import '../consumer_routes.dart';
 import '../data/consumer_repository.dart';
 import '../models/consumer_product.dart';
@@ -115,116 +116,125 @@ class _ConsumerHomeScreenState extends State<ConsumerHomeScreen>
       key: _scaffoldKey,
       backgroundColor: AppColors.white,
       endDrawer: const ConsumerDrawer(),
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: Column(
-              children: [
-                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
-                Expanded(
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _GreetingBlock(profile: profile),
-                            const SizedBox(height: 16),
-                            if (_activeTab == _DashboardTab.products) ...[
-                              _SearchField(controller: _searchController),
-                              const SizedBox(height: 14),
-                            ],
-                            _ScanQrCard(onTap: _openScanQr),
-                            const SizedBox(height: 16),
-                            _DashboardTabs(
-                              active: _activeTab,
-                              onChanged: (tab) =>
-                                  setState(() => _activeTab = tab),
+      body: ColoredBox(
+        color: AppColors.homeHeaderSurface,
+        child: SafeArea(
+          bottom: false,
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: Column(
+                children: [
+                  _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
+                  Expanded(
+                    child: ColoredBox(
+                      color: AppColors.white,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _GreetingBlock(profile: profile),
+                                const SizedBox(height: 16),
+                                if (_activeTab == _DashboardTab.products) ...[
+                                  _SearchField(controller: _searchController),
+                                  const SizedBox(height: 14),
+                                ],
+                                _ScanQrCard(onTap: _openScanQr),
+                                const SizedBox(height: 16),
+                                _DashboardTabs(
+                                  active: _activeTab,
+                                  onChanged: (tab) =>
+                                      setState(() => _activeTab = tab),
+                                ),
+                                const SizedBox(height: 16),
+                                if (_activeTab == _DashboardTab.products) ...[
+                                  _FilterChips(
+                                    active: _activeFilter,
+                                    onChanged: (filter) =>
+                                        setState(() => _activeFilter = filter),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _SectionHeader(
+                                    title: 'Produk UMKM',
+                                    trailing: '${products.length} produk',
+                                  ),
+                                ] else ...[
+                                  _TransactionStatusTabs(
+                                    activeTab: _activeTransactionTab,
+                                    onChanged: (tab) => setState(
+                                      () => _activeTransactionTab = tab,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _SectionHeader(
+                                    title: 'Transaksi Saya',
+                                    trailing:
+                                        '${transactions.length} transaksi',
+                                  ),
+                                ],
+                                const SizedBox(height: 12),
+                              ]),
                             ),
-                            const SizedBox(height: 16),
-                            if (_activeTab == _DashboardTab.products) ...[
-                              _FilterChips(
-                                active: _activeFilter,
-                                onChanged: (filter) =>
-                                    setState(() => _activeFilter = filter),
+                          ),
+                          if (_activeTab == _DashboardTab.products &&
+                              products.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyState(),
+                            )
+                          else if (_activeTab == _DashboardTab.products)
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate((
+                                  context,
+                                  index,
+                                ) {
+                                  final product = products[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _ProductCard(
+                                      product: product,
+                                      onTap: () => _openProductDetail(product),
+                                    ),
+                                  );
+                                }, childCount: products.length),
                               ),
-                              const SizedBox(height: 16),
-                              _SectionHeader(
-                                title: 'Produk UMKM',
-                                trailing: '${products.length} produk',
+                            )
+                          else if (transactions.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _TransactionEmptyState(),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate((
+                                  context,
+                                  index,
+                                ) {
+                                  final transaction = transactions[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _TransactionCard(
+                                      transaction: transaction,
+                                      onTap: () =>
+                                          _openTransactionDetail(transaction),
+                                    ),
+                                  );
+                                }, childCount: transactions.length),
                               ),
-                            ] else ...[
-                              _TransactionStatusTabs(
-                                activeTab: _activeTransactionTab,
-                                onChanged: (tab) =>
-                                    setState(() => _activeTransactionTab = tab),
-                              ),
-                              const SizedBox(height: 12),
-                              _SectionHeader(
-                                title: 'Transaksi Saya',
-                                trailing: '${transactions.length} transaksi',
-                              ),
-                            ],
-                            const SizedBox(height: 12),
-                          ]),
-                        ),
+                            ),
+                        ],
                       ),
-                      if (_activeTab == _DashboardTab.products &&
-                          products.isEmpty)
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _EmptyState(),
-                        )
-                      else if (_activeTab == _DashboardTab.products)
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final product = products[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _ProductCard(
-                                  product: product,
-                                  onTap: () => _openProductDetail(product),
-                                ),
-                              );
-                            }, childCount: products.length),
-                          ),
-                        )
-                      else if (transactions.isEmpty)
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _TransactionEmptyState(),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final transaction = transactions[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _TransactionCard(
-                                  transaction: transaction,
-                                  onTap: () =>
-                                      _openTransactionDetail(transaction),
-                                ),
-                              );
-                            }, childCount: transactions.length),
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -258,7 +268,11 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Container(
+      // [FE - Component Rendering] Band header ini memisahkan navigasi
+      // beranda konsumen dari katalog dan transaksi.
+      width: double.infinity,
+      color: AppColors.homeHeaderSurface,
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
       child: Row(
         children: [
@@ -507,41 +521,55 @@ class _TransactionStatusTabs extends StatelessWidget {
         .where((t) => t.effectivePaymentStatus == ConsumerPaymentStatus.paid)
         .length;
 
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _TransactionStatusButton(
-              label: 'Belum Dibayar',
-              count: unpaidCount,
-              isActive: activeTab == _TransactionPaymentTab.unpaid,
-              onTap: () => onChanged(_TransactionPaymentTab.unpaid),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth - 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _TransactionStatusButton(
+                      label: 'Belum Dibayar',
+                      count: unpaidCount,
+                      minWidth: 136,
+                      isActive: activeTab == _TransactionPaymentTab.unpaid,
+                      onTap: () => onChanged(_TransactionPaymentTab.unpaid),
+                    ),
+                    const SizedBox(width: 4),
+                    _TransactionStatusButton(
+                      label: 'Diproses',
+                      count: processingCount,
+                      minWidth: 108,
+                      isActive: activeTab == _TransactionPaymentTab.processing,
+                      onTap: () => onChanged(_TransactionPaymentTab.processing),
+                    ),
+                    const SizedBox(width: 4),
+                    _TransactionStatusButton(
+                      label: 'Selesai',
+                      count: completedCount,
+                      minWidth: 96,
+                      isActive: activeTab == _TransactionPaymentTab.completed,
+                      onTap: () => onChanged(_TransactionPaymentTab.completed),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          Expanded(
-            child: _TransactionStatusButton(
-              label: 'Diproses',
-              count: processingCount,
-              isActive: activeTab == _TransactionPaymentTab.processing,
-              onTap: () => onChanged(_TransactionPaymentTab.processing),
-            ),
-          ),
-          Expanded(
-            child: _TransactionStatusButton(
-              label: 'Selesai',
-              count: completedCount,
-              isActive: activeTab == _TransactionPaymentTab.completed,
-              onTap: () => onChanged(_TransactionPaymentTab.completed),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -550,23 +578,29 @@ class _TransactionStatusButton extends StatelessWidget {
   const _TransactionStatusButton({
     required this.label,
     required this.count,
+    required this.minWidth,
     required this.isActive,
     required this.onTap,
   });
 
   final String label;
   final int count;
+  final double minWidth;
   final bool isActive;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    // [FE - Component Rendering] Tombol status transaksi ini menjaga label
+    // dan badge count tetap stabil saat tab aktif, kosong, atau berubah nilai.
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        curve: Curves.easeOutCubic,
+        constraints: BoxConstraints(minWidth: minWidth, minHeight: 42),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isActive ? AppColors.primaryContainer : Colors.transparent,
@@ -574,34 +608,77 @@ class _TransactionStatusButton extends StatelessWidget {
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: isActive ? AppColors.white : AppColors.subtitle,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? AppColors.white.withValues(alpha: 0.3)
-                    : AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                '$count',
+            Flexible(
+              child: AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: isActive ? AppColors.white : AppColors.primary,
+                  height: 1.15,
+                  fontWeight: FontWeight.w800,
+                  color: isActive ? AppColors.white : AppColors.subtitle,
+                ),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.visible,
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),
+            const SizedBox(width: 5),
+            _TransactionStatusCountBadge(count: count, isActive: isActive),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionStatusCountBadge extends StatelessWidget {
+  const _TransactionStatusCountBadge({
+    required this.count,
+    required this.isActive,
+  });
+
+  final int count;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count > 99 ? '99+' : '$count';
+
+    // [FE - Component Rendering] Badge count memakai ukuran minimum tetap
+    // supaya tab tidak bergeser ketika nilai transaksi berubah.
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isActive
+            ? AppColors.white.withValues(alpha: 0.28)
+            : AppColors.primary.withValues(alpha: count == 0 ? 0.08 : 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isActive
+              ? AppColors.white.withValues(alpha: 0.18)
+              : AppColors.primary.withValues(alpha: count == 0 ? 0.06 : 0.10),
+        ),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        style: TextStyle(
+          fontSize: label.length > 2 ? 10 : 11,
+          height: 1,
+          fontWeight: FontWeight.w800,
+          color: isActive
+              ? AppColors.white
+              : AppColors.primary.withValues(alpha: count == 0 ? 0.55 : 1),
         ),
       ),
     );
@@ -857,85 +934,144 @@ class _ProductCard extends StatelessWidget {
           border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
         clipBehavior: Clip.antiAlias,
-        child: IntrinsicHeight(
+        child: Padding(
+          padding: const EdgeInsets.all(10),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(
-                width: 104,
-                child: Container(
-                  color: AppColors.surface,
-                  child:
-                      product.imagePath != null && product.imagePath!.isNotEmpty
-                      ? Image.asset(
-                          product.imagePath!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const _ImageFallback(),
-                        )
-                      : Image.asset(
-                          'assets/images/durian.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const _ImageFallback(),
-                        ),
-                ),
-              ),
+              _ProductImageTile(product: product),
+              const SizedBox(width: 12),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              product.name,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.black,
-                              ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            product.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              height: 1.25,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.black,
                             ),
                           ),
-                          _StatusBadge(product.status),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      _CategoryBadge(label: product.category.label),
-                      const SizedBox(height: 6),
-                      Text(
-                        product.priceLabel,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        product.shortDescription,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          height: 1.35,
-                          color: AppColors.placeholder,
+                        const SizedBox(width: 8),
+                        _StatusBadge(product.status),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _CategoryBadge(label: product.category.label),
+                        Text(
+                          product.priceLabel,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.primary,
+                          ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      product.shortDescription,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        height: 1.35,
+                        color: AppColors.placeholder,
                       ),
-                      const SizedBox(height: 8),
-                      _Bullet(text: product.umkmName),
-                      _Bullet(text: product.location),
-                      _Bullet(text: product.stockLabel),
-                      _Bullet(
-                        text: 'Rating ${product.rating.toStringAsFixed(1)}',
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 8),
+                    _ProductMetaGrid(product: product),
+                  ],
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ProductImageTile extends StatelessWidget {
+  const _ProductImageTile({required this.product});
+
+  final ConsumerProduct product;
+
+  @override
+  Widget build(BuildContext context) {
+    // [FE - Component Rendering] Media tile ini memisahkan visual produk dari
+    // tinggi card agar gambar tidak terpaksa memanjang mengikuti teks.
+    return ProductMediaTile(imagePath: product.imagePath);
+  }
+}
+
+class _ProductMetaGrid extends StatelessWidget {
+  const _ProductMetaGrid({required this.product});
+
+  final ConsumerProduct product;
+
+  @override
+  Widget build(BuildContext context) {
+    // [FE - Component Rendering] Metadata produk dibuat ringkas agar card
+    // tidak terlalu tinggi tetapi informasi penting tetap terbaca.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _MetaLine(icon: Icons.storefront_outlined, text: product.umkmName),
+        _MetaLine(icon: Icons.location_on_outlined, text: product.location),
+        _MetaLine(icon: Icons.inventory_2_outlined, text: product.stockLabel),
+        _MetaLine(
+          icon: Icons.star_outline_rounded,
+          text: 'Rating ${product.rating.toStringAsFixed(1)}',
+        ),
+      ],
+    );
+  }
+}
+
+class _MetaLine extends StatelessWidget {
+  const _MetaLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 12, color: AppColors.placeholder),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10,
+                height: 1.25,
+                color: AppColors.placeholder,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -991,6 +1127,7 @@ class _CategoryBadge extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _Bullet extends StatelessWidget {
   const _Bullet({required this.text});
 
@@ -1026,6 +1163,7 @@ class _Bullet extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _ImageFallback extends StatelessWidget {
   const _ImageFallback();
 

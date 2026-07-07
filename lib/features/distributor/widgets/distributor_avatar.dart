@@ -136,7 +136,13 @@ class DistributorAvatar extends StatelessWidget {
         DistributorRepository.instance.updateAvatar(file.path);
         onAvatarChanged?.call(file.path);
       }
-    } catch (_) {}
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal mengambil foto profil.')),
+        );
+      }
+    }
   }
 
   static Widget _photoAvatar(String path, double size) {

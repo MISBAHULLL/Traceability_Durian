@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/product_media_tile.dart';
 import '../data/umkm_repository.dart';
 import '../models/umkm_order.dart';
 import '../models/umkm_product.dart';
@@ -156,146 +157,154 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
       key: _scaffoldKey,
       backgroundColor: AppColors.white,
       endDrawer: const UmkmDrawer(),
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: Column(
-              children: [
-                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
-                Expanded(
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _GreetingBlock(profile: profile),
-                            const SizedBox(height: 16),
-                            _ProfileCard(
-                              profile: profile,
-                              productCount: products.length,
-                              orderCount: orders.length,
-                              onEdit: _openEditUmkm,
-                            ),
-                            const SizedBox(height: 20),
-                            _DashboardActions(
-                              onAddProduct: _openAddProduct,
-                              onAddPurchase: _openAddPurchase,
-                              onViewOrders: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const UmkmOrderListScreen(),
+      body: ColoredBox(
+        color: AppColors.homeHeaderSurface,
+        child: SafeArea(
+          bottom: false,
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: Column(
+                children: [
+                  _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
+                  Expanded(
+                    child: ColoredBox(
+                      color: AppColors.white,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _GreetingBlock(profile: profile),
+                                const SizedBox(height: 16),
+                                _ProfileCard(
+                                  profile: profile,
+                                  productCount: products.length,
+                                  orderCount: orders.length,
+                                  onEdit: _openEditUmkm,
                                 ),
-                              ),
+                                const SizedBox(height: 20),
+                                _DashboardActions(
+                                  onAddProduct: _openAddProduct,
+                                  onAddPurchase: _openAddPurchase,
+                                  onViewOrders: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const UmkmOrderListScreen(),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 22),
+                                _SearchField(
+                                  controller: _searchController,
+                                  hintText: 'Cari produk atau kategori',
+                                ),
+                                const SizedBox(height: 16),
+                                _CategoryChips(
+                                  categories: categories,
+                                  activeCategory: _activeCategory,
+                                  onChanged: (value) =>
+                                      setState(() => _activeCategory = value),
+                                ),
+                                const SizedBox(height: 22),
+                                _SectionHeader(
+                                  title: 'Produk UMKM',
+                                  count: products.length,
+                                ),
+                              ]),
                             ),
-                            const SizedBox(height: 22),
-                            _SearchField(
-                              controller: _searchController,
-                              hintText: 'Cari produk atau kategori',
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
                             ),
-                            const SizedBox(height: 16),
-                            _CategoryChips(
-                              categories: categories,
-                              activeCategory: _activeCategory,
-                              onChanged: (value) =>
-                                  setState(() => _activeCategory = value),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                final product = products[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _ProductCard(
+                                    product: product,
+                                    onTap: () => _openProductDetail(product),
+                                  ),
+                                );
+                              }, childCount: products.length),
                             ),
-                            const SizedBox(height: 22),
-                            _SectionHeader(
-                              title: 'Produk UMKM',
-                              count: products.length,
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _SectionHeader(
+                                  title: 'Pesanan Masuk',
+                                  count: orders.length,
+                                ),
+                              ]),
                             ),
-                          ]),
-                        ),
-                      ),
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final product = products[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _ProductCard(
-                                product: product,
-                                onTap: () => _openProductDetail(product),
-                              ),
-                            );
-                          }, childCount: products.length),
-                        ),
-                      ),
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _SectionHeader(
-                              title: 'Pesanan Masuk',
-                              count: orders.length,
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
                             ),
-                          ]),
-                        ),
-                      ),
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final order = orders[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _OrderCard(
-                                order: order,
-                                onTap: () => _openOrderDetail(order),
-                              ),
-                            );
-                          }, childCount: orders.length),
-                        ),
-                      ),
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _SectionHeader(
-                              title: 'Pembelian durian',
-                              count: purchases.length,
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                final order = orders[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _OrderCard(
+                                    order: order,
+                                    onTap: () => _openOrderDetail(order),
+                                  ),
+                                );
+                              }, childCount: orders.length),
                             ),
-                          ]),
-                        ),
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _SectionHeader(
+                                  title: 'Pembelian durian',
+                                  count: purchases.length,
+                                ),
+                              ]),
+                            ),
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                final purchase = purchases[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _PurchaseCard(
+                                    purchase: purchase,
+                                    onTap: () => _openPurchaseDetail(purchase),
+                                  ),
+                                );
+                              }, childCount: purchases.length),
+                            ),
+                          ),
+                        ],
                       ),
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final purchase = purchases[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _PurchaseCard(
-                                purchase: purchase,
-                                onTap: () => _openPurchaseDetail(purchase),
-                              ),
-                            );
-                          }, childCount: purchases.length),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -312,7 +321,11 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Container(
+      // [FE - Component Rendering] Band header ini memisahkan navigasi
+      // beranda UMKM dari dashboard produk dan pesanan.
+      width: double.infinity,
+      color: AppColors.homeHeaderSurface,
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
       child: Row(
         children: [
@@ -813,70 +826,76 @@ class _ProductCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: IntrinsicHeight(
+        child: Padding(
+          padding: const EdgeInsets.all(10),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(
-                width: 104,
-                child: Container(
-                  color: AppColors.surface,
-                  child: Image.asset(
-                    product.imagePath ?? 'assets/images/durian.png',
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const _ImageFallback(),
-                  ),
-                ),
-              ),
+              ProductMediaTile(imagePath: product.imagePath),
+              const SizedBox(width: 12),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              product.name,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.black,
-                              ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            product.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              height: 1.25,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.black,
                             ),
                           ),
-                          _StatusBadge(product.status),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      _CategoryBadge(label: product.category),
-                      const SizedBox(height: 6),
-                      Text(
-                        product.priceLabel,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        product.description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          height: 1.35,
-                          color: AppColors.placeholder,
+                        const SizedBox(width: 8),
+                        _StatusBadge(product.status),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _CategoryBadge(label: product.category),
+                        Text(
+                          product.priceLabel,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.primary,
+                          ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      product.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        height: 1.35,
+                        color: AppColors.placeholder,
                       ),
-                      const SizedBox(height: 8),
-                      _Bullet(text: product.stockLabel),
-                      _Bullet(text: product.code),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 8),
+                    _MetaLine(
+                      icon: Icons.inventory_2_outlined,
+                      text: product.stockLabel,
+                    ),
+                    _MetaLine(
+                      icon: Icons.qr_code_2_rounded,
+                      text: product.code,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -887,6 +906,39 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
+class _MetaLine extends StatelessWidget {
+  const _MetaLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        children: [
+          Icon(icon, size: 12, color: AppColors.placeholder),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10,
+                height: 1.25,
+                color: AppColors.placeholder,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ignore: unused_element
 class _ImageFallback extends StatelessWidget {
   const _ImageFallback();
 
@@ -959,6 +1011,7 @@ class _CategoryBadge extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _Bullet extends StatelessWidget {
   const _Bullet({required this.text});
 

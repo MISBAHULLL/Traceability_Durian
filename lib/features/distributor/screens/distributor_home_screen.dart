@@ -266,77 +266,88 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
       key: _scaffoldKey,
       backgroundColor: AppColors.white,
       endDrawer: const DistributorDrawer(),
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: Column(
-              children: [
-                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
-                Expanded(
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _GreetingBlock(profile: profile),
-                            const SizedBox(height: 16),
-                            _StatRow(repo: _repo),
-                            const SizedBox(height: 16),
-                            _CtaCard(onTap: _openQrSimulation),
-                            const SizedBox(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Pengiriman Aktif',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.black,
-                                  ),
+      body: ColoredBox(
+        color: AppColors.homeHeaderSurface,
+        child: SafeArea(
+          bottom: false,
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: Column(
+                children: [
+                  _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
+                  Expanded(
+                    child: ColoredBox(
+                      color: AppColors.white,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _GreetingBlock(profile: profile),
+                                const SizedBox(height: 16),
+                                _StatRow(repo: _repo),
+                                const SizedBox(height: 16),
+                                _CtaCard(onTap: _openQrSimulation),
+                                const SizedBox(height: 16),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'Pengiriman Aktif',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.black,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${activeShipments.length} transit',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.placeholder,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  '${activeShipments.length} transit',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.placeholder,
-                                  ),
-                                ),
-                              ],
+                                const SizedBox(height: 12),
+                              ]),
                             ),
-                            const SizedBox(height: 12),
-                          ]),
-                        ),
-                      ),
-                      if (activeShipments.isEmpty)
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _EmptyState(),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate((context, i) {
-                              final s = activeShipments[i];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _ShipmentCard(
-                                  shipment: s,
-                                  onDetail: () => _openShipmentDetail(s),
-                                  onArrive: () => _markAsArrived(s),
-                                ),
-                              );
-                            }, childCount: activeShipments.length),
                           ),
-                        ),
-                    ],
+                          if (activeShipments.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyState(),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate((
+                                  context,
+                                  i,
+                                ) {
+                                  final s = activeShipments[i];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _ShipmentCard(
+                                      shipment: s,
+                                      onDetail: () => _openShipmentDetail(s),
+                                      onArrive: () => _markAsArrived(s),
+                                    ),
+                                  );
+                                }, childCount: activeShipments.length),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -354,7 +365,11 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Container(
+      // [FE - Component Rendering] Band header ini menjaga navigasi beranda
+      // distributor terbaca sebagai area tetap di atas konten.
+      width: double.infinity,
+      color: AppColors.homeHeaderSurface,
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
       child: Row(
         children: [

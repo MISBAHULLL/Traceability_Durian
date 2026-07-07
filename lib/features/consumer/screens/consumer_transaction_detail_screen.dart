@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/qr_preview.dart';
 import '../models/consumer_product.dart';
 import '../models/consumer_transaction.dart';
 
@@ -189,11 +189,9 @@ class ConsumerTransactionDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 14),
                           Center(
-                            child: QrImageView(
+                            child: ResponsiveQrCode(
                               data: transaction.qrCodeData,
-                              version: QrVersions.auto,
                               size: 160,
-                              backgroundColor: AppColors.white,
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -532,11 +530,9 @@ class _PurchasedProductQrCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Center(
-            child: QrImageView(
+            child: ResponsiveQrCode(
               data: transaction.purchasedProductQrData,
-              version: QrVersions.auto,
               size: 160,
-              backgroundColor: AppColors.white,
             ),
           ),
           const SizedBox(height: 12),

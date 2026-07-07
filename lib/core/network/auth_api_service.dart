@@ -132,14 +132,11 @@ class AuthApiService {
     required String password,
     required String role,
   }) {
-    return _post(
-      AuthEndpoints.login,
-      <String, dynamic>{
-        'identifier': identifier,
-        'password': password,
-        'role': role,
-      },
-    );
+    return _post(AuthEndpoints.login, <String, dynamic>{
+      'identifier': identifier,
+      'password': password,
+      'role': role,
+    });
   }
 
   Future<AuthApiResult> register({
@@ -151,21 +148,21 @@ class AuthApiService {
     required String passwordConfirmation,
     required String role,
   }) {
-    return _post(
-      AuthEndpoints.register,
-      <String, dynamic>{
-        'first_name': firstName,
-        'last_name': lastName,
-        'phone': phone,
-        'email': email,
-        'password': password,
-        'password_confirmation': passwordConfirmation,
-        'role': role,
-      },
-    );
+    return _post(AuthEndpoints.register, <String, dynamic>{
+      'first_name': firstName,
+      'last_name': lastName,
+      'phone': phone,
+      'email': email,
+      'password': password,
+      'password_confirmation': passwordConfirmation,
+      'role': role,
+    });
   }
 
-  Future<AuthApiResult> _post(String endpoint, Map<String, dynamic> body) async {
+  Future<AuthApiResult> _post(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
     final response = await _client.post(
       AppApiConfig.uri(endpoint),
       headers: _headers,
@@ -173,7 +170,8 @@ class AuthApiService {
     );
 
     final decoded = _decodeJson(response.body);
-    final message = _extractMessage(decoded) ??
+    final message =
+        _extractMessage(decoded) ??
         _defaultMessageForStatus(response.statusCode);
 
     if (response.statusCode == 200 || response.statusCode == 201) {
@@ -232,7 +230,8 @@ class AuthApiService {
       case 'umkm':
         UmkmRepository.instance.updateProfile(
           UmkmProfile(
-            umkmId: 'umkm-auth-${user.id ?? DateTime.now().millisecondsSinceEpoch}',
+            umkmId:
+                'umkm-auth-${user.id ?? DateTime.now().millisecondsSinceEpoch}',
             name: fullName.isEmpty ? 'UMKM Durian' : fullName,
             ownerName: fullName.isEmpty ? 'Pemilik UMKM' : fullName,
             contact: user.phone,

@@ -410,7 +410,8 @@ class _HomeScreenState extends State<HomeScreen>
                     identifierFocus: _identifierFocus,
                     passwordFocus: _passwordFocus,
                     selectedRole: _selectedRole,
-                    onRoleChanged: (role) => setState(() => _selectedRole = role),
+                    onRoleChanged: (role) =>
+                        setState(() => _selectedRole = role),
                     onLogin: _handleLoginApi,
                     onRegisterTap: _handleRegisterTap,
                     isLoading: _isLoading,

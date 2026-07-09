@@ -102,12 +102,12 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
               child: batch == null
                   ? _BatchNotFound(batchCode: widget.batchCode)
                   : _BatchDetailContent(
-                       batch: batch,
-                       repo: _repo,
-                       onOpenQr: _openQr,
-                       onOpenTrace: _openTrace,
-                       onOpenEdit: _openEdit,
-                     ),
+                      batch: batch,
+                      repo: _repo,
+                      onOpenQr: _openQr,
+                      onOpenTrace: _openTrace,
+                      onOpenEdit: _openEdit,
+                    ),
             ),
           ],
         ),

@@ -8,6 +8,7 @@ import '../models/harvest_batch.dart';
 import 'add_batch_screen.dart';
 import 'batch_detail_screen.dart';
 import 'batch_qr_screen.dart';
+import 'farmer_notifications_screen.dart';
 import 'farmer_profile_screen.dart';
 import '../widgets/farmer_drawer.dart';
 
@@ -208,6 +209,11 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
     await FarmerRoutes.push(context, BatchQrScreen(batchCode: code));
   }
 
+  // [FE - Event Handler] Membuka pusat notifikasi dari ikon lonceng beranda.
+  Future<void> _openNotifications() async {
+    await FarmerRoutes.push(context, const FarmerNotificationsScreen());
+  }
+
   /// Buka Layar Profil Petani (Req 1.11).
   Future<void> _openProfile() async {
     await FarmerRoutes.push(context, const FarmerProfileScreen());
@@ -237,7 +243,12 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
               position: _slideAnim,
               child: Column(
                 children: [
-                  _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
+                  _TopBar(
+                    onProfile: _openProfile,
+                    onNotifications: _openNotifications,
+                    onMenu: _openDrawer,
+                    notificationCount: _repo.attentionNotificationCount,
+                  ),
                   Expanded(
                     child: ColoredBox(
                       color: AppColors.white,
@@ -329,10 +340,17 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
 /// Ikon menu membuka navigation drawer (Beranda, Kelola Kebun, Profil,
 /// Bantuan, Tentang, Keluar).
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.onProfile, required this.onMenu});
+  const _TopBar({
+    required this.onProfile,
+    required this.onNotifications,
+    required this.onMenu,
+    required this.notificationCount,
+  });
 
   final VoidCallback onProfile;
+  final VoidCallback onNotifications;
   final VoidCallback onMenu;
+  final int notificationCount;
 
   @override
   Widget build(BuildContext context) {
@@ -356,6 +374,12 @@ class _TopBar extends StatelessWidget {
           const Spacer(),
           _IconButton(icon: Icons.person_outline_rounded, onTap: onProfile),
           const SizedBox(width: 10),
+          _IconButton(
+            icon: Icons.notifications_none_rounded,
+            onTap: onNotifications,
+            badgeCount: notificationCount,
+          ),
+          const SizedBox(width: 10),
           _IconButton(icon: Icons.menu_rounded, onTap: onMenu),
         ],
       ),
@@ -364,10 +388,15 @@ class _TopBar extends StatelessWidget {
 }
 
 class _IconButton extends StatelessWidget {
-  const _IconButton({required this.icon, required this.onTap});
+  const _IconButton({
+    required this.icon,
+    required this.onTap,
+    this.badgeCount = 0,
+  });
 
   final IconData icon;
   final VoidCallback onTap;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -383,7 +412,37 @@ class _IconButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFF0F2F5)),
           ),
-          child: Icon(icon, color: AppColors.black, size: 22),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(icon, color: AppColors.black, size: 22),
+              if (badgeCount > 0)
+                Positioned(
+                  right: -7,
+                  top: -8,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 16),
+                    height: 16,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD64545),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: AppColors.white, width: 1),
+                    ),
+                    child: Text(
+                      badgeCount > 9 ? '9+' : '$badgeCount',
+                      style: const TextStyle(
+                        fontSize: 9,
+                        height: 1,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.white,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

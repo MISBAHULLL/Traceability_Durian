@@ -536,10 +536,7 @@ class _HistoryCardHeader extends StatelessWidget {
           spacing: 8,
           runSpacing: 6,
           children: [
-            _MetaChip(
-              icon: Icons.scale_outlined,
-              label: item.initialAmount,
-            ),
+            _MetaChip(icon: Icons.scale_outlined, label: item.initialAmount),
             _MetaChip(
               icon: Icons.person_pin_circle_outlined,
               label: item.toLabel,
@@ -598,7 +595,10 @@ class _HistoryExpandedDetails extends StatelessWidget {
         const SizedBox(height: 14),
         const Divider(height: 1, color: _borderColor),
         const SizedBox(height: 12),
-        _DetailRow(label: 'Tanggal & Waktu', value: _formatDateTime(item.timestamp)),
+        _DetailRow(
+          label: 'Tanggal & Waktu',
+          value: _formatDateTime(item.timestamp),
+        ),
         _DetailRow(label: 'Kebun', value: item.batch.farmName),
         _DetailRow(label: 'Jumlah Awal', value: item.initialAmount),
         _DetailRow(label: 'Jumlah Diterima', value: item.receivedAmount),

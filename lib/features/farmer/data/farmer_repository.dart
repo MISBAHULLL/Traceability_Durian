@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../models/batch_event.dart';
 import '../models/farm.dart';
+import '../models/farmer_notification.dart';
 import '../models/harvest_batch.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -720,6 +721,129 @@ class FarmerRepository extends ChangeNotifier {
   int get rejectedBatch =>
       batches.where((b) => b.status == BatchStatus.rejected).length;
 
+  // [FE - State Management] Notifikasi petani dibangkitkan dari status batch
+  // agar FE punya pusat notifikasi meski tabel notifikasi BE belum tersedia.
+  List<FarmerNotification> get notifications {
+    final items = <FarmerNotification>[];
+
+    for (final batch in batches) {
+      final baseTime = batch.createdAt ?? batch.harvestDate;
+
+      switch (batch.status) {
+        case BatchStatus.draft:
+          break;
+        case BatchStatus.created:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-request',
+              batchCode: batch.code,
+              title: 'Batch siap discan',
+              message:
+                  '${batch.variety} ${_formatBatchAmount(batch)} menunggu scan QR dan konfirmasi penerima.',
+              createdAt: baseTime,
+              type: FarmerNotificationType.transactionRequest,
+              batchStatus: batch.status,
+              requiresAttention: true,
+            ),
+          );
+        case BatchStatus.verifiedByCollector:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-verified',
+              batchCode: batch.code,
+              title: 'Serah terima diterima',
+              message:
+                  '${batch.verifiedBy ?? 'Penerima'} menerima ${_formatReceivedAmount(batch)} dengan grade riil ${batch.verifiedGrade ?? batch.grade}.',
+              createdAt: batch.verifiedAt ?? baseTime,
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.inDistribution:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-distribution',
+              batchCode: batch.code,
+              title: 'Batch masuk pengiriman',
+              message:
+                  '${batch.variety} dari ${batch.farmName} sudah bergerak ke penerima berikutnya.',
+              createdAt: (batch.verifiedAt ?? baseTime).add(
+                const Duration(days: 1),
+              ),
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.receivedByUmkm:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-umkm',
+              batchCode: batch.code,
+              title: 'Batch diterima UMKM',
+              message:
+                  '${batch.variety} sudah dikonfirmasi penerima hilir dan trace tetap tersambung.',
+              createdAt: (batch.verifiedAt ?? baseTime).add(
+                const Duration(days: 2),
+              ),
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.processed:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-processed',
+              batchCode: batch.code,
+              title: 'Batch mulai diolah',
+              message:
+                  '${batch.variety} sudah masuk proses olahan UMKM sebagai bagian trace produk.',
+              createdAt: (batch.verifiedAt ?? baseTime).add(
+                const Duration(days: 3),
+              ),
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.sold:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-sold',
+              batchCode: batch.code,
+              title: 'Trace selesai sampai konsumen',
+              message:
+                  '${batch.variety} telah selesai di rantai pasok dan tercatat sampai penjualan.',
+              createdAt: (batch.verifiedAt ?? baseTime).add(
+                const Duration(days: 4),
+              ),
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.rejected:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-rejected',
+              batchCode: batch.code,
+              title: 'Serah terima ditolak',
+              message:
+                  batch.rejectionReason ??
+                  'Batch perlu ditinjau karena penerima menolak serah terima.',
+              createdAt: batch.rejectedAt ?? baseTime,
+              type: FarmerNotificationType.dispute,
+              batchStatus: batch.status,
+              requiresAttention: true,
+            ),
+          );
+      }
+    }
+
+    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return items;
+  }
+
+  int get attentionNotificationCount =>
+      notifications.where((item) => item.requiresAttention).length;
+
   // ── Timeline (Req 3.6) ─────────────────────────────────────────────────────
 
   // [FE - State Management] Getter ini membuka batch CREATED sebagai antrean
@@ -1189,6 +1313,24 @@ List<HarvestBatch> searchAndFilterBatches(
         b.variety.toLowerCase().contains(q);
     return matchFilter && matchQuery;
   }).toList();
+}
+
+String _formatBatchAmount(HarvestBatch batch) {
+  final weight = _formatCompactNumber(batch.quantity);
+  final fruit = batch.fruitCount == null ? '' : ' / ${batch.fruitCount} butir';
+  return '$weight ${batch.unit}$fruit';
+}
+
+String _formatReceivedAmount(HarvestBatch batch) {
+  final quantity = batch.receivedQuantity ?? batch.quantity;
+  final fruit = batch.receivedFruitCount ?? batch.fruitCount;
+  final fruitText = fruit == null ? '' : ' / $fruit butir';
+  return '${_formatCompactNumber(quantity)} ${batch.unit}$fruitText';
+}
+
+String _formatCompactNumber(num value) {
+  if (value % 1 == 0) return value.toInt().toString();
+  return value.toStringAsFixed(1);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

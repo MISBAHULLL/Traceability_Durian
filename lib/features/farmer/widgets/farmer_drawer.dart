@@ -7,6 +7,7 @@ import '../farmer_routes.dart';
 import '../models/harvest_batch.dart';
 import '../screens/about_screen.dart';
 import '../screens/farm_management_screen.dart';
+import '../screens/farmer_notifications_screen.dart';
 import '../screens/farmer_profile_screen.dart';
 import '../screens/help_screen.dart';
 import '../screens/ownership_history_screen.dart';
@@ -63,6 +64,11 @@ class FarmerDrawer extends StatelessWidget {
                   icon: Icons.timeline_rounded,
                   label: 'Riwayat Perpindahan',
                   onTap: () => _go(context, const OwnershipHistoryScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.notifications_none_rounded,
+                  label: 'Notifikasi',
+                  onTap: () => _go(context, const FarmerNotificationsScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.person_outline_rounded,

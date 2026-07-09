@@ -219,7 +219,8 @@ class _JourneyMap extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _JourneyNode(step: step, isCurrent: isLast),
-                    if (!isLast) _JourneyConnector(color: steps[index + 1].color),
+                    if (!isLast)
+                      _JourneyConnector(color: steps[index + 1].color),
                   ],
                 );
               }),
@@ -250,7 +251,9 @@ class _JourneyNode extends StatelessWidget {
               color: step.color.withValues(alpha: 0.12),
               shape: BoxShape.circle,
               border: Border.all(
-                color: isCurrent ? step.color : step.color.withValues(alpha: 0.35),
+                color: isCurrent
+                    ? step.color
+                    : step.color.withValues(alpha: 0.35),
                 width: isCurrent ? 2 : 1,
               ),
             ),
@@ -338,7 +341,10 @@ class _TraceFacts extends StatelessWidget {
           _FactRow(label: 'Jumlah Awal', value: _initialAmount(batch)),
           _FactRow(label: 'Jumlah Diterima', value: _receivedAmount(batch)),
           _FactRow(label: 'Grade', value: _gradeInfo(batch)),
-          _FactRow(label: 'Tanggal Panen', value: _formatDate(batch.harvestDate)),
+          _FactRow(
+            label: 'Tanggal Panen',
+            value: _formatDate(batch.harvestDate),
+          ),
         ],
       ),
     );
@@ -574,7 +580,8 @@ class _TraceStepFactory {
         roleLabel: 'Petani',
         actionLabel: 'Panen dicatat',
         title: 'Batch dibuat',
-        description: '$farmerName mencatat ${batch.variety} dari ${batch.farmName}.',
+        description:
+            '$farmerName mencatat ${batch.variety} dari ${batch.farmName}.',
         timestamp: createdAt,
         status: BatchStatus.created,
         icon: Icons.agriculture_rounded,
@@ -584,8 +591,7 @@ class _TraceStepFactory {
     final handoverEvents = events.where((event) {
       return event.status != BatchStatus.created &&
           event.status != BatchStatus.draft;
-    }).toList()
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    }).toList()..sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     for (final event in handoverEvents) {
       steps.add(_TraceStep.fromEvent(event));
@@ -633,7 +639,8 @@ class _TraceStep {
           roleLabel: 'Pengiriman',
           actionLabel: 'Dalam perjalanan',
           title: 'Batch dikirim',
-          description: '${event.actorLabel} menyiapkan batch untuk penerima berikutnya.',
+          description:
+              '${event.actorLabel} menyiapkan batch untuk penerima berikutnya.',
           timestamp: event.timestamp,
           status: event.status,
           icon: Icons.local_shipping_rounded,

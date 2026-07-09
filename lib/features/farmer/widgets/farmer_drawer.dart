@@ -9,6 +9,7 @@ import '../screens/about_screen.dart';
 import '../screens/farm_management_screen.dart';
 import '../screens/farmer_profile_screen.dart';
 import '../screens/help_screen.dart';
+import '../screens/ownership_history_screen.dart';
 import 'farmer_avatar.dart';
 
 // [FE - Component Rendering] FarmerDrawer adalah navigation drawer utama
@@ -57,6 +58,11 @@ class FarmerDrawer extends StatelessWidget {
                   icon: Icons.forest_rounded, // Ikon kebun yang lebih megah
                   label: 'Kelola Kebun',
                   onTap: () => _go(context, const FarmManagementScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.timeline_rounded,
+                  label: 'Riwayat Perpindahan',
+                  onTap: () => _go(context, const OwnershipHistoryScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.person_outline_rounded,

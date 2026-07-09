@@ -372,6 +372,18 @@ class FarmerRepository extends ChangeNotifier {
   List<Farm> get farms =>
       _farms.where((f) => f.farmerId == _currentFarmerId).toList();
 
+  // [FE - State Management] findFarm mencari kebun milik sesi aktif untuk
+  // kebutuhan form edit tanpa membuka akses kebun milik petani lain.
+  Farm? findFarm(String id) {
+    try {
+      return _farms.firstWhere(
+        (f) => f.id == id && f.farmerId == _currentFarmerId,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── Batch (Req 7.2 — terbatas milik currentFarmerId) ──────────────────────
 
   /// Daftar batch milik petani yang sedang login, diurutkan terbaru di atas.
@@ -523,6 +535,66 @@ class FarmerRepository extends ChangeNotifier {
     _saveToLocal();
     notifyListeners();
     return farm;
+  }
+
+  // [FE - State Management] updateFarm memperbarui data kebun milik petani
+  // aktif. Batch lama tetap menyimpan snapshot farmName agar audit tidak kabur.
+  bool updateFarm({
+    required String id,
+    required String name,
+    required String province,
+    required String city,
+    required String district,
+    required String village,
+    required String address,
+    double? latitude,
+    double? longitude,
+  }) {
+    final index = _farms.indexWhere(
+      (f) => f.id == id && f.farmerId == _currentFarmerId,
+    );
+    if (index == -1) return false;
+
+    final existing = _farms[index];
+    _farms[index] = Farm(
+      id: existing.id,
+      farmerId: existing.farmerId,
+      name: name,
+      province: province,
+      city: city,
+      district: district,
+      village: village,
+      address: address,
+      latitude: latitude,
+      longitude: longitude,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  // [AUTH - Authorization] canDeleteFarm menjaga agar kebun yang sudah menjadi
+  // asal batch tidak dihapus dan memutus rantai traceability.
+  bool canDeleteFarm(String id) {
+    final farm = findFarm(id);
+    if (farm == null) return false;
+    return !_batches.any(
+      (batch) => batch.farmerId == _currentFarmerId && batch.farmId == id,
+    );
+  }
+
+  // [FE - State Management] deleteFarm menghapus kebun kosong saja; kebun yang
+  // sudah dipakai batch harus tetap ada sebagai data asal panen.
+  bool deleteFarm(String id) {
+    if (!canDeleteFarm(id)) return false;
+
+    final before = _farms.length;
+    _farms.removeWhere((f) => f.id == id && f.farmerId == _currentFarmerId);
+    if (_farms.length == before) return false;
+
+    _saveToLocal();
+    notifyListeners();
+    return true;
   }
 
   // ── Guard edit batch (Req 3.8, 3.9, 7.3, 7.4) ─────────────────────────────

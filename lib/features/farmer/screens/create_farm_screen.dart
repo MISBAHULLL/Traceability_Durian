@@ -26,7 +26,12 @@ import '../data/farmer_repository.dart';
 ///    lalu pop. Kebun baru langsung tersedia di dropdown Tambah Batch (Req 5.6)
 ///    karena repo memanggil [notifyListeners].
 class CreateFarmScreen extends StatefulWidget {
-  const CreateFarmScreen({super.key});
+  const CreateFarmScreen({super.key, this.editFarmId});
+
+  /// ID kebun yang diedit. Jika null, screen berjalan sebagai tambah kebun.
+  final String? editFarmId;
+
+  bool get isEditMode => editFarmId != null;
 
   @override
   State<CreateFarmScreen> createState() => _CreateFarmScreenState();
@@ -59,7 +64,26 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.isEditMode) {
+      _prefillFromExistingFarm();
+    }
     _loadRegions();
+  }
+
+  // [FE - State Management] Prefill ini mengubah form create menjadi form edit
+  // dengan sumber data dari FarmerRepository tanpa membuat screen baru.
+  void _prefillFromExistingFarm() {
+    final farm = _repo.findFarm(widget.editFarmId!);
+    if (farm == null) return;
+
+    _nameCtrl.text = farm.name;
+    _provinceCtrl.text = farm.province;
+    _cityCtrl.text = farm.city;
+    _districtCtrl.text = farm.district;
+    _villageCtrl.text = farm.village;
+    _addressCtrl.text = farm.address;
+    _latCtrl.text = farm.latitude?.toString() ?? '';
+    _lngCtrl.text = farm.longitude?.toString() ?? '';
   }
 
   Future<void> _loadRegions() async {
@@ -67,9 +91,15 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
       await _regionService.load();
       if (!mounted) return;
       setState(() {
+        if (widget.isEditMode) {
+          _syncRegionCodesFromControllers();
+        }
         _isLoadingRegions = false;
         _regionLoadError = null;
       });
+      if (widget.isEditMode) {
+        _updateBoundary();
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -78,6 +108,34 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
             'Data wilayah tidak dapat dimuat. Kamu tetap bisa mengetik manual.';
       });
     }
+  }
+
+  // [FE - State Management] Sinkronisasi ini memetakan teks wilayah hasil
+  // prefill edit ke kode master agar preview peta tetap mengetahui level lokasi.
+  void _syncRegionCodesFromControllers() {
+    final province = _regionService.findExact(
+      _regionService.provinces,
+      _provinceCtrl.text,
+    );
+    _provinceCode = province?.code;
+
+    final city = _regionService.findExact(
+      _regionService.childrenOf(_provinceCode),
+      _cityCtrl.text,
+    );
+    _cityCode = city?.code;
+
+    final district = _regionService.findExact(
+      _regionService.childrenOf(_cityCode),
+      _districtCtrl.text,
+    );
+    _districtCode = district?.code;
+
+    final village = _regionService.findExact(
+      _regionService.childrenOf(_districtCode),
+      _villageCtrl.text,
+    );
+    _villageCode = village?.code;
   }
 
   List<CahyadsnRegion> get _provinceOptions =>
@@ -296,23 +354,52 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
         ? null
         : double.tryParse(_lngCtrl.text.trim());
 
-    _repo.addFarm(
-      name: _nameCtrl.text.trim(),
-      province: _provinceCtrl.text.trim(),
-      city: _cityCtrl.text.trim(),
-      district: _districtCtrl.text.trim(),
-      village: _villageCtrl.text.trim(),
-      address: _addressCtrl.text.trim(),
-      latitude: lat,
-      longitude: lng,
-    );
+    // [FE - Event Handler] Submit memakai repository yang sama untuk tambah
+    // dan edit agar store lokal serta listener UI tetap satu sumber kebenaran.
+    final bool ok;
+    if (widget.isEditMode) {
+      ok = _repo.updateFarm(
+        id: widget.editFarmId!,
+        name: _nameCtrl.text.trim(),
+        province: _provinceCtrl.text.trim(),
+        city: _cityCtrl.text.trim(),
+        district: _districtCtrl.text.trim(),
+        village: _villageCtrl.text.trim(),
+        address: _addressCtrl.text.trim(),
+        latitude: lat,
+        longitude: lng,
+      );
+    } else {
+      _repo.addFarm(
+        name: _nameCtrl.text.trim(),
+        province: _provinceCtrl.text.trim(),
+        city: _cityCtrl.text.trim(),
+        district: _districtCtrl.text.trim(),
+        village: _villageCtrl.text.trim(),
+        address: _addressCtrl.text.trim(),
+        latitude: lat,
+        longitude: lng,
+      );
+      ok = true;
+    }
 
     setState(() => _isSubmitting = false);
+
+    if (!ok) {
+      _notification.show(
+        context,
+        'Kebun tidak ditemukan atau tidak dapat diperbarui.',
+        isError: true,
+      );
+      return;
+    }
 
     // Banner sukses (Req 5.5)
     _notification.show(
       context,
-      'Kebun "${_nameCtrl.text.trim()}" berhasil ditambahkan.',
+      widget.isEditMode
+          ? 'Kebun "${_nameCtrl.text.trim()}" berhasil diperbarui.'
+          : 'Kebun "${_nameCtrl.text.trim()}" berhasil ditambahkan.',
       isError: false,
     );
 
@@ -332,7 +419,7 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
         child: Column(
           children: [
             // Top bar dengan tombol back (Req 8.2)
-            const AppTopBar(title: 'Buat Kebun'),
+            AppTopBar(title: widget.isEditMode ? 'Ubah Kebun' : 'Buat Kebun'),
 
             // Form scrollable
             Expanded(
@@ -532,7 +619,9 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
 
                     // ── Tombol Simpan ──────────────────────────────────────
                     PrimaryPillButton(
-                      label: 'SIMPAN KEBUN',
+                      label: widget.isEditMode
+                          ? 'SIMPAN PERUBAHAN'
+                          : 'SIMPAN KEBUN',
                       onPressed: _isSubmitting ? null : _submit,
                       isLoading: _isSubmitting,
                     ),

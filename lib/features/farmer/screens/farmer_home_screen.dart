@@ -40,6 +40,8 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   BatchFilter _activeFilter = BatchFilter.semua;
+  BatchPeriodFilter _activePeriod = BatchPeriodFilter.semua;
+  DateTimeRange? _customPeriod;
   String _query = '';
 
   late final AnimationController _animController;
@@ -92,11 +94,100 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
   // [UTIL - Helper Function] _filteredBatches menggabungkan filter chip
   // dan query pencarian menjadi satu daftar — menggunakan pure function
   // searchAndFilterBatches agar logika filter dapat diuji secara independen.
-  /// Daftar batch setelah difilter chip + query pencarian (Req 1.4, 1.5, 1.6).
+  /// Daftar batch setelah difilter status, periode, dan query pencarian.
   ///
   /// Menggunakan helper murni [searchAndFilterBatches] dari FarmerRepository.
   List<HarvestBatch> get _filteredBatches {
-    return searchAndFilterBatches(_repo.batches, _activeFilter, _query);
+    final base = searchAndFilterBatches(_repo.batches, _activeFilter, _query);
+    return base.where(_matchesPeriod).toList();
+  }
+
+  // [UTIL - Helper Function] Filter periode memakai harvestDate sebagai dasar
+  // agar daftar batch mengikuti waktu panen, bukan waktu data dibuat.
+  bool _matchesPeriod(HarvestBatch batch) {
+    final date = DateUtils.dateOnly(batch.harvestDate);
+    final today = DateUtils.dateOnly(DateTime.now());
+
+    switch (_activePeriod) {
+      case BatchPeriodFilter.semua:
+        return true;
+      case BatchPeriodFilter.hariIni:
+        return date == today;
+      case BatchPeriodFilter.tujuhHari:
+        final start = today.subtract(const Duration(days: 6));
+        return !date.isBefore(start) && !date.isAfter(today);
+      case BatchPeriodFilter.tigaPuluhHari:
+        final start = today.subtract(const Duration(days: 29));
+        return !date.isBefore(start) && !date.isAfter(today);
+      case BatchPeriodFilter.custom:
+        final range = _customPeriod;
+        if (range == null) return true;
+        final start = DateUtils.dateOnly(range.start);
+        final end = DateUtils.dateOnly(range.end);
+        return !date.isBefore(start) && !date.isAfter(end);
+    }
+  }
+
+  String _formatPeriodDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${date.day} ${months[date.month - 1]}';
+  }
+
+  // [FE - Event Handler] Handler ini mengatur filter periode dan membuka date
+  // range picker khusus saat user memilih mode Custom.
+  Future<void> _changePeriodFilter(BatchPeriodFilter filter) async {
+    if (filter != BatchPeriodFilter.custom) {
+      setState(() {
+        _activePeriod = filter;
+        _customPeriod = null;
+      });
+      return;
+    }
+
+    final today = DateUtils.dateOnly(DateTime.now());
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: today,
+      initialDateRange:
+          _customPeriod ??
+          DateTimeRange(
+            start: today.subtract(const Duration(days: 6)),
+            end: today,
+          ),
+      locale: const Locale('id', 'ID'),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primaryContainer,
+              onPrimary: AppColors.white,
+              onSurface: AppColors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked == null || !mounted) return;
+    setState(() {
+      _activePeriod = BatchPeriodFilter.custom;
+      _customPeriod = picked;
+    });
   }
 
   // ── Navigasi ───────────────────────────────────────────────────────────────
@@ -171,7 +262,18 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
                                       setState(() => _activeFilter = f),
                                 ),
                                 const SizedBox(height: 16),
-                                _SectionHeader(count: batches.length),
+                                _SectionHeader(
+                                  count: batches.length,
+                                  periodButton: _PeriodFilterButton(
+                                    active: _activePeriod,
+                                    customLabel: _customPeriod == null
+                                        ? null
+                                        : '${_formatPeriodDate(_customPeriod!.start)} - '
+                                              '${_formatPeriodDate(_customPeriod!.end)}',
+                                    compact: true,
+                                    onChanged: _changePeriodFilter,
+                                  ),
+                                ),
                                 const SizedBox(height: 12),
                               ]),
                             ),
@@ -702,24 +804,189 @@ class _FilterChips extends StatelessWidget {
 // Section header daftar batch
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.count});
+// [FE - State Management] Enum ini merepresentasikan opsi periode daftar
+// batch di Beranda Petani dan dipakai untuk filter harvestDate.
+enum BatchPeriodFilter { semua, hariIni, tujuhHari, tigaPuluhHari, custom }
 
-  final int count;
+extension BatchPeriodFilterX on BatchPeriodFilter {
+  String get label {
+    switch (this) {
+      case BatchPeriodFilter.semua:
+        return 'Semua periode';
+      case BatchPeriodFilter.hariIni:
+        return 'Hari ini';
+      case BatchPeriodFilter.tujuhHari:
+        return '7 hari';
+      case BatchPeriodFilter.tigaPuluhHari:
+        return '30 hari';
+      case BatchPeriodFilter.custom:
+        return 'Custom';
+    }
+  }
+}
+
+// [FE - Component Rendering] _PeriodFilterButton merangkum filter periode
+// dalam satu pill agar area daftar batch tidak termakan banyak chip.
+class _PeriodFilterButton extends StatelessWidget {
+  const _PeriodFilterButton({
+    required this.active,
+    required this.onChanged,
+    this.customLabel,
+    this.compact = false,
+  });
+
+  final BatchPeriodFilter active;
+  final Future<void> Function(BatchPeriodFilter) onChanged;
+  final String? customLabel;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        const Text(
-          'Batch Panen Saya',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: AppColors.black,
+    final hasCustom = active == BatchPeriodFilter.custom && customLabel != null;
+    final label = hasCustom ? customLabel! : active.label;
+    final displayLabel = compact
+        ? _compactLabel(label)
+        : 'Periode: ${_compactLabel(label)}';
+
+    // [FE - Component Rendering] PopupMenuButton ini membuat filter periode
+    // muncul dari pill agar pilihan tetap dekat dengan konteks daftar batch.
+    return PopupMenuButton<BatchPeriodFilter>(
+      tooltip: 'Pilih periode',
+      color: AppColors.white,
+      elevation: 8,
+      offset: const Offset(0, 8),
+      position: PopupMenuPosition.under,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      onSelected: (filter) {
+        onChanged(filter);
+      },
+      itemBuilder: (context) {
+        return BatchPeriodFilter.values.map((filter) {
+          final isActive = filter == active;
+          final itemLabel =
+              filter == BatchPeriodFilter.custom && customLabel != null
+              ? customLabel!
+              : filter.label;
+
+          return PopupMenuItem<BatchPeriodFilter>(
+            value: filter,
+            child: Row(
+              children: [
+                Icon(
+                  filter == BatchPeriodFilter.custom
+                      ? Icons.date_range_rounded
+                      : Icons.calendar_today_outlined,
+                  size: 18,
+                  color: isActive
+                      ? AppColors.primaryContainer
+                      : AppColors.placeholder,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    itemLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                      color: isActive
+                          ? AppColors.primaryContainer
+                          : AppColors.subtitle,
+                    ),
+                  ),
+                ),
+                if (isActive) ...[
+                  const SizedBox(width: 10),
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    size: 18,
+                    color: AppColors.primaryContainer,
+                  ),
+                ],
+              ],
+            ),
+          );
+        }).toList();
+      },
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: compact ? 132 : 260),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: const Color(0xFFEAF7E5),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.primaryContainer),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.calendar_today_outlined,
+                  size: 15,
+                  color: AppColors.primaryContainer,
+                ),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    displayLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryContainer,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: AppColors.primaryContainer,
+                ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  String _compactLabel(String label) {
+    if (label == BatchPeriodFilter.semua.label) return 'Semua';
+    return label;
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.count, required this.periodButton});
+
+  final int count;
+  final Widget periodButton;
+
+  @override
+  Widget build(BuildContext context) {
+    // [FE - Component Rendering] Header ini menyatukan judul daftar, filter
+    // periode, dan jumlah batch agar kontrol daftar berada di satu baris.
+    return Row(
+      children: [
+        const Expanded(
+          child: Text(
+            'Batch Panen Saya',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.black,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        periodButton,
+        const SizedBox(width: 8),
         Text(
           '$count batch',
           style: const TextStyle(fontSize: 12, color: AppColors.placeholder),

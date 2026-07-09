@@ -9,6 +9,7 @@ import '../models/collector_product.dart';
 import '../widgets/collector_drawer.dart';
 import 'collector_profile_screen.dart';
 import 'collector_scan_qr_screen.dart';
+import 'collector_stock_screen.dart';
 
 // [FE - Component Rendering] Screen ini adalah layar root pengepul setelah
 // login — turunan langsung dari prototype "Beranda — Pengepul Durian".
@@ -90,6 +91,29 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
     return searchAndFilterProducts(_repo.products, _activeCategory, _query);
   }
 
+  int get _incomingTodayCount {
+    final now = DateTime.now();
+    return _repo.stockBatches.where((batch) {
+      final receivedAt = batch.verifiedAt ?? batch.createdAt ?? batch.harvestDate;
+      return _isSameDay(receivedAt, now);
+    }).length;
+  }
+
+  double get _incomingTodayWeight {
+    final now = DateTime.now();
+    return _repo.stockBatches.where((batch) {
+      final receivedAt = batch.verifiedAt ?? batch.createdAt ?? batch.harvestDate;
+      return _isSameDay(receivedAt, now);
+    }).fold<double>(
+      0,
+      (sum, batch) => sum + (batch.receivedQuantity ?? batch.quantity),
+    );
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
   // ── Navigasi ───────────────────────────────────────────────────────────────
 
   void _openDrawer() => _scaffoldKey.currentState?.openEndDrawer();
@@ -117,6 +141,10 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
     await CollectorRoutes.push(context, const CollectorScanQrScreen());
   }
 
+  Future<void> _openStock() async {
+    await CollectorRoutes.push(context, const CollectorStockScreen());
+  }
+
   void _onProductTap(CollectorProduct product) {
     _notif.show(
       context,
@@ -128,6 +156,10 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
   Widget build(BuildContext context) {
     final products = _filteredProducts;
     final profile = _repo.profile;
+    final overview = _repo.stockOverview;
+    final pendingCount = _repo.products
+        .where((product) => product.category == ProductCategory.durianSegar)
+        .length;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -154,6 +186,17 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
                             sliver: SliverList(
                               delegate: SliverChildListDelegate([
                                 _GreetingBlock(profile: profile),
+                                const SizedBox(height: 16),
+                                _OperationalSummaryGrid(
+                                  incomingTodayCount: _incomingTodayCount,
+                                  incomingTodayWeight: _incomingTodayWeight,
+                                  pendingCount: pendingCount,
+                                  activeBatchCount: overview.activeBatchCount,
+                                  totalWeightKg: overview.totalWeightKg,
+                                  totalFruitCount: overview.totalFruitCount,
+                                  onOpenScan: _openScanQr,
+                                  onOpenStock: _openStock,
+                                ),
                                 const SizedBox(height: 16),
                                 _AddTransactionCard(onTap: _openScanQr),
                                 const SizedBox(height: 16),
@@ -313,6 +356,191 @@ class _GreetingBlock extends StatelessWidget {
 
 // [FE - Component Rendering] _AddTransactionCard adalah CTA utama pengepul —
 // turunan dari kartu "Tambah Transaksi" pada prototype.
+class _OperationalSummaryGrid extends StatelessWidget {
+  const _OperationalSummaryGrid({
+    required this.incomingTodayCount,
+    required this.incomingTodayWeight,
+    required this.pendingCount,
+    required this.activeBatchCount,
+    required this.totalWeightKg,
+    required this.totalFruitCount,
+    required this.onOpenScan,
+    required this.onOpenStock,
+  });
+
+  final int incomingTodayCount;
+  final double incomingTodayWeight;
+  final int pendingCount;
+  final int activeBatchCount;
+  final double totalWeightKg;
+  final int totalFruitCount;
+  final VoidCallback onOpenScan;
+  final VoidCallback onOpenStock;
+
+  static const double _gap = 8;
+
+  String _formatWeight(double value) {
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemWidth = (constraints.maxWidth - _gap) / 2;
+
+        return Wrap(
+          spacing: _gap,
+          runSpacing: _gap,
+          children: [
+            _SummaryMetricCard(
+              width: itemWidth,
+              icon: Icons.move_to_inbox_outlined,
+              title: 'Durian Masuk Hari Ini',
+              value: '$incomingTodayCount batch',
+              detail: '${_formatWeight(incomingTodayWeight)} kg diterima',
+              color: AppColors.primary,
+              onTap: onOpenStock,
+            ),
+            _SummaryMetricCard(
+              width: itemWidth,
+              icon: Icons.pending_actions_outlined,
+              title: 'Transaksi Menunggu',
+              value: '$pendingCount batch',
+              detail: 'perlu scan dan verifikasi',
+              color: const Color(0xFFB45309),
+              onTap: onOpenScan,
+            ),
+            _SummaryMetricCard(
+              width: itemWidth,
+              icon: Icons.inventory_2_outlined,
+              title: 'Batch Aktif',
+              value: '$activeBatchCount batch',
+              detail: 'stok siap dikelola',
+              color: const Color(0xFF1D6FA4),
+              onTap: onOpenStock,
+            ),
+            _SummaryMetricCard(
+              width: itemWidth,
+              icon: Icons.scale_outlined,
+              title: 'Ringkasan Stok',
+              value: '${_formatWeight(totalWeightKg)} kg',
+              detail: '$totalFruitCount butir tercatat',
+              color: const Color(0xFF6B21A8),
+              onTap: onOpenStock,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SummaryMetricCard extends StatelessWidget {
+  const _SummaryMetricCard({
+    required this.width,
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.detail,
+    required this.color,
+    required this.onTap,
+  });
+
+  final double width;
+  final IconData icon;
+  final String title;
+  final String value;
+  final String detail;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: 74,
+      child: Material(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 17, color: color),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          height: 1.15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.1,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        detail,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          height: 1.1,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 16,
+                  color: AppColors.placeholder.withValues(alpha: 0.55),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AddTransactionCard extends StatelessWidget {
   const _AddTransactionCard({required this.onTap});
 

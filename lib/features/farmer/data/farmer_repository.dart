@@ -643,6 +643,11 @@ class FarmerRepository extends ChangeNotifier {
   int get verifiedBatch =>
       batches.where((b) => b.status == BatchStatus.verifiedByCollector).length;
 
+  // [FE - State Management] Statistik ini menghitung batch yang ditolak
+  // pengepul agar Beranda dapat memberi sinyal masalah ke petani.
+  int get rejectedBatch =>
+      batches.where((b) => b.status == BatchStatus.rejected).length;
+
   // ── Timeline (Req 3.6) ─────────────────────────────────────────────────────
 
   // [FE - State Management] Getter ini membuka batch CREATED sebagai antrean

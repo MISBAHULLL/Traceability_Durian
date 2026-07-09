@@ -213,6 +213,9 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // [FE - Event Handler] Handler login legacy disimpan sebagai fallback FE mock
+  // jika flow API perlu dimatikan saat integrasi backend.
+  // ignore: unused_element
   void _handleLogin() async {
     FocusScope.of(context).unfocus();
     final identifier = _identifierController.text.trim();
@@ -324,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen>
         Navigator.of(context).pushAndRemoveUntil(
           PageRouteBuilder(
             transitionDuration: const Duration(milliseconds: 400),
-            pageBuilder: (_, _, _) => destination!,
+            pageBuilder: (_, _, _) => destination,
             transitionsBuilder: (_, animation, _, child) => FadeTransition(
               opacity: CurvedAnimation(
                 parent: animation,

@@ -444,6 +444,9 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     }
   }
 
+  // [FE - Event Handler] Handler register legacy disimpan sebagai fallback FE mock
+  // jika flow API perlu dimatikan saat integrasi backend.
+  // ignore: unused_element
   void _handleRegister() async {
     FocusScope.of(context).unfocus();
 

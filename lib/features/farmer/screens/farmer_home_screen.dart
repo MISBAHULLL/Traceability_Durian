@@ -376,37 +376,85 @@ class _StatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            value: '${repo.totalBatch}',
-            label: 'Total Batch',
-            icon: Icons.inventory_2_rounded,
-            color: AppColors.primary,
+    final items = [
+      _StatItem(
+        value: '${repo.totalBatch}',
+        label: 'Total Batch',
+        icon: Icons.inventory_2_rounded,
+        color: AppColors.primary,
+      ),
+      _StatItem(
+        value: '${repo.pendingVerificationBatch}',
+        label: 'Menunggu',
+        icon: Icons.pending_actions_rounded,
+        color: const Color(0xFFD97706),
+      ),
+      _StatItem(
+        value: '${repo.verifiedBatch}',
+        label: 'Diterima',
+        icon: Icons.verified_rounded,
+        color: const Color(0xFF16A34A),
+      ),
+      _StatItem(
+        value: '${repo.rejectedBatch}',
+        label: 'Ditolak',
+        icon: Icons.cancel_outlined,
+        color: const Color(0xFFDC2626),
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 12.0;
+        const peekWidth = 10.0;
+        final rawCardWidth = (constraints.maxWidth - (gap * 3) - peekWidth) / 3;
+        final cardWidth = rawCardWidth.clamp(96.0, 118.0).toDouble();
+        const cardHeight = 112.0;
+
+        // [FE - Component Rendering] List horizontal ini menjaga tiga kartu
+        // tetap dominan di mobile, sementara kartu Ditolak tersedia via swipe.
+        return SizedBox(
+          height: cardHeight,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            clipBehavior: Clip.none,
+            itemCount: items.length,
+            separatorBuilder: (_, _) => const SizedBox(width: gap),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return SizedBox(
+                width: cardWidth,
+                height: cardHeight,
+                child: _StatCard(
+                  value: item.value,
+                  label: item.label,
+                  icon: item.icon,
+                  color: item.color,
+                ),
+              );
+            },
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            value: '${repo.pendingVerificationBatch}',
-            label: 'Menunggu',
-            icon: Icons.pending_actions_rounded,
-            color: const Color(0xFFD97706), // Oranye/Amber
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            value: '${repo.verifiedBatch}',
-            label: 'Terverifikasi',
-            icon: Icons.verified_rounded,
-            color: const Color(0xFF16A34A), // Hijau Emerald
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
+}
+
+// [FE - Component Rendering] Model tampilan ringan ini menyatukan value,
+// label, icon, dan warna agar daftar statistik mudah ditambah tanpa duplikasi.
+class _StatItem {
+  const _StatItem({
+    required this.value,
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  final String value;
+  final String label;
+  final IconData icon;
+  final Color color;
 }
 
 class _StatCard extends StatelessWidget {
@@ -424,60 +472,57 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1.0, // Membuat kartu menjadi persegi sempurna
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(
-            16,
-          ), // Mempertahankan ujung melengkung
-          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+    // [FE - Component Rendering] Kartu ini mengisi ukuran dari parent strip
+    // agar isi statistik tidak overflow pada layar mobile sempit.
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 20, color: color),
+            child: Icon(icon, size: 19, color: color),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+              color: color,
+              height: 1.0,
             ),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: color,
-                height: 1.0,
-              ),
-              textAlign: TextAlign.center,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10.5,
+              color: AppColors.placeholder,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.placeholder,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }

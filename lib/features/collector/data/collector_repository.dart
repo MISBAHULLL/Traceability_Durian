@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../models/collector_purchase_transaction.dart';
 import '../models/collector_product.dart';
 import '../models/collector_shipment_batch.dart';
 import '../models/collector_stock_summary.dart';
@@ -59,6 +60,21 @@ class CollectorRepository extends ChangeNotifier {
     _shipmentCounter =
         LocalStorageService.loadInt('collector_shipment_counter') ??
         _shipmentBatches.length;
+
+    final purchaseJsonList = LocalStorageService.loadJsonList(
+      'collector_purchase_transactions',
+    );
+    if (purchaseJsonList != null) {
+      _purchaseTransactions = purchaseJsonList
+          .map((e) => CollectorPurchaseTransaction.fromJson(e))
+          .toList();
+    } else {
+      _purchaseTransactions = [];
+    }
+    _purchaseTransactionCounter =
+        LocalStorageService.loadInt('collector_purchase_transaction_counter') ??
+        _purchaseTransactions.length;
+
     final seedShipmentMigrated = _migratePrimarySeedShipment();
     final simulationShipmentsAdded = _ensureDistributorSimulationShipments();
 
@@ -81,6 +97,14 @@ class CollectorRepository extends ChangeNotifier {
       _shipmentBatches.map((e) => e.toJson()).toList(),
     );
     LocalStorageService.saveInt('collector_shipment_counter', _shipmentCounter);
+    LocalStorageService.saveJsonList(
+      'collector_purchase_transactions',
+      _purchaseTransactions.map((e) => e.toJson()).toList(),
+    );
+    LocalStorageService.saveInt(
+      'collector_purchase_transaction_counter',
+      _purchaseTransactionCounter,
+    );
   }
 
   // [FE - State Management] Sinkronisasi ini menjaga data lama/local storage:
@@ -271,7 +295,9 @@ class CollectorRepository extends ChangeNotifier {
   late CollectorProfile _profile;
   late List<CollectorProduct> _products;
   late List<CollectorShipmentBatch> _shipmentBatches;
+  late List<CollectorPurchaseTransaction> _purchaseTransactions;
   late int _shipmentCounter;
+  late int _purchaseTransactionCounter;
   final FarmerRepository _farmerRepo = FarmerRepository.instance;
 
   // ── Identitas sesi ──────────────────────────────────────────────────────────
@@ -374,6 +400,64 @@ class CollectorRepository extends ChangeNotifier {
   // [FE - State Management] Overview stok ini menjadi DTO mock untuk dashboard
   // gudang; nantinya bisa diganti langsung oleh response backend.
   CollectorStockOverview get stockOverview => _overviewForBatches(stockBatches);
+
+  // [FE - State Management] Daftar transaksi T1 yang dibuat saat pengepul
+  // memindai QR batch petani. Status initiated berarti menunggu T2.
+  List<CollectorPurchaseTransaction> get purchaseTransactions {
+    final items = _purchaseTransactions
+        .where((item) => item.collectorId == _currentCollectorId)
+        .toList();
+    items.sort((a, b) => b.initiatedAt.compareTo(a.initiatedAt));
+    return List.unmodifiable(items);
+  }
+
+  List<CollectorPurchaseTransaction> get pendingPurchaseTransactions {
+    return List.unmodifiable(
+      purchaseTransactions.where(
+        (item) => item.status == CollectorPurchaseStatus.initiated,
+      ),
+    );
+  }
+
+  CollectorPurchaseTransaction? findPurchaseTransaction(String id) {
+    try {
+      return purchaseTransactions.firstWhere((item) => item.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // [FE - Event Handler] Inisiasi T1 dari scan QR. Transaksi ini hanya
+  // menyimpan bukti penerimaan awal/provenance, bukan harga atau pembayaran.
+  CollectorPurchaseTransaction? initiatePurchaseTransaction(String batchCode) {
+    final product = findProduct(batchCode);
+    if (product == null || product.category != ProductCategory.durianSegar) {
+      return null;
+    }
+
+    final existing = _purchaseTransactions.where((item) {
+      return item.collectorId == _currentCollectorId &&
+          item.batchCode == product.code &&
+          item.status == CollectorPurchaseStatus.initiated;
+    }).toList();
+    if (existing.isNotEmpty) return existing.first;
+
+    final transaction = CollectorPurchaseTransaction(
+      id: _generatePurchaseTransactionId(),
+      collectorId: _currentCollectorId,
+      batchCode: product.code,
+      batchName: product.name,
+      originLabel: product.location,
+      farmerLabel: product.treeOwner,
+      initiatedAt: DateTime.now(),
+      status: CollectorPurchaseStatus.initiated,
+    );
+
+    _purchaseTransactions.add(transaction);
+    _saveToLocal();
+    notifyListeners();
+    return transaction;
+  }
 
   // [FE - Event Handler] Mutasi ini membuat batch pengiriman agregat dari
   // beberapa batch petani terverifikasi tanpa menyentuh blockchain/backend.
@@ -481,6 +565,36 @@ class CollectorRepository extends ChangeNotifier {
     final year = DateTime.now().year;
     final seq = _shipmentCounter.toString().padLeft(6, '0');
     return 'PGL-$year-$seq';
+  }
+
+  String _generatePurchaseTransactionId() {
+    _purchaseTransactionCounter++;
+    final year = DateTime.now().year;
+    final seq = _purchaseTransactionCounter.toString().padLeft(6, '0');
+    return 'T1-$year-$seq';
+  }
+
+  void _closePurchaseTransaction({
+    required String batchCode,
+    required CollectorPurchaseStatus status,
+    String? transactionId,
+  }) {
+    final index = _purchaseTransactions.indexWhere((item) {
+      final matchesTransaction =
+          transactionId != null && item.id == transactionId;
+      final matchesBatch =
+          transactionId == null &&
+          item.collectorId == _currentCollectorId &&
+          item.batchCode == batchCode &&
+          item.status == CollectorPurchaseStatus.initiated;
+      return matchesTransaction || matchesBatch;
+    });
+    if (index == -1) return;
+
+    _purchaseTransactions[index] = _purchaseTransactions[index].copyWith(
+      status: status,
+      closedAt: DateTime.now(),
+    );
   }
 
   // [UTIL - Helper Function] Helper ini menghitung overview dari kumpulan
@@ -618,8 +732,9 @@ class CollectorRepository extends ChangeNotifier {
     required int receivedFruitCount,
     required List<BatchGradeBreakdown> gradeBreakdown,
     String? qualityNotes,
+    String? transactionId,
   }) {
-    return _farmerRepo.verifyBatchByCollector(
+    final ok = _farmerRepo.verifyBatchByCollector(
       code: code,
       receivedQuantity: receivedQuantity,
       receivedFruitCount: receivedFruitCount,
@@ -627,16 +742,40 @@ class CollectorRepository extends ChangeNotifier {
       qualityNotes: qualityNotes,
       verifiedBy: _profile.fullName,
     );
+    if (!ok) return false;
+
+    _closePurchaseTransaction(
+      batchCode: code,
+      transactionId: transactionId,
+      status: CollectorPurchaseStatus.verified,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
   }
 
   // [FE - Event Handler] Submit penolakan pengepul meneruskan alasan reject
   // ke FarmerRepository sebagai state utama rantai pasok.
-  bool rejectFreshBatch({required String code, required String reason}) {
-    return _farmerRepo.rejectBatchByCollector(
+  bool rejectFreshBatch({
+    required String code,
+    required String reason,
+    String? transactionId,
+  }) {
+    final ok = _farmerRepo.rejectBatchByCollector(
       code: code,
       reason: reason,
       rejectedBy: _profile.fullName,
     );
+    if (!ok) return false;
+
+    _closePurchaseTransaction(
+      batchCode: code,
+      transactionId: transactionId,
+      status: CollectorPurchaseStatus.rejected,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
   }
 
   // ── Sesi ─────────────────────────────────────────────────────────────────────

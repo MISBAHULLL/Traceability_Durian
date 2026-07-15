@@ -114,11 +114,28 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
   }
 
   // [FE - Event Handler] Navigasi ini membawa kode hasil scan ke form
-  // verifikasi sehingga produk terpilih otomatis.
+  // verifikasi sekaligus mencatat transaksi T1 penerimaan dari petani.
   Future<void> _openVerification(String code) async {
+    final transaction = _repo.initiatePurchaseTransaction(code);
+    if (transaction == null) {
+      _notification.show(
+        context,
+        'Transaksi T1 gagal dibuat. Pastikan batch masih tersedia.',
+        isError: true,
+      );
+      if (_isCameraMode) {
+        if (mounted) setState(() => _isHandlingScan = false);
+        await _scannerController.start();
+      }
+      return;
+    }
+
     final completed = await CollectorRoutes.push<bool>(
       context,
-      AddTransactionScreen(initialBatchCode: code),
+      AddTransactionScreen(
+        initialBatchCode: code,
+        initialTransactionId: transaction.id,
+      ),
     );
     if (!mounted) return;
 

@@ -22,10 +22,17 @@ import '../models/collector_product.dart';
 /// Mengikuti alur Batch Validation Form (blueprint 08 sec 4.4): pilih produk
 /// (simulasi scan QR) → input receivedQuantity, grade, qualityNotes → submit.
 class AddTransactionScreen extends StatefulWidget {
-  const AddTransactionScreen({super.key, this.initialBatchCode});
+  const AddTransactionScreen({
+    super.key,
+    this.initialBatchCode,
+    this.initialTransactionId,
+  });
 
   /// Kode batch hasil scan QR simulasi; jika valid, produk langsung terpilih.
   final String? initialBatchCode;
+
+  /// Kode transaksi T1 yang dibuat saat QR dipindai oleh pengepul.
+  final String? initialTransactionId;
 
   @override
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
@@ -268,6 +275,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       receivedFruitCount: receivedFruitCount,
       gradeBreakdown: gradeBreakdown,
       qualityNotes: _notesCtrl.text.trim(),
+      transactionId: widget.initialTransactionId,
     );
 
     if (!ok) {
@@ -328,6 +336,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final ok = _repo.rejectFreshBatch(
       code: selectedProduct.code,
       reason: reason,
+      transactionId: widget.initialTransactionId,
     );
 
     setState(() => _isRejecting = false);
@@ -480,7 +489,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     const _SectionLabel(label: 'Pilih Batch Panen'),
                     const SizedBox(height: 8),
                     if (isBatchLockedFromScan)
-                      _ScannedBatchField(batch: _selectedProduct!)
+                      _ScannedBatchField(
+                        batch: _selectedProduct!,
+                        transactionId: widget.initialTransactionId,
+                      )
                     else
                       _BatchDropdown(
                         batches: products,
@@ -819,9 +831,10 @@ class _BatchDropdown extends StatelessWidget {
 // [FE - Component Rendering] Hasil scan QR dikunci sebagai batch read-only
 // agar pengepul tidak berpindah ke DRN lain setelah memindai barang fisik.
 class _ScannedBatchField extends StatelessWidget {
-  const _ScannedBatchField({required this.batch});
+  const _ScannedBatchField({required this.batch, this.transactionId});
 
   final CollectorProduct batch;
+  final String? transactionId;
 
   @override
   Widget build(BuildContext context) {
@@ -853,6 +866,17 @@ class _ScannedBatchField extends StatelessWidget {
                     color: AppColors.black,
                   ),
                 ),
+                if (transactionId?.trim().isNotEmpty == true) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Transaksi T1: ${transactionId!.trim()}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 2),
                 Text(
                   batch.name,

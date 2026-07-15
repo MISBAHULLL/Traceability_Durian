@@ -94,20 +94,24 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
   int get _incomingTodayCount {
     final now = DateTime.now();
     return _repo.stockBatches.where((batch) {
-      final receivedAt = batch.verifiedAt ?? batch.createdAt ?? batch.harvestDate;
+      final receivedAt =
+          batch.verifiedAt ?? batch.createdAt ?? batch.harvestDate;
       return _isSameDay(receivedAt, now);
     }).length;
   }
 
   double get _incomingTodayWeight {
     final now = DateTime.now();
-    return _repo.stockBatches.where((batch) {
-      final receivedAt = batch.verifiedAt ?? batch.createdAt ?? batch.harvestDate;
-      return _isSameDay(receivedAt, now);
-    }).fold<double>(
-      0,
-      (sum, batch) => sum + (batch.receivedQuantity ?? batch.quantity),
-    );
+    return _repo.stockBatches
+        .where((batch) {
+          final receivedAt =
+              batch.verifiedAt ?? batch.createdAt ?? batch.harvestDate;
+          return _isSameDay(receivedAt, now);
+        })
+        .fold<double>(
+          0,
+          (sum, batch) => sum + (batch.receivedQuantity ?? batch.quantity),
+        );
   }
 
   bool _isSameDay(DateTime a, DateTime b) {
@@ -157,9 +161,7 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
     final products = _filteredProducts;
     final profile = _repo.profile;
     final overview = _repo.stockOverview;
-    final pendingCount = _repo.products
-        .where((product) => product.category == ProductCategory.durianSegar)
-        .length;
+    final pendingCount = _repo.pendingPurchaseTransactions.length;
 
     return Scaffold(
       key: _scaffoldKey,

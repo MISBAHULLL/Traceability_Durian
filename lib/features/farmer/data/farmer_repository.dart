@@ -898,6 +898,7 @@ class FarmerRepository extends ChangeNotifier {
     required double receivedQuantity,
     required int receivedFruitCount,
     required List<BatchGradeBreakdown> gradeBreakdown,
+    String? verificationPhotoPath,
     String? qualityNotes,
     String verifiedBy = 'Pengepul',
   }) {
@@ -927,6 +928,7 @@ class FarmerRepository extends ChangeNotifier {
       receivedFruitCount: receivedFruitCount,
       verifiedGrade: dominantGrade,
       gradeBreakdown: cleanBreakdown,
+      verificationPhotoPath: verificationPhotoPath?.trim(),
       qualityNotes: qualityNotes?.trim(),
       verifiedBy: verifiedBy.trim().isEmpty ? 'Pengepul' : verifiedBy.trim(),
       verifiedAt: DateTime.now(),

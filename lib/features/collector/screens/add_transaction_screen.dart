@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/batch_photo.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../../farmer/models/harvest_batch.dart';
@@ -57,6 +59,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _notif = TopNotification();
 
   CollectorProduct? _selectedProduct;
+  String? _verificationPhotoPath;
 
   // [FE - State Management] Flag submit/reject ini mengunci aksi paralel
   // agar satu batch tidak diverifikasi dan ditolak bersamaan.
@@ -107,7 +110,70 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _quantityCtrl.clear();
       _fruitCountCtrl.clear();
     }
+    _verificationPhotoPath = null;
     _clearGradeInputs();
+  }
+
+  Future<void> _pickVerificationPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_camera_outlined,
+                  color: AppColors.primary,
+                ),
+                title: const Text('Ambil dari Kamera'),
+                onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_library_outlined,
+                  color: AppColors.primary,
+                ),
+                title: const Text('Pilih dari Galeri'),
+                onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || source == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: source,
+        maxWidth: 1280,
+        imageQuality: 80,
+      );
+      if (file != null && mounted) {
+        setState(() => _verificationPhotoPath = file.path);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      _notif.show(
+        context,
+        'Gagal mengambil foto verifikasi. Coba lagi.',
+        isError: true,
+      );
+    }
+  }
+
+  void _removeVerificationPhoto() {
+    setState(() => _verificationPhotoPath = null);
   }
 
   // [FE - State Management] Helper ini mengosongkan input sortir saat batch
@@ -160,6 +226,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
 
     final selectedProduct = _selectedProduct!;
+    if (_verificationPhotoPath == null || _verificationPhotoPath!.isEmpty) {
+      _notif.show(
+        context,
+        'Foto verifikasi fisik wajib ditambahkan.',
+        isError: true,
+      );
+      return;
+    }
+
     final quantityText = _quantityCtrl.text.trim();
     if (quantityText.isEmpty) {
       _notif.show(context, 'Berat diterima wajib diisi.', isError: true);
@@ -274,6 +349,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       receivedQuantity: quantity,
       receivedFruitCount: receivedFruitCount,
       gradeBreakdown: gradeBreakdown,
+      verificationPhotoPath: _verificationPhotoPath,
       qualityNotes: _notesCtrl.text.trim(),
       transactionId: widget.initialTransactionId,
     );
@@ -292,6 +368,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _quantityCtrl.clear();
       _fruitCountCtrl.clear();
       _clearGradeInputs();
+      _verificationPhotoPath = null;
       _notesCtrl.clear();
     });
 
@@ -355,6 +432,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _quantityCtrl.clear();
       _fruitCountCtrl.clear();
       _clearGradeInputs();
+      _verificationPhotoPath = null;
       _notesCtrl.clear();
     });
 
@@ -513,6 +591,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     // ── Data Verifikasi Pengepul ─────────────────────────
                     const _SectionLabel(label: 'Data Verifikasi'),
                     const SizedBox(height: 8),
+                    _VerificationPhotoField(
+                      photoPath: _verificationPhotoPath,
+                      onPick: _pickVerificationPhoto,
+                      onRemove: _removeVerificationPhoto,
+                    ),
+                    const SizedBox(height: 16),
 
                     // [FE - Component Rendering] Field ini menyimpan berat
                     // fisik yang benar-benar diterima setelah timbang ulang.
@@ -751,6 +835,130 @@ class _SectionLabel extends StatelessWidget {
         fontSize: 15,
         fontWeight: FontWeight.w700,
         color: AppColors.black,
+      ),
+    );
+  }
+}
+
+class _VerificationPhotoField extends StatelessWidget {
+  const _VerificationPhotoField({
+    required this.photoPath,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final String? photoPath;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPhoto = photoPath != null && photoPath!.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _FieldLabel(label: 'Foto Verifikasi Fisik'),
+        const SizedBox(height: 6),
+        if (hasPhoto)
+          Stack(
+            children: [
+              BatchPhoto(
+                path: photoPath,
+                width: double.infinity,
+                height: 160,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Row(
+                  children: [
+                    _PhotoActionButton(
+                      icon: Icons.edit_outlined,
+                      onTap: onPick,
+                    ),
+                    const SizedBox(width: 8),
+                    _PhotoActionButton(
+                      icon: Icons.close_rounded,
+                      onTap: onRemove,
+                      color: const Color(0xFFD64545),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          )
+        else
+          InkWell(
+            onTap: onPick,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: double.infinity,
+              height: 118,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add_a_photo_outlined,
+                    size: 30,
+                    color: AppColors.placeholder,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Tambahkan foto kondisi aktual',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Wajib untuk konfirmasi penerimaan',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _PhotoActionButton extends StatelessWidget {
+  const _PhotoActionButton({
+    required this.icon,
+    required this.onTap,
+    this.color,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.white.withValues(alpha: 0.94),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 34,
+          height: 34,
+          child: Icon(icon, size: 18, color: color ?? AppColors.subtitle),
+        ),
       ),
     );
   }

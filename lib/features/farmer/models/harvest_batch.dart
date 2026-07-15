@@ -180,6 +180,7 @@ class HarvestBatch {
     this.receivedFruitCount,
     this.verifiedGrade,
     this.gradeBreakdown = const [],
+    this.verificationPhotoPath,
     this.qualityNotes,
     this.verifiedBy,
     this.verifiedAt,
@@ -257,6 +258,7 @@ class HarvestBatch {
   final int? receivedFruitCount;
   final String? verifiedGrade;
   final List<BatchGradeBreakdown> gradeBreakdown;
+  final String? verificationPhotoPath;
   final String? qualityNotes;
   final String? verifiedBy;
   final DateTime? verifiedAt;
@@ -292,6 +294,7 @@ class HarvestBatch {
     int? receivedFruitCount,
     String? verifiedGrade,
     List<BatchGradeBreakdown>? gradeBreakdown,
+    String? verificationPhotoPath,
     String? qualityNotes,
     String? verifiedBy,
     DateTime? verifiedAt,
@@ -323,6 +326,8 @@ class HarvestBatch {
       receivedFruitCount: receivedFruitCount ?? this.receivedFruitCount,
       verifiedGrade: verifiedGrade ?? this.verifiedGrade,
       gradeBreakdown: gradeBreakdown ?? this.gradeBreakdown,
+      verificationPhotoPath:
+          verificationPhotoPath ?? this.verificationPhotoPath,
       qualityNotes: qualityNotes ?? this.qualityNotes,
       verifiedBy: verifiedBy ?? this.verifiedBy,
       verifiedAt: verifiedAt ?? this.verifiedAt,
@@ -358,6 +363,7 @@ class HarvestBatch {
     'receivedFruitCount': receivedFruitCount,
     'verifiedGrade': verifiedGrade,
     'gradeBreakdown': gradeBreakdown.map((e) => e.toJson()).toList(),
+    'verificationPhotoPath': verificationPhotoPath,
     'qualityNotes': qualityNotes,
     'verifiedBy': verifiedBy,
     'verifiedAt': verifiedAt?.toIso8601String(),
@@ -403,6 +409,7 @@ class HarvestBatch {
               BatchGradeBreakdown.fromJson(Map<String, dynamic>.from(item)),
         )
         .toList(),
+    verificationPhotoPath: json['verificationPhotoPath'] as String?,
     qualityNotes: json['qualityNotes'] as String?,
     verifiedBy: json['verifiedBy'] as String?,
     verifiedAt: json['verifiedAt'] != null

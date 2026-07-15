@@ -731,6 +731,7 @@ class CollectorRepository extends ChangeNotifier {
     required double receivedQuantity,
     required int receivedFruitCount,
     required List<BatchGradeBreakdown> gradeBreakdown,
+    String? verificationPhotoPath,
     String? qualityNotes,
     String? transactionId,
   }) {
@@ -739,6 +740,7 @@ class CollectorRepository extends ChangeNotifier {
       receivedQuantity: receivedQuantity,
       receivedFruitCount: receivedFruitCount,
       gradeBreakdown: gradeBreakdown,
+      verificationPhotoPath: verificationPhotoPath,
       qualityNotes: qualityNotes,
       verifiedBy: _profile.fullName,
     );

@@ -13,6 +13,48 @@ const _pageBackground = Color(0xFFF4F6F3);
 const _borderColor = Color(0xFFE1E6DF);
 const _mutedSurface = Color(0xFFF8F9F7);
 
+enum _BatchAllocationFilter { semua, siap, dialokasikan, hampirKedaluwarsa }
+
+extension _BatchAllocationFilterX on _BatchAllocationFilter {
+  String get label {
+    switch (this) {
+      case _BatchAllocationFilter.semua:
+        return 'Semua';
+      case _BatchAllocationFilter.siap:
+        return 'Siap';
+      case _BatchAllocationFilter.dialokasikan:
+        return 'Dialokasikan';
+      case _BatchAllocationFilter.hampirKedaluwarsa:
+        return 'Hampir ED';
+    }
+  }
+}
+
+enum _BatchSort { terbaru, terlama, beratTerbesar, grade, kedaluwarsa }
+
+extension _BatchSortX on _BatchSort {
+  String get label {
+    switch (this) {
+      case _BatchSort.terbaru:
+        return 'Terbaru';
+      case _BatchSort.terlama:
+        return 'Terlama';
+      case _BatchSort.beratTerbesar:
+        return 'Berat terbesar';
+      case _BatchSort.grade:
+        return 'Grade';
+      case _BatchSort.kedaluwarsa:
+        return 'Mendekati ED';
+    }
+  }
+}
+
+String _subBatchCode(String code) {
+  final clean = code.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+  final suffix = clean.length <= 6 ? clean : clean.substring(clean.length - 6);
+  return 'SB-$suffix';
+}
+
 // [FE - Component Rendering] Screen ini menyusun stok pengepul sebagai
 // dashboard inventori: ringkasan, breakdown, daftar batch, dan aksi pengiriman.
 class CollectorStockScreen extends StatefulWidget {
@@ -24,6 +66,8 @@ class CollectorStockScreen extends StatefulWidget {
 
 class _CollectorStockScreenState extends State<CollectorStockScreen> {
   final _repo = CollectorRepository.instance;
+  _BatchAllocationFilter _activeFilter = _BatchAllocationFilter.semua;
+  _BatchSort _activeSort = _BatchSort.terbaru;
 
   @override
   void initState() {
@@ -75,6 +119,60 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
     return '${date.year}-${date.month}-${date.day}';
   }
 
+  List<HarvestBatch> _visibleStockBatches(List<HarvestBatch> stocks) {
+    final filtered = stocks.where(_matchesActiveFilter).toList();
+    filtered.sort(_compareStockBatch);
+    return filtered;
+  }
+
+  bool _matchesActiveFilter(HarvestBatch batch) {
+    final isAllocated = _repo.shipmentForSourceBatch(batch.code) != null;
+    final expiry = _ExpiryInfo.fromBatch(batch);
+
+    switch (_activeFilter) {
+      case _BatchAllocationFilter.semua:
+        return true;
+      case _BatchAllocationFilter.siap:
+        return !isAllocated;
+      case _BatchAllocationFilter.dialokasikan:
+        return isAllocated;
+      case _BatchAllocationFilter.hampirKedaluwarsa:
+        return expiry.isPriority;
+    }
+  }
+
+  int _compareStockBatch(HarvestBatch a, HarvestBatch b) {
+    switch (_activeSort) {
+      case _BatchSort.terbaru:
+        return _stockDate(b).compareTo(_stockDate(a));
+      case _BatchSort.terlama:
+        return _stockDate(a).compareTo(_stockDate(b));
+      case _BatchSort.beratTerbesar:
+        return _stockWeight(b).compareTo(_stockWeight(a));
+      case _BatchSort.grade:
+        return _stockGrade(a).compareTo(_stockGrade(b));
+      case _BatchSort.kedaluwarsa:
+        return _ExpiryInfo.fromBatch(
+          a,
+        ).sortValue.compareTo(_ExpiryInfo.fromBatch(b).sortValue);
+    }
+  }
+
+  DateTime _stockDate(HarvestBatch batch) {
+    return batch.verifiedAt ?? batch.createdAt ?? batch.harvestDate;
+  }
+
+  double _stockWeight(HarvestBatch batch) {
+    return batch.receivedQuantity ?? batch.quantity;
+  }
+
+  String _stockGrade(HarvestBatch batch) {
+    return (batch.verifiedGrade?.isNotEmpty == true
+            ? batch.verifiedGrade!
+            : batch.grade)
+        .toUpperCase();
+  }
+
   // [FE - Event Handler] Aksi utama langsung membuka form agregasi ketika
   // stok tersedia; daftar pengiriman hanya dibuka saat tidak ada stok bebas.
   Future<void> _openShipmentAction() async {
@@ -92,8 +190,12 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
   @override
   Widget build(BuildContext context) {
     final stocks = _repo.stockBatches;
+    final visibleStocks = _visibleStockBatches(stocks);
     final overview = _repo.stockOverview;
     final readyCount = _repo.availableStockBatches.length;
+    final visibleReadyCount = visibleStocks
+        .where((batch) => _repo.shipmentForSourceBatch(batch.code) == null)
+        .length;
     final trendPoints = _buildTrendPoints(_repo.historyBatches);
 
     return Scaffold(
@@ -130,20 +232,35 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
                         const SizedBox(height: 22),
                         _BatchSectionHeader(
                           totalCount: stocks.length,
-                          readyCount: readyCount,
+                          displayedCount: visibleStocks.length,
+                          readyCount: visibleReadyCount,
                         ),
                         const SizedBox(height: 10),
-                        ...stocks.map(
-                          (batch) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _StockCard(
-                              batch: batch,
-                              shipmentCode: _repo
-                                  .shipmentForSourceBatch(batch.code)
-                                  ?.code,
+                        _BatchControls(
+                          activeFilter: _activeFilter,
+                          activeSort: _activeSort,
+                          onFilterChanged: (value) {
+                            setState(() => _activeFilter = value);
+                          },
+                          onSortChanged: (value) {
+                            setState(() => _activeSort = value);
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        if (visibleStocks.isEmpty)
+                          const _EmptyFilteredBatches()
+                        else
+                          ...visibleStocks.map(
+                            (batch) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _StockCard(
+                                batch: batch,
+                                shipmentCode: _repo
+                                    .shipmentForSourceBatch(batch.code)
+                                    ?.code,
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
             ),
@@ -324,6 +441,125 @@ class _SummaryValue extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+enum _ExpiryLevel { unknown, fresh, monitor, priority, expired }
+
+class _ExpiryInfo {
+  const _ExpiryInfo({
+    required this.level,
+    required this.label,
+    required this.sortValue,
+  });
+
+  final _ExpiryLevel level;
+  final String label;
+  final int sortValue;
+
+  bool get isPriority {
+    return level == _ExpiryLevel.priority || level == _ExpiryLevel.expired;
+  }
+
+  Color get color {
+    switch (level) {
+      case _ExpiryLevel.unknown:
+        return AppColors.placeholder;
+      case _ExpiryLevel.fresh:
+        return AppColors.primary;
+      case _ExpiryLevel.monitor:
+        return const Color(0xFF8A5A00);
+      case _ExpiryLevel.priority:
+      case _ExpiryLevel.expired:
+        return const Color(0xFFC2410C);
+    }
+  }
+
+  Color get background {
+    switch (level) {
+      case _ExpiryLevel.unknown:
+        return const Color(0xFFE5E7EB);
+      case _ExpiryLevel.fresh:
+        return const Color(0xFFEAF4E6);
+      case _ExpiryLevel.monitor:
+        return const Color(0xFFFFF3D8);
+      case _ExpiryLevel.priority:
+      case _ExpiryLevel.expired:
+        return const Color(0xFFFFEDD5);
+    }
+  }
+
+  IconData get icon {
+    switch (level) {
+      case _ExpiryLevel.unknown:
+        return Icons.help_outline_rounded;
+      case _ExpiryLevel.fresh:
+        return Icons.check_circle_outline_rounded;
+      case _ExpiryLevel.monitor:
+        return Icons.schedule_rounded;
+      case _ExpiryLevel.priority:
+      case _ExpiryLevel.expired:
+        return Icons.priority_high_rounded;
+    }
+  }
+
+  static _ExpiryInfo fromBatch(HarvestBatch batch) {
+    final shelfLifeDays = _shelfLifeDays(batch.shelfLifeEstimate);
+    if (shelfLifeDays == null) {
+      return const _ExpiryInfo(
+        level: _ExpiryLevel.unknown,
+        label: 'Masa simpan -',
+        sortValue: 9999,
+      );
+    }
+
+    final startDate = _dateOnly(batch.verifiedAt ?? batch.harvestDate);
+    final today = _dateOnly(DateTime.now());
+    final expiresAt = startDate.add(Duration(days: shelfLifeDays));
+    final remainingDays = expiresAt.difference(today).inDays;
+
+    if (remainingDays < 0) {
+      return _ExpiryInfo(
+        level: _ExpiryLevel.expired,
+        label: 'Lewat ${remainingDays.abs()} hari',
+        sortValue: remainingDays,
+      );
+    }
+    if (remainingDays <= 1) {
+      return _ExpiryInfo(
+        level: _ExpiryLevel.priority,
+        label: remainingDays == 0 ? 'ED hari ini' : '1 hari lagi',
+        sortValue: remainingDays,
+      );
+    }
+    if (remainingDays <= 3) {
+      return _ExpiryInfo(
+        level: _ExpiryLevel.monitor,
+        label: '$remainingDays hari lagi',
+        sortValue: remainingDays,
+      );
+    }
+    return _ExpiryInfo(
+      level: _ExpiryLevel.fresh,
+      label: '$remainingDays hari lagi',
+      sortValue: remainingDays,
+    );
+  }
+
+  static int? _shelfLifeDays(String? text) {
+    final value = text?.trim();
+    if (value == null || value.isEmpty) return null;
+
+    final matches = RegExp(r'\d+').allMatches(value).toList();
+    if (matches.isEmpty) return null;
+
+    return matches
+        .map((match) => int.tryParse(match.group(0) ?? '') ?? 0)
+        .reduce((max, value) => value > max ? value : max);
+  }
+
+  static DateTime _dateOnly(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
   }
 }
 
@@ -655,14 +891,20 @@ class _BreakdownRow extends StatelessWidget {
 class _BatchSectionHeader extends StatelessWidget {
   const _BatchSectionHeader({
     required this.totalCount,
+    required this.displayedCount,
     required this.readyCount,
   });
 
   final int totalCount;
+  final int displayedCount;
   final int readyCount;
 
   @override
   Widget build(BuildContext context) {
+    final summary = displayedCount == totalCount
+        ? '$readyCount siap dari $totalCount'
+        : '$displayedCount tampil - $readyCount siap';
+
     return Row(
       children: [
         const Expanded(
@@ -676,10 +918,308 @@ class _BatchSectionHeader extends StatelessWidget {
           ),
         ),
         Text(
-          '$readyCount siap dari $totalCount',
+          summary,
           style: const TextStyle(fontSize: 11, color: AppColors.placeholder),
         ),
       ],
+    );
+  }
+}
+
+class _BatchControls extends StatefulWidget {
+  const _BatchControls({
+    required this.activeFilter,
+    required this.activeSort,
+    required this.onFilterChanged,
+    required this.onSortChanged,
+  });
+
+  final _BatchAllocationFilter activeFilter;
+  final _BatchSort activeSort;
+  final ValueChanged<_BatchAllocationFilter> onFilterChanged;
+  final ValueChanged<_BatchSort> onSortChanged;
+
+  @override
+  State<_BatchControls> createState() => _BatchControlsState();
+}
+
+class _BatchControlsState extends State<_BatchControls> {
+  bool _sortMenuOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.filter_list_rounded,
+                size: 17,
+                color: AppColors.placeholder,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Filter',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.subtitle,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _BatchAllocationFilter.values.map((filter) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _FilterPill(
+                          label: filter.label,
+                          selected: widget.activeFilter == filter,
+                          onTap: () => widget.onFilterChanged(filter),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(
+                Icons.sort_rounded,
+                size: 17,
+                color: AppColors.placeholder,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Urutkan',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.subtitle,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _SortDropdownButton(
+                    label: widget.activeSort.label,
+                    expanded: _sortMenuOpen,
+                    onTap: () {
+                      setState(() => _sortMenuOpen = !_sortMenuOpen);
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_sortMenuOpen) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(left: 33),
+              child: _SortDropdownMenu(
+                activeSort: widget.activeSort,
+                onChanged: (sort) {
+                  setState(() => _sortMenuOpen = false);
+                  widget.onSortChanged(sort);
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SortDropdownButton extends StatelessWidget {
+  const _SortDropdownButton({
+    required this.label,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.primary),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: AppColors.white,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              expanded
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.keyboard_arrow_down_rounded,
+              size: 16,
+              color: AppColors.white,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SortDropdownMenu extends StatelessWidget {
+  const _SortDropdownMenu({
+    required this.activeSort,
+    required this.onChanged,
+  });
+
+  final _BatchSort activeSort;
+  final ValueChanged<_BatchSort> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: _BatchSort.values.map((sort) {
+          final selected = sort == activeSort;
+          return InkWell(
+            onTap: () => onChanged(sort),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppColors.primary.withValues(alpha: 0.10)
+                    : AppColors.white,
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      sort.label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                        color: selected ? AppColors.primary : AppColors.subtitle,
+                      ),
+                    ),
+                  ),
+                  if (selected)
+                    const Icon(
+                      Icons.check_rounded,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _FilterPill extends StatelessWidget {
+  const _FilterPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : _mutedSurface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? AppColors.primary : _borderColor,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: selected ? AppColors.white : AppColors.subtitle,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyFilteredBatches extends StatelessWidget {
+  const _EmptyFilteredBatches();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: const Text(
+        'Tidak ada batch yang cocok dengan filter ini.',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.4,
+          color: AppColors.placeholder,
+        ),
+      ),
     );
   }
 }
@@ -722,6 +1262,7 @@ class _StockCard extends StatelessWidget {
         ? batch.verifiedGrade!
         : batch.grade;
     final isAllocated = shipmentCode != null;
+    final expiry = _ExpiryInfo.fromBatch(batch);
 
     return Container(
       decoration: BoxDecoration(
@@ -781,6 +1322,18 @@ class _StockCard extends StatelessWidget {
                           fontWeight: FontWeight.w800,
                           color: AppColors.black,
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          _InfoPill(
+                            icon: Icons.inventory_2_outlined,
+                            label: _subBatchCode(batch.code),
+                          ),
+                          _ExpiryBadge(info: expiry),
+                        ],
                       ),
                     ],
                   ),
@@ -858,6 +1411,73 @@ class _StatusBadge extends StatelessWidget {
           fontWeight: FontWeight.w800,
           color: isAllocated ? const Color(0xFF8A5A00) : AppColors.primary,
         ),
+      ),
+    );
+  }
+}
+
+
+class _InfoPill extends StatelessWidget {
+  const _InfoPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: _mutedSurface,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: AppColors.placeholder),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: AppColors.subtitle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExpiryBadge extends StatelessWidget {
+  const _ExpiryBadge({required this.info});
+
+  final _ExpiryInfo info;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: info.background,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(info.icon, size: 12, color: info.color),
+          const SizedBox(width: 4),
+          Text(
+            info.label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: info.color,
+            ),
+          ),
+        ],
       ),
     );
   }

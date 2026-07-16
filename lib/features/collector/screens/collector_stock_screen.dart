@@ -43,6 +43,38 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
     if (mounted) setState(() {});
   }
 
+  List<_StockTrendPoint> _buildTrendPoints(List<HarvestBatch> batches) {
+    final today = DateTime.now();
+    final days = List.generate(7, (index) {
+      final date = today.subtract(Duration(days: 6 - index));
+      return DateTime(date.year, date.month, date.day);
+    });
+    final buckets = {
+      for (final day in days) _dateKey(day): _MutableTrendBucket(date: day),
+    };
+
+    for (final batch in batches) {
+      final verifiedAt = batch.verifiedAt;
+      if (verifiedAt == null) continue;
+
+      final day = DateTime(verifiedAt.year, verifiedAt.month, verifiedAt.day);
+      final key = _dateKey(day);
+      final bucket = buckets[key];
+      if (bucket == null) continue;
+
+      bucket.totalWeightKg += batch.receivedQuantity ?? batch.quantity;
+      bucket.totalFruitCount +=
+          batch.receivedFruitCount ?? batch.fruitCount ?? 0;
+      bucket.batchCount++;
+    }
+
+    return days.map((day) => buckets[_dateKey(day)]!.toPoint()).toList();
+  }
+
+  String _dateKey(DateTime date) {
+    return '${date.year}-${date.month}-${date.day}';
+  }
+
   // [FE - Event Handler] Aksi utama langsung membuka form agregasi ketika
   // stok tersedia; daftar pengiriman hanya dibuka saat tidak ada stok bebas.
   Future<void> _openShipmentAction() async {
@@ -62,6 +94,7 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
     final stocks = _repo.stockBatches;
     final overview = _repo.stockOverview;
     final readyCount = _repo.availableStockBatches.length;
+    final trendPoints = _buildTrendPoints(_repo.historyBatches);
 
     return Scaffold(
       backgroundColor: _pageBackground,
@@ -81,6 +114,8 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
                       children: [
                         _WarehouseSummary(overview: overview),
                         const SizedBox(height: 16),
+                        _StockTrendPanel(points: trendPoints),
+                        const SizedBox(height: 12),
                         _BreakdownPanel(
                           title: 'Stok per Grade',
                           icon: Icons.workspace_premium_outlined,
@@ -285,6 +320,204 @@ class _SummaryValue extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(fontSize: 11, color: Color(0xFFDDF2D4)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StockTrendPoint {
+  const _StockTrendPoint({
+    required this.date,
+    required this.totalWeightKg,
+    required this.totalFruitCount,
+    required this.batchCount,
+  });
+
+  final DateTime date;
+  final double totalWeightKg;
+  final int totalFruitCount;
+  final int batchCount;
+}
+
+class _MutableTrendBucket {
+  _MutableTrendBucket({required this.date});
+
+  final DateTime date;
+  double totalWeightKg = 0;
+  int totalFruitCount = 0;
+  int batchCount = 0;
+
+  _StockTrendPoint toPoint() {
+    return _StockTrendPoint(
+      date: date,
+      totalWeightKg: totalWeightKg,
+      totalFruitCount: totalFruitCount,
+      batchCount: batchCount,
+    );
+  }
+}
+
+class _StockTrendPanel extends StatelessWidget {
+  const _StockTrendPanel({required this.points});
+
+  final List<_StockTrendPoint> points;
+
+  String _formatWeight(double value) {
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+  }
+
+  String _dayLabel(DateTime date) {
+    const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    return days[date.weekday % 7];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxWeight = points.fold<double>(
+      0,
+      (max, point) => point.totalWeightKg > max ? point.totalWeightKg : max,
+    );
+    final totalWeight = points.fold<double>(
+      0,
+      (sum, point) => sum + point.totalWeightKg,
+    );
+    final totalBatch = points.fold<int>(
+      0,
+      (sum, point) => sum + point.batchCount,
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.trending_up_rounded,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Tren Penerimaan 7 Hari',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.black,
+                  ),
+                ),
+              ),
+              Text(
+                '${_formatWeight(totalWeight)} kg',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$totalBatch batch diterima dalam 7 hari terakhir',
+            style: const TextStyle(fontSize: 11, color: AppColors.placeholder),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 116,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: points.map((point) {
+                return Expanded(
+                  child: _TrendBar(
+                    point: point,
+                    maxWeight: maxWeight,
+                    label: _dayLabel(point.date),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrendBar extends StatelessWidget {
+  const _TrendBar({
+    required this.point,
+    required this.maxWeight,
+    required this.label,
+  });
+
+  final _StockTrendPoint point;
+  final double maxWeight;
+  final String label;
+
+  String _formatWeight(double value) {
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = maxWeight <= 0 ? 0.0 : point.totalWeightKg / maxWeight;
+    final barHeight = 16 + (ratio * 58);
+    final isEmpty = point.totalWeightKg <= 0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          SizedBox(
+            height: 22,
+            child: Text(
+              isEmpty ? '-' : _formatWeight(point.totalWeightKg),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: isEmpty ? AppColors.placeholder : AppColors.subtitle,
+              ),
+            ),
+          ),
+          Tooltip(
+            message:
+                '${_formatWeight(point.totalWeightKg)} kg, '
+                '${point.totalFruitCount} butir, '
+                '${point.batchCount} batch',
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              width: double.infinity,
+              height: barHeight,
+              constraints: const BoxConstraints(minHeight: 16),
+              decoration: BoxDecoration(
+                color: isEmpty
+                    ? const Color(0xFFE5E7EB)
+                    : AppColors.primaryContainer,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: AppColors.placeholder,
+            ),
           ),
         ],
       ),

@@ -10,6 +10,7 @@ import '../../../shared/widgets/top_notification_banner.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_product.dart';
+import '../models/collector_warehouse.dart';
 
 // [FE - Component Rendering] Layar ini adalah form "Tambah Transaksi" untuk
 // pengepul — turunan dari prototype screen 4. Alur: pilih produk (batch petani)
@@ -60,6 +61,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   CollectorProduct? _selectedProduct;
   String? _verificationPhotoPath;
+  String? _selectedWarehouseId;
 
   // [FE - State Management] Flag submit/reject ini mengunci aksi paralel
   // agar satu batch tidak diverifikasi dan ditolak bersamaan.
@@ -69,6 +71,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedWarehouseId = _repo.defaultWarehouse?.id;
 
     // [FE - State Management] Initial selection ini menghubungkan hasil scan
     // QR ke form verifikasi tanpa user memilih batch ulang dari dropdown.
@@ -226,6 +229,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
 
     final selectedProduct = _selectedProduct!;
+    if (_selectedWarehouseId == null || _selectedWarehouseId!.isEmpty) {
+      _notif.show(
+        context,
+        'Pilih gudang penyimpanan untuk batch diterima.',
+        isError: true,
+      );
+      return;
+    }
     if (_verificationPhotoPath == null || _verificationPhotoPath!.isEmpty) {
       _notif.show(
         context,
@@ -349,6 +360,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       receivedQuantity: quantity,
       receivedFruitCount: receivedFruitCount,
       gradeBreakdown: gradeBreakdown,
+      warehouseId: _selectedWarehouseId,
       verificationPhotoPath: _verificationPhotoPath,
       qualityNotes: _notesCtrl.text.trim(),
       transactionId: widget.initialTransactionId,
@@ -591,6 +603,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     // ── Data Verifikasi Pengepul ─────────────────────────
                     const _SectionLabel(label: 'Data Verifikasi'),
                     const SizedBox(height: 8),
+                    _WarehouseDropdown(
+                      warehouses: _repo.warehouses,
+                      selectedId: _selectedWarehouseId,
+                      onChanged: (id) {
+                        setState(() => _selectedWarehouseId = id);
+                      },
+                    ),
+                    const SizedBox(height: 16),
                     _VerificationPhotoField(
                       photoPath: _verificationPhotoPath,
                       onPick: _pickVerificationPhoto,
@@ -930,6 +950,69 @@ class _VerificationPhotoField extends StatelessWidget {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _WarehouseDropdown extends StatelessWidget {
+  const _WarehouseDropdown({
+    required this.warehouses,
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  final List<CollectorWarehouse> warehouses;
+  final String? selectedId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _FieldLabel(label: 'Gudang Penyimpanan'),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String>(
+          value: warehouses.any((warehouse) => warehouse.id == selectedId)
+              ? selectedId
+              : null,
+          items: warehouses.map((warehouse) {
+            return DropdownMenuItem<String>(
+              value: warehouse.id,
+              child: Text(
+                warehouse.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            );
+          }).toList(),
+          onChanged: onChanged,
+          decoration: InputDecoration(
+            hintText: 'Pilih gudang penerimaan',
+            filled: true,
+            fillColor: AppColors.surface,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppColors.primaryContainer,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }

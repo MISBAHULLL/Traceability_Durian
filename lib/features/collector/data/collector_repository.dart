@@ -7,6 +7,7 @@ import '../models/collector_purchase_transaction.dart';
 import '../models/collector_product.dart';
 import '../models/collector_shipment_batch.dart';
 import '../models/collector_stock_summary.dart';
+import '../models/collector_warehouse.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CollectorRepository
@@ -75,6 +76,20 @@ class CollectorRepository extends ChangeNotifier {
         LocalStorageService.loadInt('collector_purchase_transaction_counter') ??
         _purchaseTransactions.length;
 
+    final warehousesJsonList = LocalStorageService.loadJsonList(
+      'collector_warehouses',
+    );
+    if (warehousesJsonList != null) {
+      _warehouses = warehousesJsonList
+          .map((e) => CollectorWarehouse.fromJson(e))
+          .toList();
+    } else {
+      _warehouses = _buildSeedWarehouses();
+    }
+    _warehouseCounter =
+        LocalStorageService.loadInt('collector_warehouse_counter') ??
+        _warehouses.length;
+
     final seedShipmentMigrated = _migratePrimarySeedShipment();
     final simulationShipmentsAdded = _ensureDistributorSimulationShipments();
 
@@ -82,7 +97,8 @@ class CollectorRepository extends ChangeNotifier {
     // siap agar fresh install tidak membaca late field yang belum diinisialisasi.
     if (shipmentsJsonList == null ||
         seedShipmentMigrated ||
-        simulationShipmentsAdded) {
+        simulationShipmentsAdded ||
+        warehousesJsonList == null) {
       _saveToLocal();
     }
   }
@@ -105,6 +121,11 @@ class CollectorRepository extends ChangeNotifier {
       'collector_purchase_transaction_counter',
       _purchaseTransactionCounter,
     );
+    LocalStorageService.saveJsonList(
+      'collector_warehouses',
+      _warehouses.map((e) => e.toJson()).toList(),
+    );
+    LocalStorageService.saveInt('collector_warehouse_counter', _warehouseCounter);
   }
 
   // [FE - State Management] Sinkronisasi ini menjaga data lama/local storage:
@@ -296,8 +317,10 @@ class CollectorRepository extends ChangeNotifier {
   late List<CollectorProduct> _products;
   late List<CollectorShipmentBatch> _shipmentBatches;
   late List<CollectorPurchaseTransaction> _purchaseTransactions;
+  late List<CollectorWarehouse> _warehouses;
   late int _shipmentCounter;
   late int _purchaseTransactionCounter;
+  late int _warehouseCounter;
   final FarmerRepository _farmerRepo = FarmerRepository.instance;
 
   // ── Identitas sesi ──────────────────────────────────────────────────────────
@@ -334,6 +357,108 @@ class CollectorRepository extends ChangeNotifier {
   // [FE - State Management] Stok pengepul dibentuk dari batch petani yang
   // sudah diverifikasi pengepul dan siap masuk flow distribusi berikutnya.
   List<HarvestBatch> get stockBatches => _farmerRepo.batchesForCollectorStock;
+
+  List<CollectorWarehouse> get warehouses {
+    final items = List<CollectorWarehouse>.from(_warehouses);
+    items.sort((a, b) {
+      if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
+      return a.name.compareTo(b.name);
+    });
+    return List.unmodifiable(items);
+  }
+
+  CollectorWarehouse? get defaultWarehouse {
+    if (_warehouses.isEmpty) return null;
+    try {
+      return _warehouses.firstWhere((warehouse) => warehouse.isDefault);
+    } catch (_) {
+      return _warehouses.first;
+    }
+  }
+
+  CollectorWarehouse? findWarehouse(String? id) {
+    if (id == null || id.trim().isEmpty) return null;
+    try {
+      return _warehouses.firstWhere((warehouse) => warehouse.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String warehouseLabel(String? id) {
+    final warehouse = findWarehouse(id);
+    return warehouse == null ? 'Gudang belum dipilih' : warehouse.name;
+  }
+
+  CollectorWarehouse createWarehouse({
+    required String name,
+    required String location,
+    String? note,
+    bool setAsDefault = false,
+  }) {
+    final warehouse = CollectorWarehouse(
+      id: _generateWarehouseId(),
+      name: name.trim(),
+      location: location.trim(),
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+      isDefault: setAsDefault || _warehouses.isEmpty,
+      createdAt: DateTime.now(),
+    );
+    if (warehouse.isDefault) {
+      _warehouses = _warehouses
+          .map((item) => item.copyWith(isDefault: false))
+          .toList();
+    }
+    _warehouses.add(warehouse);
+    _saveToLocal();
+    notifyListeners();
+    return warehouse;
+  }
+
+  bool updateWarehouse(
+    String id, {
+    required String name,
+    required String location,
+    String? note,
+    bool setAsDefault = false,
+  }) {
+    final index = _warehouses.indexWhere((warehouse) => warehouse.id == id);
+    if (index == -1) return false;
+
+    if (setAsDefault) {
+      _warehouses = _warehouses
+          .map((item) => item.copyWith(isDefault: false))
+          .toList();
+    }
+    final existing = _warehouses[index];
+    _warehouses[index] = CollectorWarehouse(
+      id: existing.id,
+      name: name.trim(),
+      location: location.trim(),
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+      isDefault: setAsDefault ? true : existing.isDefault,
+      createdAt: existing.createdAt,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  bool deleteWarehouse(String id) {
+    final index = _warehouses.indexWhere((warehouse) => warehouse.id == id);
+    if (index == -1) return false;
+
+    final isUsed = stockBatches.any((batch) => batch.warehouseId == id);
+    if (isUsed || _warehouses.length <= 1) return false;
+
+    final removed = _warehouses.removeAt(index);
+    if (removed.isDefault && _warehouses.isNotEmpty) {
+      _warehouses[0] = _warehouses[0].copyWith(isDefault: true);
+    }
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
 
   // [FE - State Management] Batch tersedia untuk agregasi mengecualikan
   // source batch yang sudah pernah masuk batch pengiriman pengepul.
@@ -574,6 +699,12 @@ class CollectorRepository extends ChangeNotifier {
     return 'T1-$year-$seq';
   }
 
+  String _generateWarehouseId() {
+    _warehouseCounter++;
+    final seq = _warehouseCounter.toString().padLeft(4, '0');
+    return 'WH-$_currentCollectorId-$seq';
+  }
+
   void _closePurchaseTransaction({
     required String batchCode,
     required CollectorPurchaseStatus status,
@@ -731,6 +862,7 @@ class CollectorRepository extends ChangeNotifier {
     required double receivedQuantity,
     required int receivedFruitCount,
     required List<BatchGradeBreakdown> gradeBreakdown,
+    String? warehouseId,
     String? verificationPhotoPath,
     String? qualityNotes,
     String? transactionId,
@@ -740,6 +872,7 @@ class CollectorRepository extends ChangeNotifier {
       receivedQuantity: receivedQuantity,
       receivedFruitCount: receivedFruitCount,
       gradeBreakdown: gradeBreakdown,
+      warehouseId: warehouseId,
       verificationPhotoPath: verificationPhotoPath,
       qualityNotes: qualityNotes,
       verifiedBy: _profile.fullName,
@@ -875,6 +1008,26 @@ class CollectorRepository extends ChangeNotifier {
   void logout() {
     _saveToLocal();
     notifyListeners();
+  }
+
+  static List<CollectorWarehouse> _buildSeedWarehouses() {
+    return [
+      CollectorWarehouse(
+        id: 'WH-collector-001-0001',
+        name: 'Gudang Utama Pakis',
+        location: 'Desa Pakis, Kecamatan Panti, Jember',
+        note: 'Lokasi penerimaan utama dari petani sekitar Pakis.',
+        isDefault: true,
+        createdAt: DateTime(2026, 1, 1),
+      ),
+      CollectorWarehouse(
+        id: 'WH-collector-001-0002',
+        name: 'Gudang Sortir Semboro',
+        location: 'Kecamatan Semboro, Jember',
+        note: 'Dipakai saat volume masuk tinggi.',
+        createdAt: DateTime(2026, 1, 5),
+      ),
+    ];
   }
 
   static List<CollectorShipmentBatch> _buildSeedShipmentBatches() {

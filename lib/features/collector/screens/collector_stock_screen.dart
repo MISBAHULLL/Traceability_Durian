@@ -263,6 +263,9 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
                               padding: const EdgeInsets.only(bottom: 12),
                               child: _StockCard(
                                 batch: batch,
+                                warehouseName: _repo.warehouseLabel(
+                                  batch.warehouseId,
+                                ),
                                 shipmentCode: _repo
                                     .shipmentForSourceBatch(batch.code)
                                     ?.code,
@@ -1241,11 +1244,13 @@ class _EmptyFilteredBatches extends StatelessWidget {
 class _StockCard extends StatelessWidget {
   const _StockCard({
     required this.batch,
+    required this.warehouseName,
     required this.onAdvancedGrading,
     this.shipmentCode,
   });
 
   final HarvestBatch batch;
+  final String warehouseName;
   final String? shipmentCode;
   final VoidCallback onAdvancedGrading;
 
@@ -1349,6 +1354,12 @@ class _StockCard extends StatelessWidget {
                             icon: Icons.inventory_2_outlined,
                             label: _subBatchCode(batch.code),
                           ),
+                          _InfoPill(
+                            icon: Icons.event_available_outlined,
+                            label: batch.verifiedAt == null
+                                ? 'Belum verifikasi'
+                                : _formatDate(batch.verifiedAt!),
+                          ),
                           _ExpiryBadge(info: expiry),
                         ],
                       ),
@@ -1385,10 +1396,8 @@ class _StockCard extends StatelessWidget {
                 const _MetricDivider(),
                 Expanded(
                   child: _BatchMetric(
-                    label: 'Diverifikasi',
-                    value: batch.verifiedAt == null
-                        ? '-'
-                        : _formatDate(batch.verifiedAt!),
+                    label: 'Gudang',
+                    value: warehouseName,
                   ),
                 ),
               ],

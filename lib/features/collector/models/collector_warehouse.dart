@@ -36,13 +36,13 @@ class CollectorWarehouse {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'location': location,
-        'note': note,
-        'isDefault': isDefault,
-        'createdAt': createdAt?.toIso8601String(),
-      };
+    'id': id,
+    'name': name,
+    'location': location,
+    'note': note,
+    'isDefault': isDefault,
+    'createdAt': createdAt?.toIso8601String(),
+  };
 
   factory CollectorWarehouse.fromJson(Map<String, dynamic> json) {
     return CollectorWarehouse(

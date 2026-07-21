@@ -1395,10 +1395,7 @@ class _StockCard extends StatelessWidget {
                 ),
                 const _MetricDivider(),
                 Expanded(
-                  child: _BatchMetric(
-                    label: 'Gudang',
-                    value: warehouseName,
-                  ),
+                  child: _BatchMetric(label: 'Gudang', value: warehouseName),
                 ),
               ],
             ),

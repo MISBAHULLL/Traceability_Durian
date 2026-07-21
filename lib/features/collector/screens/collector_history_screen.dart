@@ -217,7 +217,7 @@ class _ShipmentHistoryList extends StatelessWidget {
         icon: Icons.local_shipping_outlined,
         title: 'Belum ada aktivitas pengiriman',
         message:
-            'Manifest yang dibuat untuk UMKM atau distributor akan muncul di sini.',
+            'Manifest yang dibuat untuk UMKM, distributor, konsumen, atau pengepul lain akan muncul di sini.',
       );
     }
 
@@ -490,7 +490,10 @@ class _ShipmentHistoryCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          'Tujuan ${shipment.destinationType.label}',
+                          shipment.destinationName?.trim().isNotEmpty == true
+                              ? '${shipment.destinationType.label} - '
+                                    '${shipment.destinationName!.trim()}'
+                              : 'Tujuan ${shipment.destinationType.label}',
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,

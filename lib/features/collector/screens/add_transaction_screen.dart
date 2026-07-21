@@ -974,7 +974,7 @@ class _WarehouseDropdown extends StatelessWidget {
         const _FieldLabel(label: 'Gudang Penyimpanan'),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
-          value: warehouses.any((warehouse) => warehouse.id == selectedId)
+          initialValue: warehouses.any((warehouse) => warehouse.id == selectedId)
               ? selectedId
               : null,
           items: warehouses.map((warehouse) {

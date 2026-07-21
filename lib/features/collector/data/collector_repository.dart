@@ -125,7 +125,10 @@ class CollectorRepository extends ChangeNotifier {
       'collector_warehouses',
       _warehouses.map((e) => e.toJson()).toList(),
     );
-    LocalStorageService.saveInt('collector_warehouse_counter', _warehouseCounter);
+    LocalStorageService.saveInt(
+      'collector_warehouse_counter',
+      _warehouseCounter,
+    );
   }
 
   // [FE - State Management] Sinkronisasi ini menjaga data lama/local storage:
@@ -589,10 +592,20 @@ class CollectorRepository extends ChangeNotifier {
   CollectorShipmentBatch? createShipmentBatch({
     required List<String> sourceBatchCodes,
     required ShipmentDestinationType destinationType,
+    String? destinationName,
+    String? destinationLocation,
     String? warehouseNote,
   }) {
     final cleanCodes = sourceBatchCodes.toSet().toList();
     if (cleanCodes.isEmpty) return null;
+    final cleanDestinationName = destinationName?.trim();
+    final cleanDestinationLocation = destinationLocation?.trim();
+    if (cleanDestinationName == null ||
+        cleanDestinationName.isEmpty ||
+        cleanDestinationLocation == null ||
+        cleanDestinationLocation.isEmpty) {
+      return null;
+    }
 
     final availableByCode = {
       for (final batch in availableStockBatches) batch.code: batch,
@@ -615,6 +628,8 @@ class CollectorRepository extends ChangeNotifier {
       packagedAt: DateTime.now(),
       status: CollectorShipmentStatus.readyToShip,
       destinationType: destinationType,
+      destinationName: cleanDestinationName,
+      destinationLocation: cleanDestinationLocation,
       warehouseNote: warehouseNote?.trim().isEmpty == true
           ? null
           : warehouseNote?.trim(),

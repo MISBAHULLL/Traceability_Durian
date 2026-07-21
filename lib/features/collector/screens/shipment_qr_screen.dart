@@ -225,7 +225,18 @@ class _ShipmentInfoCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _InfoRow(label: 'Status', value: shipment.status.label),
-          _InfoRow(label: 'Tujuan', value: shipment.destinationType.label),
+          _InfoRow(
+            label: 'Tujuan',
+            value: shipment.destinationName?.trim().isNotEmpty == true
+                ? '${shipment.destinationType.label} - '
+                      '${shipment.destinationName!.trim()}'
+                : shipment.destinationType.label,
+          ),
+          if (shipment.destinationLocation?.trim().isNotEmpty == true)
+            _InfoRow(
+              label: 'Lokasi',
+              value: shipment.destinationLocation!.trim(),
+            ),
           _InfoRow(
             label: 'Total Berat',
             value: _formatWeight(shipment.totalWeightKg),

@@ -938,6 +938,51 @@ class FarmerRepository extends ChangeNotifier {
     return true;
   }
 
+  // [FE - State Management] Mutasi ini menyimpan grading lanjutan setelah
+  // batch menjadi stok pengepul. Status tidak berubah; hanya pecahan grade
+  // fisik yang diperbarui agar ringkasan stok membaca hasil sortir terbaru.
+  bool updateCollectorAdvancedGrading({
+    required String code,
+    required List<BatchGradeBreakdown> gradeBreakdown,
+  }) {
+    final cleanBreakdown = gradeBreakdown.where((e) => e.hasValue).toList();
+    if (cleanBreakdown.isEmpty) return false;
+
+    final index = _batches.indexWhere((b) => b.code == code);
+    if (index == -1) return false;
+
+    final existing = _batches[index];
+    if (existing.status != BatchStatus.verifiedByCollector) return false;
+
+    final receivedQuantity = existing.receivedQuantity ?? existing.quantity;
+    final receivedFruitCount =
+        existing.receivedFruitCount ?? existing.fruitCount ?? 0;
+    final totalWeight = cleanBreakdown.fold<double>(
+      0,
+      (sum, item) => sum + item.weightKg,
+    );
+    final totalFruit = cleanBreakdown.fold<int>(
+      0,
+      (sum, item) => sum + item.fruitCount,
+    );
+    if ((totalWeight - receivedQuantity).abs() > 0.01 ||
+        totalFruit != receivedFruitCount) {
+      return false;
+    }
+
+    final dominantBreakdown = cleanBreakdown.reduce(
+      (a, b) => b.weightKg > a.weightKg ? b : a,
+    );
+
+    _batches[index] = existing.copyWith(
+      verifiedGrade: dominantBreakdown.grade.trim(),
+      gradeBreakdown: cleanBreakdown,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
   // [FE - State Management] Mutasi ini menjadi jalur penolakan batch dari
   // pengepul ke petani pada fase mock FE-only.
   bool rejectBatchByCollector({

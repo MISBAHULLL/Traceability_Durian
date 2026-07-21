@@ -756,6 +756,22 @@ class CollectorRepository extends ChangeNotifier {
     return true;
   }
 
+  // [FE - Event Handler] Grading lanjutan memecah stok terverifikasi menjadi
+  // sub-batch grade lebih detail tanpa mengubah status kepemilikan batch.
+  bool updateAdvancedGrading({
+    required String code,
+    required List<BatchGradeBreakdown> gradeBreakdown,
+  }) {
+    final ok = _farmerRepo.updateCollectorAdvancedGrading(
+      code: code,
+      gradeBreakdown: gradeBreakdown,
+    );
+    if (!ok) return false;
+
+    notifyListeners();
+    return true;
+  }
+
   // [FE - Event Handler] Submit penolakan pengepul meneruskan alasan reject
   // ke FarmerRepository sebagai state utama rantai pasok.
   bool rejectFreshBatch({

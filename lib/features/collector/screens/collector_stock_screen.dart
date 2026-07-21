@@ -6,6 +6,7 @@ import '../../farmer/models/harvest_batch.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_stock_summary.dart';
+import 'advanced_grading_screen.dart';
 import 'create_shipment_batch_screen.dart';
 import 'collector_shipments_screen.dart';
 
@@ -187,6 +188,13 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
     await CollectorRoutes.push(context, const CollectorShipmentsScreen());
   }
 
+  Future<void> _openAdvancedGrading(HarvestBatch batch) async {
+    await CollectorRoutes.push<bool>(
+      context,
+      AdvancedGradingScreen(batch: batch),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final stocks = _repo.stockBatches;
@@ -258,6 +266,9 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
                                 shipmentCode: _repo
                                     .shipmentForSourceBatch(batch.code)
                                     ?.code,
+                                onAdvancedGrading: () {
+                                  _openAdvancedGrading(batch);
+                                },
                               ),
                             ),
                           ),
@@ -1094,10 +1105,7 @@ class _SortDropdownButton extends StatelessWidget {
 }
 
 class _SortDropdownMenu extends StatelessWidget {
-  const _SortDropdownMenu({
-    required this.activeSort,
-    required this.onChanged,
-  });
+  const _SortDropdownMenu({required this.activeSort, required this.onChanged});
 
   final _BatchSort activeSort;
   final ValueChanged<_BatchSort> onChanged;
@@ -1139,8 +1147,12 @@ class _SortDropdownMenu extends StatelessWidget {
                       sort.label,
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                        color: selected ? AppColors.primary : AppColors.subtitle,
+                        fontWeight: selected
+                            ? FontWeight.w900
+                            : FontWeight.w700,
+                        color: selected
+                            ? AppColors.primary
+                            : AppColors.subtitle,
                       ),
                     ),
                   ),
@@ -1227,10 +1239,15 @@ class _EmptyFilteredBatches extends StatelessWidget {
 // [FE - Component Rendering] Kartu stok menyajikan identitas batch, metrik
 // penerimaan, dan hasil grading dalam urutan baca operasional pengepul.
 class _StockCard extends StatelessWidget {
-  const _StockCard({required this.batch, this.shipmentCode});
+  const _StockCard({
+    required this.batch,
+    required this.onAdvancedGrading,
+    this.shipmentCode,
+  });
 
   final HarvestBatch batch;
   final String? shipmentCode;
+  final VoidCallback onAdvancedGrading;
 
   String _formatDate(DateTime date) {
     const months = [
@@ -1381,6 +1398,8 @@ class _StockCard extends StatelessWidget {
             dominantGrade: verifiedGrade,
             breakdown: batch.gradeBreakdown,
           ),
+          if (!isAllocated)
+            _StockActionStrip(onAdvancedGrading: onAdvancedGrading),
           if (isAllocated) _AllocationNotice(code: shipmentCode!),
           if (batch.qualityNotes?.trim().isNotEmpty == true)
             _QualityNote(note: batch.qualityNotes!.trim()),
@@ -1415,7 +1434,6 @@ class _StatusBadge extends StatelessWidget {
     );
   }
 }
-
 
 class _InfoPill extends StatelessWidget {
   const _InfoPill({required this.icon, required this.label});
@@ -1478,6 +1496,43 @@ class _ExpiryBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StockActionStrip extends StatelessWidget {
+  const _StockActionStrip({required this.onAdvancedGrading});
+
+  final VoidCallback onAdvancedGrading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: _borderColor)),
+      ),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: OutlinedButton.icon(
+          onPressed: onAdvancedGrading,
+          icon: const Icon(Icons.call_split_outlined, size: 16),
+          label: const Text('Grading'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.primary,
+            side: const BorderSide(color: _borderColor),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            textStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ),
+        ),
       ),
     );
   }

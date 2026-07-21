@@ -47,6 +47,8 @@ class DistributorAcquisitionTransaction {
     required this.status,
     this.closedAt,
     this.note,
+    this.destinationLocation,
+    this.temperatureCelsius,
   });
 
   final String id;
@@ -62,11 +64,15 @@ class DistributorAcquisitionTransaction {
   final DistributorAcquisitionStatus status;
   final DateTime? closedAt;
   final String? note;
+  final String? destinationLocation;
+  final double? temperatureCelsius;
 
   DistributorAcquisitionTransaction copyWith({
     DistributorAcquisitionStatus? status,
     DateTime? closedAt,
     String? note,
+    String? destinationLocation,
+    double? temperatureCelsius,
   }) {
     return DistributorAcquisitionTransaction(
       id: id,
@@ -82,6 +88,8 @@ class DistributorAcquisitionTransaction {
       status: status ?? this.status,
       closedAt: closedAt ?? this.closedAt,
       note: note ?? this.note,
+      destinationLocation: destinationLocation ?? this.destinationLocation,
+      temperatureCelsius: temperatureCelsius ?? this.temperatureCelsius,
     );
   }
 
@@ -99,6 +107,8 @@ class DistributorAcquisitionTransaction {
     'status': status.name,
     'closedAt': closedAt?.toIso8601String(),
     'note': note,
+    'destinationLocation': destinationLocation,
+    'temperatureCelsius': temperatureCelsius,
   };
 
   factory DistributorAcquisitionTransaction.fromJson(
@@ -126,6 +136,8 @@ class DistributorAcquisitionTransaction {
           ? null
           : DateTime.parse(json['closedAt'] as String),
       note: json['note'] as String?,
+      destinationLocation: json['destinationLocation'] as String?,
+      temperatureCelsius: (json['temperatureCelsius'] as num?)?.toDouble(),
     );
   }
 }

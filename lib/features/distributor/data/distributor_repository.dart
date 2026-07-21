@@ -588,13 +588,16 @@ class DistributorRepository extends ChangeNotifier {
     required double receivedWeightKg,
     required int receivedFruitCount,
     required DistributorReceiptCondition condition,
+    required String destinationLocation,
     String? discrepancyNote,
     String? qualityNote,
+    double? temperatureCelsius,
   }) {
     final transaction = findAcquisitionTransaction(transactionId);
     if (transaction == null ||
         transaction.status != DistributorAcquisitionStatus.initiated ||
-        transaction.source != DistributorAcquisitionSource.collector) {
+        transaction.source != DistributorAcquisitionSource.collector ||
+        !_isValidReceiptTemperature(temperatureCelsius)) {
       return null;
     }
 
@@ -614,8 +617,10 @@ class DistributorRepository extends ChangeNotifier {
       receivedWeightKg: receivedWeightKg,
       receivedFruitCount: receivedFruitCount,
       condition: condition,
+      destinationLocation: destinationLocation,
       discrepancyNote: discrepancyNote,
       qualityNote: qualityNote,
+      temperatureCelsius: temperatureCelsius,
     );
     if (receipt == null) return null;
 
@@ -623,6 +628,8 @@ class DistributorRepository extends ChangeNotifier {
       transactionId: transaction.id,
       status: DistributorAcquisitionStatus.verified,
       note: qualityNote,
+      destinationLocation: destinationLocation,
+      temperatureCelsius: temperatureCelsius,
     );
     _saveToLocal();
     notifyListeners();
@@ -636,12 +643,17 @@ class DistributorRepository extends ChangeNotifier {
     required double receivedWeightKg,
     required int receivedFruitCount,
     required List<BatchGradeBreakdown> gradeBreakdown,
+    required String destinationLocation,
     String? qualityNote,
+    double? temperatureCelsius,
   }) {
+    final cleanDestination = destinationLocation.trim();
     final transaction = findAcquisitionTransaction(transactionId);
     if (transaction == null ||
         transaction.status != DistributorAcquisitionStatus.initiated ||
         transaction.source != DistributorAcquisitionSource.farmer ||
+        cleanDestination.isEmpty ||
+        !_isValidReceiptTemperature(temperatureCelsius) ||
         receivedWeightKg <= 0 ||
         receivedFruitCount <= 0) {
       return false;
@@ -684,6 +696,8 @@ class DistributorRepository extends ChangeNotifier {
       transactionId: transaction.id,
       status: DistributorAcquisitionStatus.verified,
       note: qualityNote,
+      destinationLocation: cleanDestination,
+      temperatureCelsius: temperatureCelsius,
     );
     _saveToLocal();
     notifyListeners();
@@ -729,12 +743,17 @@ class DistributorRepository extends ChangeNotifier {
     required double receivedWeightKg,
     required int receivedFruitCount,
     required DistributorReceiptCondition condition,
+    required String destinationLocation,
     String? discrepancyNote,
     String? qualityNote,
+    double? temperatureCelsius,
   }) {
+    final cleanDestination = destinationLocation.trim();
     final shipment = findShipment(code);
     if (shipment == null ||
         shipment.status != CollectorShipmentStatus.sent ||
+        cleanDestination.isEmpty ||
+        !_isValidReceiptTemperature(temperatureCelsius) ||
         receivedWeightKg <= 0 ||
         receivedFruitCount <= 0 ||
         receiptForShipment(code) != null) {
@@ -769,10 +788,12 @@ class DistributorRepository extends ChangeNotifier {
       receivedFruitCount: receivedFruitCount,
       condition: condition,
       receivedAt: DateTime.now(),
+      destinationLocation: cleanDestination,
       discrepancyNote: cleanDiscrepancyNote?.isEmpty == true
           ? null
           : cleanDiscrepancyNote,
       qualityNote: cleanQualityNote?.isEmpty == true ? null : cleanQualityNote,
+      temperatureCelsius: temperatureCelsius,
     );
     _receipts.add(receipt);
     _saveToLocal();
@@ -800,6 +821,10 @@ class DistributorRepository extends ChangeNotifier {
     _warehouseCounter++;
     final seq = _warehouseCounter.toString().padLeft(4, '0');
     return 'WH-DST-$_currentDistributorId-$seq';
+  }
+
+  bool _isValidReceiptTemperature(double? value) {
+    return value == null || (value >= -30 && value <= 60);
   }
 
   String _generateWarehouseTransferId() {
@@ -840,6 +865,8 @@ class DistributorRepository extends ChangeNotifier {
     required String transactionId,
     required DistributorAcquisitionStatus status,
     String? note,
+    String? destinationLocation,
+    double? temperatureCelsius,
   }) {
     final index = _acquisitionTransactions.indexWhere(
       (item) =>
@@ -852,6 +879,10 @@ class DistributorRepository extends ChangeNotifier {
       status: status,
       closedAt: DateTime.now(),
       note: note?.trim().isEmpty == true ? null : note?.trim(),
+      destinationLocation: destinationLocation?.trim().isEmpty == true
+          ? null
+          : destinationLocation?.trim(),
+      temperatureCelsius: temperatureCelsius,
     );
   }
 }

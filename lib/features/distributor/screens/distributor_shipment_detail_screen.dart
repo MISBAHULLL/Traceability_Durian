@@ -369,6 +369,21 @@ class _ReceiptPanel extends StatelessWidget {
                   difference: '${_signedInt(receipt.fruitDifference)} butir',
                   hasDifference: receipt.fruitDifference != 0,
                 ),
+                const SizedBox(height: 12),
+                _ReceiptMetaRow(
+                  icon: Icons.location_on_outlined,
+                  label: 'Lokasi Terima',
+                  value: receipt.destinationLocation,
+                ),
+                if (receipt.temperatureCelsius != null) ...[
+                  const SizedBox(height: 8),
+                  _ReceiptMetaRow(
+                    icon: Icons.thermostat_outlined,
+                    label: 'Suhu Terima',
+                    value:
+                        '${_formatTemperature(receipt.temperatureCelsius!)} C',
+                  ),
+                ],
               ],
             ),
           ),
@@ -460,6 +475,50 @@ class _ReceiptComparisonRow extends StatelessWidget {
             fontSize: 10,
             fontWeight: FontWeight.w800,
             color: hasDifference ? const Color(0xFF9A6700) : AppColors.primary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReceiptMetaRow extends StatelessWidget {
+  const _ReceiptMetaRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: AppColors.primary),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 92,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: AppColors.placeholder,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: AppColors.subtitle,
+            ),
           ),
         ),
       ],
@@ -1322,6 +1381,10 @@ String _signedDouble(double value) {
 
 String _signedInt(int value) {
   return value > 0 ? '+$value' : '$value';
+}
+
+String _formatTemperature(double value) {
+  return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
 }
 
 String _valueOrDash(String? value) {

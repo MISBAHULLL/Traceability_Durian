@@ -34,6 +34,8 @@ class _DistributorAcquisitionVerifyScreenState
   final _notification = TopNotification();
   final _weightCtrl = TextEditingController();
   final _fruitCtrl = TextEditingController();
+  final _destinationCtrl = TextEditingController();
+  final _temperatureCtrl = TextEditingController();
   final _discrepancyCtrl = TextEditingController();
   final _qualityCtrl = TextEditingController();
   final _gradeWeightCtrls = {
@@ -52,6 +54,8 @@ class _DistributorAcquisitionVerifyScreenState
     final transaction = _repo.findAcquisitionTransaction(widget.transactionId);
     if (transaction != null) {
       _weightCtrl.text = _formatNumber(transaction.expectedWeightKg);
+      _destinationCtrl.text =
+          _repo.defaultWarehouse?.name ?? _repo.profile.location;
       if (transaction.expectedFruitCount > 0) {
         _fruitCtrl.text = transaction.expectedFruitCount.toString();
       }
@@ -75,6 +79,8 @@ class _DistributorAcquisitionVerifyScreenState
     _fruitCtrl.removeListener(_refresh);
     _weightCtrl.dispose();
     _fruitCtrl.dispose();
+    _destinationCtrl.dispose();
+    _temperatureCtrl.dispose();
     _discrepancyCtrl.dispose();
     _qualityCtrl.dispose();
     for (final controller in _gradeWeightCtrls.values) {
@@ -95,6 +101,12 @@ class _DistributorAcquisitionVerifyScreenState
       double.tryParse(_weightCtrl.text.trim().replaceAll(',', '.'));
 
   int? get _receivedFruit => int.tryParse(_fruitCtrl.text.trim());
+
+  double? get _temperature {
+    final text = _temperatureCtrl.text.trim();
+    if (text.isEmpty) return null;
+    return double.tryParse(text.replaceAll(',', '.'));
+  }
 
   bool _hasDiscrepancy(DistributorAcquisitionTransaction transaction) {
     final weight = _receivedWeight;
@@ -129,6 +141,25 @@ class _DistributorAcquisitionVerifyScreenState
       _notification.show(context, 'Jumlah buah tidak valid.', isError: true);
       return;
     }
+    if (_destinationCtrl.text.trim().isEmpty) {
+      _notification.show(
+        context,
+        'Lokasi tujuan penerimaan wajib diisi.',
+        isError: true,
+      );
+      return;
+    }
+    final temperatureText = _temperatureCtrl.text.trim();
+    final temperature = _temperature;
+    if (temperatureText.isNotEmpty &&
+        (temperature == null || temperature < -30 || temperature > 60)) {
+      _notification.show(
+        context,
+        'Suhu harus berupa angka antara -30 sampai 60 C.',
+        isError: true,
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
     await Future.delayed(const Duration(milliseconds: 450));
@@ -159,8 +190,10 @@ class _DistributorAcquisitionVerifyScreenState
             receivedWeightKg: weight,
             receivedFruitCount: fruit,
             condition: condition,
+            destinationLocation: _destinationCtrl.text,
             discrepancyNote: _discrepancyCtrl.text,
             qualityNote: _qualityCtrl.text,
+            temperatureCelsius: temperature,
           ) !=
           null;
     } else {
@@ -195,7 +228,9 @@ class _DistributorAcquisitionVerifyScreenState
         receivedWeightKg: weight,
         receivedFruitCount: fruit,
         gradeBreakdown: grades,
+        destinationLocation: _destinationCtrl.text,
         qualityNote: _qualityCtrl.text,
+        temperatureCelsius: temperature,
       );
     }
 
@@ -269,6 +304,22 @@ class _DistributorAcquisitionVerifyScreenState
                           transaction: transaction,
                           receivedWeight: _receivedWeight,
                           receivedFruit: _receivedFruit,
+                        ),
+                        const SizedBox(height: 16),
+                        const _SectionTitle(title: 'Tujuan dan Cold Chain'),
+                        const SizedBox(height: 8),
+                        _TextField(
+                          controller: _destinationCtrl,
+                          label: 'Lokasi Tujuan Penerimaan',
+                          hint: 'Contoh: Gudang Hub Surabaya',
+                          required: true,
+                        ),
+                        const SizedBox(height: 10),
+                        _NumberField(
+                          controller: _temperatureCtrl,
+                          label: 'Suhu Saat Diterima',
+                          suffix: 'C',
+                          decimal: true,
                         ),
                         if (transaction.source ==
                             DistributorAcquisitionSource.collector) ...[
@@ -735,6 +786,58 @@ class _InfoRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TextField extends StatelessWidget {
+  const _TextField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    this.required = false,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final bool required;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          required ? '$label *' : label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: AppColors.subtitle,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: hint,
+            filled: true,
+            fillColor: AppColors.white,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(
+                color: AppColors.primaryContainer,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

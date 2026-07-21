@@ -28,6 +28,8 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
   final _notification = TopNotification();
   final _weightCtrl = TextEditingController();
   final _fruitCtrl = TextEditingController();
+  final _destinationCtrl = TextEditingController();
+  final _temperatureCtrl = TextEditingController();
   final _discrepancyCtrl = TextEditingController();
   final _qualityCtrl = TextEditingController();
 
@@ -41,6 +43,8 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
     if (shipment != null) {
       _weightCtrl.text = _formatNumber(shipment.totalWeightKg);
       _fruitCtrl.text = shipment.totalFruitCount.toString();
+      _destinationCtrl.text =
+          _repo.defaultWarehouse?.name ?? _repo.profile.location;
     }
     _weightCtrl.addListener(_refreshDifference);
     _fruitCtrl.addListener(_refreshDifference);
@@ -52,6 +56,8 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
     _fruitCtrl.removeListener(_refreshDifference);
     _weightCtrl.dispose();
     _fruitCtrl.dispose();
+    _destinationCtrl.dispose();
+    _temperatureCtrl.dispose();
     _discrepancyCtrl.dispose();
     _qualityCtrl.dispose();
     _notification.dispose();
@@ -68,6 +74,12 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
       double.tryParse(_weightCtrl.text.trim().replaceAll(',', '.'));
 
   int? get _receivedFruit => int.tryParse(_fruitCtrl.text.trim());
+
+  double? get _temperature {
+    final text = _temperatureCtrl.text.trim();
+    if (text.isEmpty) return null;
+    return double.tryParse(text.replaceAll(',', '.'));
+  }
 
   bool _hasDiscrepancy(CollectorShipmentBatch shipment) {
     final weight = _receivedWeight;
@@ -107,6 +119,25 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
       );
       return;
     }
+    if (_destinationCtrl.text.trim().isEmpty) {
+      _notification.show(
+        context,
+        'Lokasi tujuan penerimaan wajib diisi.',
+        isError: true,
+      );
+      return;
+    }
+    final temperatureText = _temperatureCtrl.text.trim();
+    final temperature = _temperature;
+    if (temperatureText.isNotEmpty &&
+        (temperature == null || temperature < -30 || temperature > 60)) {
+      _notification.show(
+        context,
+        'Suhu harus berupa angka antara -30 sampai 60 C.',
+        isError: true,
+      );
+      return;
+    }
     if (_hasDiscrepancy(shipment) && _discrepancyCtrl.text.trim().isEmpty) {
       _notification.show(
         context,
@@ -125,8 +156,10 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
       receivedWeightKg: weight,
       receivedFruitCount: fruit,
       condition: condition,
+      destinationLocation: _destinationCtrl.text,
       discrepancyNote: _discrepancyCtrl.text,
       qualityNote: _qualityCtrl.text,
+      temperatureCelsius: temperature,
     );
     setState(() => _isSubmitting = false);
 
@@ -220,6 +253,22 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
                             required: true,
                           ),
                         ],
+                        const SizedBox(height: 18),
+                        const _SectionTitle(title: 'Tujuan dan Cold Chain'),
+                        const SizedBox(height: 9),
+                        _TextField(
+                          controller: _destinationCtrl,
+                          label: 'Lokasi Tujuan Penerimaan',
+                          hint: 'Contoh: Gudang Hub Surabaya',
+                          required: true,
+                        ),
+                        const SizedBox(height: 10),
+                        _NumberField(
+                          controller: _temperatureCtrl,
+                          label: 'Suhu Saat Diterima',
+                          suffix: 'C',
+                          decimal: true,
+                        ),
                         const SizedBox(height: 18),
                         const _SectionTitle(title: 'Kondisi Fisik'),
                         const SizedBox(height: 9),
@@ -590,6 +639,61 @@ class _TextArea extends StatelessWidget {
         TextField(
           controller: controller,
           maxLines: 3,
+          decoration: InputDecoration(
+            hintText: hint,
+            filled: true,
+            fillColor: AppColors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(
+                color: AppColors.primaryContainer,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TextField extends StatelessWidget {
+  const _TextField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    this.required = false,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final bool required;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          required ? '$label *' : label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: AppColors.subtitle,
+          ),
+        ),
+        const SizedBox(height: 7),
+        TextField(
+          controller: controller,
           decoration: InputDecoration(
             hintText: hint,
             filled: true,

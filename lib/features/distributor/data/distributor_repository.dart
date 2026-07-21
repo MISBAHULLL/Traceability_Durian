@@ -7,6 +7,7 @@ import '../../farmer/models/harvest_batch.dart';
 import '../models/distributor_acquisition_transaction.dart';
 import '../models/distributor_profile.dart';
 import '../models/distributor_receipt.dart';
+import '../models/distributor_warehouse.dart';
 
 // [FE - State Management] DistributorRepository mengelola profil distributor,
 // memantau batch dari CollectorRepository, dan menyajikan metrik logistik.
@@ -39,7 +40,11 @@ class DistributorRepository extends ChangeNotifier {
   late DistributorProfile _profile;
   late List<DistributorReceipt> _receipts;
   late List<DistributorAcquisitionTransaction> _acquisitionTransactions;
+  late List<DistributorWarehouse> _warehouses;
+  late List<DistributorWarehouseTransfer> _warehouseTransfers;
   late int _acquisitionTransactionCounter;
+  late int _warehouseCounter;
+  late int _warehouseTransferCounter;
   String _currentDistributorId = _kSeedDistributorId;
 
   DistributorProfile get profile => _profile;
@@ -92,6 +97,30 @@ class DistributorRepository extends ChangeNotifier {
           'distributor_acquisition_transaction_counter',
         ) ??
         _acquisitionTransactions.length;
+
+    final warehouseJsonList = LocalStorageService.loadJsonList(
+      'distributor_warehouses',
+    );
+    _warehouses =
+        warehouseJsonList?.map(DistributorWarehouse.fromJson).toList() ??
+        _buildSeedWarehouses();
+    _warehouseCounter =
+        LocalStorageService.loadInt('distributor_warehouse_counter') ??
+        _warehouses.length;
+
+    final transferJsonList = LocalStorageService.loadJsonList(
+      'distributor_warehouse_transfers',
+    );
+    _warehouseTransfers =
+        transferJsonList?.map(DistributorWarehouseTransfer.fromJson).toList() ??
+        [];
+    _warehouseTransferCounter =
+        LocalStorageService.loadInt('distributor_warehouse_transfer_counter') ??
+        _warehouseTransfers.length;
+
+    if (warehouseJsonList == null) {
+      _saveToLocal();
+    }
   }
 
   void _saveToLocal() {
@@ -111,6 +140,22 @@ class DistributorRepository extends ChangeNotifier {
     LocalStorageService.saveInt(
       'distributor_acquisition_transaction_counter',
       _acquisitionTransactionCounter,
+    );
+    LocalStorageService.saveJsonList(
+      'distributor_warehouses',
+      _warehouses.map((warehouse) => warehouse.toJson()).toList(),
+    );
+    LocalStorageService.saveInt(
+      'distributor_warehouse_counter',
+      _warehouseCounter,
+    );
+    LocalStorageService.saveJsonList(
+      'distributor_warehouse_transfers',
+      _warehouseTransfers.map((transfer) => transfer.toJson()).toList(),
+    );
+    LocalStorageService.saveInt(
+      'distributor_warehouse_transfer_counter',
+      _warehouseTransferCounter,
     );
   }
 
@@ -174,6 +219,154 @@ class DistributorRepository extends ChangeNotifier {
   }
 
   // ── Shipments & Metrics ────────────────────────────────────────────────────
+
+  // [FE - State Management] Daftar gudang distributor diurutkan default dulu.
+  List<DistributorWarehouse> get warehouses {
+    final items = List<DistributorWarehouse>.from(_warehouses);
+    items.sort((a, b) {
+      if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
+      return a.name.compareTo(b.name);
+    });
+    return List.unmodifiable(items);
+  }
+
+  DistributorWarehouse? get defaultWarehouse {
+    if (_warehouses.isEmpty) return null;
+    try {
+      return _warehouses.firstWhere((warehouse) => warehouse.isDefault);
+    } catch (_) {
+      return _warehouses.first;
+    }
+  }
+
+  DistributorWarehouse? findWarehouse(String? id) {
+    if (id == null || id.trim().isEmpty) return null;
+    try {
+      return _warehouses.firstWhere((warehouse) => warehouse.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String warehouseLabel(String? id) {
+    final warehouse = findWarehouse(id);
+    return warehouse == null ? 'Gudang belum dipilih' : warehouse.name;
+  }
+
+  List<DistributorWarehouseTransfer> get warehouseTransfers {
+    final items = _warehouseTransfers
+        .where((item) => item.distributorId == _currentDistributorId)
+        .toList();
+    items.sort((a, b) => b.transferredAt.compareTo(a.transferredAt));
+    return List.unmodifiable(items);
+  }
+
+  DistributorWarehouse createWarehouse({
+    required String name,
+    required String location,
+    String? note,
+    bool setAsDefault = false,
+  }) {
+    final warehouse = DistributorWarehouse(
+      id: _generateWarehouseId(),
+      name: name.trim(),
+      location: location.trim(),
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+      isDefault: setAsDefault || _warehouses.isEmpty,
+      createdAt: DateTime.now(),
+    );
+    if (warehouse.isDefault) {
+      _warehouses = _warehouses
+          .map((item) => item.copyWith(isDefault: false))
+          .toList();
+    }
+    _warehouses.add(warehouse);
+    _saveToLocal();
+    notifyListeners();
+    return warehouse;
+  }
+
+  bool updateWarehouse(
+    String id, {
+    required String name,
+    required String location,
+    String? note,
+    bool setAsDefault = false,
+  }) {
+    final index = _warehouses.indexWhere((warehouse) => warehouse.id == id);
+    if (index == -1) return false;
+
+    if (setAsDefault) {
+      _warehouses = _warehouses
+          .map((item) => item.copyWith(isDefault: false))
+          .toList();
+    }
+    final existing = _warehouses[index];
+    _warehouses[index] = DistributorWarehouse(
+      id: existing.id,
+      name: name.trim(),
+      location: location.trim(),
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+      isDefault: setAsDefault ? true : existing.isDefault,
+      createdAt: existing.createdAt,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  bool deleteWarehouse(String id) {
+    final index = _warehouses.indexWhere((warehouse) => warehouse.id == id);
+    if (index == -1 || _warehouses.length <= 1) return false;
+
+    final isUsed = _warehouseTransfers.any(
+      (transfer) =>
+          transfer.fromWarehouseId == id || transfer.toWarehouseId == id,
+    );
+    if (isUsed) return false;
+
+    final removed = _warehouses.removeAt(index);
+    if (removed.isDefault && _warehouses.isNotEmpty) {
+      _warehouses[0] = _warehouses[0].copyWith(isDefault: true);
+    }
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  DistributorWarehouseTransfer? createWarehouseTransfer({
+    required String fromWarehouseId,
+    required String toWarehouseId,
+    required String itemCode,
+    required double weightKg,
+    required int fruitCount,
+    String? note,
+  }) {
+    if (fromWarehouseId == toWarehouseId ||
+        findWarehouse(fromWarehouseId) == null ||
+        findWarehouse(toWarehouseId) == null ||
+        itemCode.trim().isEmpty ||
+        weightKg <= 0 ||
+        fruitCount <= 0) {
+      return null;
+    }
+
+    final transfer = DistributorWarehouseTransfer(
+      id: _generateWarehouseTransferId(),
+      distributorId: _currentDistributorId,
+      fromWarehouseId: fromWarehouseId,
+      toWarehouseId: toWarehouseId,
+      itemCode: itemCode.trim().toUpperCase(),
+      weightKg: weightKg,
+      fruitCount: fruitCount,
+      transferredAt: DateTime.now(),
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+    );
+    _warehouseTransfers.add(transfer);
+    _saveToLocal();
+    notifyListeners();
+    return transfer;
+  }
 
   // [FE - State Management] Batch DRN yang masih CREATED menjadi kandidat
   // pembelian langsung distributor dari petani, mengikuti pintu T1 pengepul.
@@ -601,6 +794,39 @@ class DistributorRepository extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  String _generateWarehouseId() {
+    _warehouseCounter++;
+    final seq = _warehouseCounter.toString().padLeft(4, '0');
+    return 'WH-DST-$_currentDistributorId-$seq';
+  }
+
+  String _generateWarehouseTransferId() {
+    _warehouseTransferCounter++;
+    final year = DateTime.now().year;
+    final seq = _warehouseTransferCounter.toString().padLeft(6, '0');
+    return 'TRF-DST-$year-$seq';
+  }
+
+  static List<DistributorWarehouse> _buildSeedWarehouses() {
+    return [
+      DistributorWarehouse(
+        id: 'WH-DST-distributor-001-0001',
+        name: 'Gudang Hub Surabaya',
+        location: 'Jl. Pemuda No. 15, Surabaya',
+        note: 'Gudang penerimaan utama dari pengepul Jawa Timur.',
+        isDefault: true,
+        createdAt: DateTime(2026, 1, 3),
+      ),
+      DistributorWarehouse(
+        id: 'WH-DST-distributor-001-0002',
+        name: 'Gudang Transit Sidoarjo',
+        location: 'Kawasan Pergudangan Sidoarjo',
+        note: 'Dipakai untuk pemecahan muatan lintas kota.',
+        createdAt: DateTime(2026, 1, 8),
+      ),
+    ];
   }
 
   String _generateAcquisitionTransactionId() {

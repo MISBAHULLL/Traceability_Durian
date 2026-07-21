@@ -10,6 +10,7 @@ import '../screens/distributor_active_shipments_screen.dart';
 import '../screens/distributor_history_screen.dart';
 import '../screens/distributor_profile_screen.dart';
 import '../screens/distributor_scan_qr_screen.dart';
+import '../screens/distributor_warehouses_screen.dart';
 import 'distributor_avatar.dart';
 
 class DistributorDrawer extends StatelessWidget {
@@ -52,6 +53,12 @@ class DistributorDrawer extends StatelessWidget {
                   icon: Icons.qr_code_scanner_rounded,
                   label: 'Scan QR Pengiriman',
                   onTap: () => _go(context, const DistributorScanQrScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.warehouse_outlined,
+                  label: 'Manajemen Gudang',
+                  onTap: () =>
+                      _go(context, const DistributorWarehousesScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.local_shipping_outlined,

@@ -5,6 +5,7 @@ import '../../auth/screens/home_screen.dart';
 import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
 import '../models/distributor_profile.dart';
+import '../screens/distributor_acquisition_screen.dart';
 import '../screens/distributor_active_shipments_screen.dart';
 import '../screens/distributor_history_screen.dart';
 import '../screens/distributor_profile_screen.dart';
@@ -40,6 +41,12 @@ class DistributorDrawer extends StatelessWidget {
                   icon: Icons.home_rounded,
                   label: 'Beranda',
                   onTap: () => Navigator.pop(context),
+                ),
+                _DrawerItem(
+                  icon: Icons.assignment_turned_in_outlined,
+                  label: 'Akuisisi',
+                  onTap: () =>
+                      _go(context, const DistributorAcquisitionScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.qr_code_scanner_rounded,

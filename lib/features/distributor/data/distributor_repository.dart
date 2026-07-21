@@ -4,6 +4,7 @@ import '../../collector/data/collector_repository.dart';
 import '../../collector/models/collector_shipment_batch.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../models/distributor_acquisition_transaction.dart';
 import '../models/distributor_profile.dart';
 import '../models/distributor_receipt.dart';
 
@@ -15,6 +16,7 @@ class DistributorRepository extends ChangeNotifier {
     // Dengarkan perubahan dari CollectorRepository agar metrik dan daftar
     // pengiriman ter-refresh secara real-time.
     CollectorRepository.instance.addListener(_onCollectorRepoChanged);
+    FarmerRepository.instance.addListener(_onFarmerRepoChanged);
   }
 
   static final DistributorRepository instance = DistributorRepository._();
@@ -36,6 +38,8 @@ class DistributorRepository extends ChangeNotifier {
 
   late DistributorProfile _profile;
   late List<DistributorReceipt> _receipts;
+  late List<DistributorAcquisitionTransaction> _acquisitionTransactions;
+  late int _acquisitionTransactionCounter;
   String _currentDistributorId = _kSeedDistributorId;
 
   DistributorProfile get profile => _profile;
@@ -44,9 +48,14 @@ class DistributorRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _onFarmerRepoChanged() {
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     CollectorRepository.instance.removeListener(_onCollectorRepoChanged);
+    FarmerRepository.instance.removeListener(_onFarmerRepoChanged);
     super.dispose();
   }
 
@@ -69,6 +78,20 @@ class DistributorRepository extends ChangeNotifier {
     );
     _receipts =
         receiptJsonList?.map(DistributorReceipt.fromJson).toList() ?? [];
+
+    final acquisitionJsonList = LocalStorageService.loadJsonList(
+      'distributor_acquisition_transactions',
+    );
+    _acquisitionTransactions =
+        acquisitionJsonList
+            ?.map(DistributorAcquisitionTransaction.fromJson)
+            .toList() ??
+        [];
+    _acquisitionTransactionCounter =
+        LocalStorageService.loadInt(
+          'distributor_acquisition_transaction_counter',
+        ) ??
+        _acquisitionTransactions.length;
   }
 
   void _saveToLocal() {
@@ -80,6 +103,14 @@ class DistributorRepository extends ChangeNotifier {
     LocalStorageService.saveJsonList(
       'distributor_receipts',
       _receipts.map((receipt) => receipt.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      'distributor_acquisition_transactions',
+      _acquisitionTransactions.map((item) => item.toJson()).toList(),
+    );
+    LocalStorageService.saveInt(
+      'distributor_acquisition_transaction_counter',
+      _acquisitionTransactionCounter,
     );
   }
 
@@ -143,6 +174,109 @@ class DistributorRepository extends ChangeNotifier {
   }
 
   // ── Shipments & Metrics ────────────────────────────────────────────────────
+
+  // [FE - State Management] Batch DRN yang masih CREATED menjadi kandidat
+  // pembelian langsung distributor dari petani, mengikuti pintu T1 pengepul.
+  List<HarvestBatch> get availableFarmerAcquisitionBatches =>
+      FarmerRepository.instance.batchesForCollectorVerification;
+
+  // [FE - State Management] Manifest PGL siap diambil menjadi kandidat
+  // pembelian distributor dari pengepul.
+  List<CollectorShipmentBatch> get availableCollectorAcquisitionShipments =>
+      readyToPickShipments;
+
+  // [FE - State Management] Riwayat T1/T2 akuisisi distributor.
+  List<DistributorAcquisitionTransaction> get acquisitionTransactions {
+    final items = _acquisitionTransactions
+        .where((item) => item.distributorId == _currentDistributorId)
+        .toList();
+    items.sort((a, b) => b.initiatedAt.compareTo(a.initiatedAt));
+    return List.unmodifiable(items);
+  }
+
+  List<DistributorAcquisitionTransaction> get pendingAcquisitionTransactions {
+    return List.unmodifiable(
+      acquisitionTransactions.where(
+        (item) => item.status == DistributorAcquisitionStatus.initiated,
+      ),
+    );
+  }
+
+  DistributorAcquisitionTransaction? findAcquisitionTransaction(String id) {
+    try {
+      return acquisitionTransactions.firstWhere((item) => item.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // [FE - Event Handler] T1 pembelian dari pengepul dibuat dari manifest PGL.
+  DistributorAcquisitionTransaction? initiateCollectorAcquisition(
+    String shipmentCode,
+  ) {
+    final shipment = findShipment(shipmentCode);
+    if (shipment == null ||
+        shipment.status == CollectorShipmentStatus.completed) {
+      return null;
+    }
+
+    final existing = _pendingAcquisitionFor(
+      source: DistributorAcquisitionSource.collector,
+      itemCode: shipment.code,
+    );
+    if (existing != null) return existing;
+
+    final transaction = DistributorAcquisitionTransaction(
+      id: _generateAcquisitionTransactionId(),
+      distributorId: _currentDistributorId,
+      source: DistributorAcquisitionSource.collector,
+      itemCode: shipment.code,
+      itemName: 'Manifest ${shipment.code}',
+      originLabel: shipment.destinationLocation ?? 'Gudang pengepul',
+      supplierLabel: shipment.collectorId,
+      expectedWeightKg: shipment.totalWeightKg,
+      expectedFruitCount: shipment.totalFruitCount,
+      initiatedAt: DateTime.now(),
+      status: DistributorAcquisitionStatus.initiated,
+    );
+    _acquisitionTransactions.add(transaction);
+    _saveToLocal();
+    notifyListeners();
+    return transaction;
+  }
+
+  // [FE - Event Handler] T1 pembelian langsung dari petani dibuat dari batch
+  // DRN yang masih menunggu verifikasi fisik.
+  DistributorAcquisitionTransaction? initiateFarmerAcquisition(
+    String batchCode,
+  ) {
+    final batch = FarmerRepository.instance.findPublicBatch(batchCode);
+    if (batch == null || batch.status != BatchStatus.created) return null;
+
+    final existing = _pendingAcquisitionFor(
+      source: DistributorAcquisitionSource.farmer,
+      itemCode: batch.code,
+    );
+    if (existing != null) return existing;
+
+    final transaction = DistributorAcquisitionTransaction(
+      id: _generateAcquisitionTransactionId(),
+      distributorId: _currentDistributorId,
+      source: DistributorAcquisitionSource.farmer,
+      itemCode: batch.code,
+      itemName: 'Durian ${batch.variety}',
+      originLabel: batch.farmName,
+      supplierLabel: 'Petani ${batch.farmerId}',
+      expectedWeightKg: batch.quantity,
+      expectedFruitCount: batch.fruitCount ?? 0,
+      initiatedAt: DateTime.now(),
+      status: DistributorAcquisitionStatus.initiated,
+    );
+    _acquisitionTransactions.add(transaction);
+    _saveToLocal();
+    notifyListeners();
+    return transaction;
+  }
 
   // [FE - State Management] Distributor hanya membaca manifest yang tujuan
   // penerimanya distributor; pengiriman langsung UMKM tetap terisolasi.
@@ -254,6 +388,147 @@ class DistributorRepository extends ChangeNotifier {
     return false;
   }
 
+  // [FE - Event Handler] T2 pembelian dari pengepul memakai flow receipt
+  // pengiriman yang sudah ada agar manifest PGL tetap menjadi sumber benar.
+  DistributorReceipt? completeCollectorAcquisition({
+    required String transactionId,
+    required double receivedWeightKg,
+    required int receivedFruitCount,
+    required DistributorReceiptCondition condition,
+    String? discrepancyNote,
+    String? qualityNote,
+  }) {
+    final transaction = findAcquisitionTransaction(transactionId);
+    if (transaction == null ||
+        transaction.status != DistributorAcquisitionStatus.initiated ||
+        transaction.source != DistributorAcquisitionSource.collector) {
+      return null;
+    }
+
+    final shipment = findShipment(transaction.itemCode);
+    if (shipment == null ||
+        shipment.status == CollectorShipmentStatus.completed) {
+      return null;
+    }
+
+    if (shipment.status == CollectorShipmentStatus.readyToShip &&
+        !takeShipment(shipment.code)) {
+      return null;
+    }
+
+    final receipt = receiveShipment(
+      code: shipment.code,
+      receivedWeightKg: receivedWeightKg,
+      receivedFruitCount: receivedFruitCount,
+      condition: condition,
+      discrepancyNote: discrepancyNote,
+      qualityNote: qualityNote,
+    );
+    if (receipt == null) return null;
+
+    _closeAcquisitionTransaction(
+      transactionId: transaction.id,
+      status: DistributorAcquisitionStatus.verified,
+      note: qualityNote,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return receipt;
+  }
+
+  // [FE - Event Handler] T2 pembelian langsung dari petani mengikuti pola
+  // verifikasi pengepul: timbang aktual, grade breakdown, dan catatan fisik.
+  bool completeFarmerAcquisition({
+    required String transactionId,
+    required double receivedWeightKg,
+    required int receivedFruitCount,
+    required List<BatchGradeBreakdown> gradeBreakdown,
+    String? qualityNote,
+  }) {
+    final transaction = findAcquisitionTransaction(transactionId);
+    if (transaction == null ||
+        transaction.status != DistributorAcquisitionStatus.initiated ||
+        transaction.source != DistributorAcquisitionSource.farmer ||
+        receivedWeightKg <= 0 ||
+        receivedFruitCount <= 0) {
+      return false;
+    }
+
+    final batch = FarmerRepository.instance.findPublicBatch(
+      transaction.itemCode,
+    );
+    if (batch == null || batch.status != BatchStatus.created) return false;
+
+    final cleanBreakdown = gradeBreakdown
+        .where((item) => item.hasValue)
+        .toList();
+    if (cleanBreakdown.isEmpty) return false;
+
+    final totalWeight = cleanBreakdown.fold<double>(
+      0,
+      (sum, item) => sum + item.weightKg,
+    );
+    final totalFruit = cleanBreakdown.fold<int>(
+      0,
+      (sum, item) => sum + item.fruitCount,
+    );
+    if ((totalWeight - receivedWeightKg).abs() > 0.01 ||
+        totalFruit != receivedFruitCount) {
+      return false;
+    }
+
+    final ok = FarmerRepository.instance.verifyBatchByCollector(
+      code: batch.code,
+      receivedQuantity: receivedWeightKg,
+      receivedFruitCount: receivedFruitCount,
+      gradeBreakdown: cleanBreakdown,
+      qualityNotes: qualityNote,
+      verifiedBy: _profile.fullName,
+    );
+    if (!ok) return false;
+
+    _closeAcquisitionTransaction(
+      transactionId: transaction.id,
+      status: DistributorAcquisitionStatus.verified,
+      note: qualityNote,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  bool rejectAcquisition({
+    required String transactionId,
+    required String note,
+  }) {
+    final cleanNote = note.trim();
+    if (cleanNote.isEmpty) return false;
+
+    final transaction = findAcquisitionTransaction(transactionId);
+    if (transaction == null ||
+        transaction.status != DistributorAcquisitionStatus.initiated) {
+      return false;
+    }
+
+    if (transaction.source == DistributorAcquisitionSource.farmer) {
+      final ok = FarmerRepository.instance.rejectBatchByCollector(
+        code: transaction.itemCode,
+        reason: cleanNote,
+        rejectedBy: _profile.fullName,
+      );
+      if (!ok) return false;
+    }
+
+    _closeAcquisitionTransaction(
+      transactionId: transaction.id,
+      status: DistributorAcquisitionStatus.rejected,
+      note: cleanNote,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
   // [FE - Event Handler] Mutasi penerimaan menyimpan hasil inspeksi aktual
   // lalu menyelesaikan handover manifest dari pengepul secara konsisten.
   DistributorReceipt? receiveShipment({
@@ -310,5 +585,47 @@ class DistributorRepository extends ChangeNotifier {
     _saveToLocal();
     notifyListeners();
     return receipt;
+  }
+
+  DistributorAcquisitionTransaction? _pendingAcquisitionFor({
+    required DistributorAcquisitionSource source,
+    required String itemCode,
+  }) {
+    try {
+      return acquisitionTransactions.firstWhere(
+        (item) =>
+            item.source == source &&
+            item.itemCode == itemCode &&
+            item.status == DistributorAcquisitionStatus.initiated,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _generateAcquisitionTransactionId() {
+    _acquisitionTransactionCounter++;
+    final year = DateTime.now().year;
+    final seq = _acquisitionTransactionCounter.toString().padLeft(6, '0');
+    return 'T1-DST-$year-$seq';
+  }
+
+  void _closeAcquisitionTransaction({
+    required String transactionId,
+    required DistributorAcquisitionStatus status,
+    String? note,
+  }) {
+    final index = _acquisitionTransactions.indexWhere(
+      (item) =>
+          item.id == transactionId &&
+          item.distributorId == _currentDistributorId,
+    );
+    if (index == -1) return;
+
+    _acquisitionTransactions[index] = _acquisitionTransactions[index].copyWith(
+      status: status,
+      closedAt: DateTime.now(),
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+    );
   }
 }

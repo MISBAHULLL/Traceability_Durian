@@ -10,6 +10,7 @@ import '../screens/distributor_active_shipments_screen.dart';
 import '../screens/distributor_history_screen.dart';
 import '../screens/distributor_profile_screen.dart';
 import '../screens/distributor_scan_qr_screen.dart';
+import '../screens/distributor_stock_receipt_screen.dart';
 import '../screens/distributor_warehouses_screen.dart';
 import 'distributor_avatar.dart';
 
@@ -48,6 +49,12 @@ class DistributorDrawer extends StatelessWidget {
                   label: 'Akuisisi',
                   onTap: () =>
                       _go(context, const DistributorAcquisitionScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.inventory_2_outlined,
+                  label: 'Terima Stok',
+                  onTap: () =>
+                      _go(context, const DistributorStockReceiptScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.qr_code_scanner_rounded,

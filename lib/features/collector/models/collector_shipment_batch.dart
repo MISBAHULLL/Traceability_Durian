@@ -6,7 +6,7 @@ enum CollectorShipmentStatus { readyToShip, sent, completed }
 
 // [DB - Model/Entity] Enum ini membedakan penerima manifest agar pengiriman
 // langsung ke UMKM tidak masuk ke antrean operasional distributor.
-enum ShipmentDestinationType { umkm, distributor }
+enum ShipmentDestinationType { umkm, distributor, consumer, collector }
 
 extension ShipmentDestinationTypeX on ShipmentDestinationType {
   String get label {
@@ -15,6 +15,10 @@ extension ShipmentDestinationTypeX on ShipmentDestinationType {
         return 'UMKM';
       case ShipmentDestinationType.distributor:
         return 'Distributor';
+      case ShipmentDestinationType.consumer:
+        return 'Konsumen';
+      case ShipmentDestinationType.collector:
+        return 'Pengepul Lain';
     }
   }
 }
@@ -46,6 +50,8 @@ class CollectorShipmentBatch {
     required this.packagedAt,
     required this.status,
     this.destinationType = ShipmentDestinationType.distributor,
+    this.destinationName,
+    this.destinationLocation,
     this.warehouseNote,
     this.sentAt,
     this.completedAt,
@@ -61,6 +67,8 @@ class CollectorShipmentBatch {
   final DateTime packagedAt;
   final CollectorShipmentStatus status;
   final ShipmentDestinationType destinationType;
+  final String? destinationName;
+  final String? destinationLocation;
   final String? warehouseNote;
   final DateTime? sentAt;
   final DateTime? completedAt;
@@ -70,6 +78,8 @@ class CollectorShipmentBatch {
   CollectorShipmentBatch copyWith({
     CollectorShipmentStatus? status,
     ShipmentDestinationType? destinationType,
+    String? destinationName,
+    String? destinationLocation,
     String? warehouseNote,
     DateTime? sentAt,
     DateTime? completedAt,
@@ -85,6 +95,8 @@ class CollectorShipmentBatch {
       packagedAt: packagedAt,
       status: status ?? this.status,
       destinationType: destinationType ?? this.destinationType,
+      destinationName: destinationName ?? this.destinationName,
+      destinationLocation: destinationLocation ?? this.destinationLocation,
       warehouseNote: warehouseNote ?? this.warehouseNote,
       sentAt: sentAt ?? this.sentAt,
       completedAt: completedAt ?? this.completedAt,
@@ -102,6 +114,8 @@ class CollectorShipmentBatch {
     'packagedAt': packagedAt.toIso8601String(),
     'status': status.name,
     'destinationType': destinationType.name,
+    'destinationName': destinationName,
+    'destinationLocation': destinationLocation,
     'warehouseNote': warehouseNote,
     'sentAt': sentAt?.toIso8601String(),
     'completedAt': completedAt?.toIso8601String(),
@@ -141,6 +155,8 @@ class CollectorShipmentBatch {
         (e) => e.name == json['destinationType'],
         orElse: () => ShipmentDestinationType.distributor,
       ),
+      destinationName: json['destinationName'] as String?,
+      destinationLocation: json['destinationLocation'] as String?,
       warehouseNote: json['warehouseNote'] as String?,
       sentAt: json['sentAt'] == null
           ? null

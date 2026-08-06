@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
+import '../../../shared/widgets/qr_preview.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_shipment_batch.dart';
@@ -180,12 +180,7 @@ class _ShipmentQrCard extends StatelessWidget {
               color: AppColors.white,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: QrImageView(
-              data: payload,
-              version: QrVersions.auto,
-              size: 210,
-              backgroundColor: AppColors.white,
-            ),
+            child: ResponsiveQrCode(data: payload, size: 210),
           ),
           const SizedBox(height: 12),
           Text(
@@ -230,7 +225,18 @@ class _ShipmentInfoCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _InfoRow(label: 'Status', value: shipment.status.label),
-          _InfoRow(label: 'Tujuan', value: shipment.destinationType.label),
+          _InfoRow(
+            label: 'Tujuan',
+            value: shipment.destinationName?.trim().isNotEmpty == true
+                ? '${shipment.destinationType.label} - '
+                      '${shipment.destinationName!.trim()}'
+                : shipment.destinationType.label,
+          ),
+          if (shipment.destinationLocation?.trim().isNotEmpty == true)
+            _InfoRow(
+              label: 'Lokasi',
+              value: shipment.destinationLocation!.trim(),
+            ),
           _InfoRow(
             label: 'Total Berat',
             value: _formatWeight(shipment.totalWeightKg),

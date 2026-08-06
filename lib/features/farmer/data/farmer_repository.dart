@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../models/batch_event.dart';
 import '../models/farm.dart';
+import '../models/farmer_notification.dart';
 import '../models/harvest_batch.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -372,6 +373,18 @@ class FarmerRepository extends ChangeNotifier {
   List<Farm> get farms =>
       _farms.where((f) => f.farmerId == _currentFarmerId).toList();
 
+  // [FE - State Management] findFarm mencari kebun milik sesi aktif untuk
+  // kebutuhan form edit tanpa membuka akses kebun milik petani lain.
+  Farm? findFarm(String id) {
+    try {
+      return _farms.firstWhere(
+        (f) => f.id == id && f.farmerId == _currentFarmerId,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── Batch (Req 7.2 — terbatas milik currentFarmerId) ──────────────────────
 
   /// Daftar batch milik petani yang sedang login, diurutkan terbaru di atas.
@@ -525,6 +538,66 @@ class FarmerRepository extends ChangeNotifier {
     return farm;
   }
 
+  // [FE - State Management] updateFarm memperbarui data kebun milik petani
+  // aktif. Batch lama tetap menyimpan snapshot farmName agar audit tidak kabur.
+  bool updateFarm({
+    required String id,
+    required String name,
+    required String province,
+    required String city,
+    required String district,
+    required String village,
+    required String address,
+    double? latitude,
+    double? longitude,
+  }) {
+    final index = _farms.indexWhere(
+      (f) => f.id == id && f.farmerId == _currentFarmerId,
+    );
+    if (index == -1) return false;
+
+    final existing = _farms[index];
+    _farms[index] = Farm(
+      id: existing.id,
+      farmerId: existing.farmerId,
+      name: name,
+      province: province,
+      city: city,
+      district: district,
+      village: village,
+      address: address,
+      latitude: latitude,
+      longitude: longitude,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  // [AUTH - Authorization] canDeleteFarm menjaga agar kebun yang sudah menjadi
+  // asal batch tidak dihapus dan memutus rantai traceability.
+  bool canDeleteFarm(String id) {
+    final farm = findFarm(id);
+    if (farm == null) return false;
+    return !_batches.any(
+      (batch) => batch.farmerId == _currentFarmerId && batch.farmId == id,
+    );
+  }
+
+  // [FE - State Management] deleteFarm menghapus kebun kosong saja; kebun yang
+  // sudah dipakai batch harus tetap ada sebagai data asal panen.
+  bool deleteFarm(String id) {
+    if (!canDeleteFarm(id)) return false;
+
+    final before = _farms.length;
+    _farms.removeWhere((f) => f.id == id && f.farmerId == _currentFarmerId);
+    if (_farms.length == before) return false;
+
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
   // ── Guard edit batch (Req 3.8, 3.9, 7.3, 7.4) ─────────────────────────────
 
   /// Lama jendela koreksi setelah batch dibuat (status CREATED).
@@ -643,6 +716,134 @@ class FarmerRepository extends ChangeNotifier {
   int get verifiedBatch =>
       batches.where((b) => b.status == BatchStatus.verifiedByCollector).length;
 
+  // [FE - State Management] Statistik ini menghitung batch yang ditolak
+  // pengepul agar Beranda dapat memberi sinyal masalah ke petani.
+  int get rejectedBatch =>
+      batches.where((b) => b.status == BatchStatus.rejected).length;
+
+  // [FE - State Management] Notifikasi petani dibangkitkan dari status batch
+  // agar FE punya pusat notifikasi meski tabel notifikasi BE belum tersedia.
+  List<FarmerNotification> get notifications {
+    final items = <FarmerNotification>[];
+
+    for (final batch in batches) {
+      final baseTime = batch.createdAt ?? batch.harvestDate;
+
+      switch (batch.status) {
+        case BatchStatus.draft:
+          break;
+        case BatchStatus.created:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-request',
+              batchCode: batch.code,
+              title: 'Batch siap discan',
+              message:
+                  '${batch.variety} ${_formatBatchAmount(batch)} menunggu scan QR dan konfirmasi penerima.',
+              createdAt: baseTime,
+              type: FarmerNotificationType.transactionRequest,
+              batchStatus: batch.status,
+              requiresAttention: true,
+            ),
+          );
+        case BatchStatus.verifiedByCollector:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-verified',
+              batchCode: batch.code,
+              title: 'Serah terima diterima',
+              message:
+                  '${batch.verifiedBy ?? 'Penerima'} menerima ${_formatReceivedAmount(batch)} dengan grade riil ${batch.verifiedGrade ?? batch.grade}.',
+              createdAt: batch.verifiedAt ?? baseTime,
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.inDistribution:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-distribution',
+              batchCode: batch.code,
+              title: 'Batch masuk pengiriman',
+              message:
+                  '${batch.variety} dari ${batch.farmName} sudah bergerak ke penerima berikutnya.',
+              createdAt: (batch.verifiedAt ?? baseTime).add(
+                const Duration(days: 1),
+              ),
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.receivedByUmkm:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-umkm',
+              batchCode: batch.code,
+              title: 'Batch diterima UMKM',
+              message:
+                  '${batch.variety} sudah dikonfirmasi penerima hilir dan trace tetap tersambung.',
+              createdAt: (batch.verifiedAt ?? baseTime).add(
+                const Duration(days: 2),
+              ),
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.processed:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-processed',
+              batchCode: batch.code,
+              title: 'Batch mulai diolah',
+              message:
+                  '${batch.variety} sudah masuk proses olahan UMKM sebagai bagian trace produk.',
+              createdAt: (batch.verifiedAt ?? baseTime).add(
+                const Duration(days: 3),
+              ),
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.sold:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-sold',
+              batchCode: batch.code,
+              title: 'Trace selesai sampai konsumen',
+              message:
+                  '${batch.variety} telah selesai di rantai pasok dan tercatat sampai penjualan.',
+              createdAt: (batch.verifiedAt ?? baseTime).add(
+                const Duration(days: 4),
+              ),
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.rejected:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-rejected',
+              batchCode: batch.code,
+              title: 'Serah terima ditolak',
+              message:
+                  batch.rejectionReason ??
+                  'Batch perlu ditinjau karena penerima menolak serah terima.',
+              createdAt: batch.rejectedAt ?? baseTime,
+              type: FarmerNotificationType.dispute,
+              batchStatus: batch.status,
+              requiresAttention: true,
+            ),
+          );
+      }
+    }
+
+    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return items;
+  }
+
+  int get attentionNotificationCount =>
+      notifications.where((item) => item.requiresAttention).length;
+
   // ── Timeline (Req 3.6) ─────────────────────────────────────────────────────
 
   // [FE - State Management] Getter ini membuka batch CREATED sebagai antrean
@@ -697,6 +898,8 @@ class FarmerRepository extends ChangeNotifier {
     required double receivedQuantity,
     required int receivedFruitCount,
     required List<BatchGradeBreakdown> gradeBreakdown,
+    String? warehouseId,
+    String? verificationPhotoPath,
     String? qualityNotes,
     String verifiedBy = 'Pengepul',
   }) {
@@ -724,11 +927,58 @@ class FarmerRepository extends ChangeNotifier {
       status: BatchStatus.verifiedByCollector,
       receivedQuantity: receivedQuantity,
       receivedFruitCount: receivedFruitCount,
+      warehouseId: warehouseId?.trim(),
       verifiedGrade: dominantGrade,
       gradeBreakdown: cleanBreakdown,
+      verificationPhotoPath: verificationPhotoPath?.trim(),
       qualityNotes: qualityNotes?.trim(),
       verifiedBy: verifiedBy.trim().isEmpty ? 'Pengepul' : verifiedBy.trim(),
       verifiedAt: DateTime.now(),
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  // [FE - State Management] Mutasi ini menyimpan grading lanjutan setelah
+  // batch menjadi stok pengepul. Status tidak berubah; hanya pecahan grade
+  // fisik yang diperbarui agar ringkasan stok membaca hasil sortir terbaru.
+  bool updateCollectorAdvancedGrading({
+    required String code,
+    required List<BatchGradeBreakdown> gradeBreakdown,
+  }) {
+    final cleanBreakdown = gradeBreakdown.where((e) => e.hasValue).toList();
+    if (cleanBreakdown.isEmpty) return false;
+
+    final index = _batches.indexWhere((b) => b.code == code);
+    if (index == -1) return false;
+
+    final existing = _batches[index];
+    if (existing.status != BatchStatus.verifiedByCollector) return false;
+
+    final receivedQuantity = existing.receivedQuantity ?? existing.quantity;
+    final receivedFruitCount =
+        existing.receivedFruitCount ?? existing.fruitCount ?? 0;
+    final totalWeight = cleanBreakdown.fold<double>(
+      0,
+      (sum, item) => sum + item.weightKg,
+    );
+    final totalFruit = cleanBreakdown.fold<int>(
+      0,
+      (sum, item) => sum + item.fruitCount,
+    );
+    if ((totalWeight - receivedQuantity).abs() > 0.01 ||
+        totalFruit != receivedFruitCount) {
+      return false;
+    }
+
+    final dominantBreakdown = cleanBreakdown.reduce(
+      (a, b) => b.weightKg > a.weightKg ? b : a,
+    );
+
+    _batches[index] = existing.copyWith(
+      verifiedGrade: dominantBreakdown.grade.trim(),
+      gradeBreakdown: cleanBreakdown,
     );
     _saveToLocal();
     notifyListeners();
@@ -1112,6 +1362,24 @@ List<HarvestBatch> searchAndFilterBatches(
         b.variety.toLowerCase().contains(q);
     return matchFilter && matchQuery;
   }).toList();
+}
+
+String _formatBatchAmount(HarvestBatch batch) {
+  final weight = _formatCompactNumber(batch.quantity);
+  final fruit = batch.fruitCount == null ? '' : ' / ${batch.fruitCount} butir';
+  return '$weight ${batch.unit}$fruit';
+}
+
+String _formatReceivedAmount(HarvestBatch batch) {
+  final quantity = batch.receivedQuantity ?? batch.quantity;
+  final fruit = batch.receivedFruitCount ?? batch.fruitCount;
+  final fruitText = fruit == null ? '' : ' / $fruit butir';
+  return '${_formatCompactNumber(quantity)} ${batch.unit}$fruitText';
+}
+
+String _formatCompactNumber(num value) {
+  if (value % 1 == 0) return value.toInt().toString();
+  return value.toStringAsFixed(1);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

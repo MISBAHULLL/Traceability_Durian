@@ -10,6 +10,7 @@ import '../models/batch_event.dart';
 import '../models/harvest_batch.dart';
 import 'add_batch_screen.dart';
 import 'batch_qr_screen.dart';
+import 'batch_trace_screen.dart';
 
 /// Memformat sisa durasi jendela koreksi menjadi teks ringkas berbahasa
 /// Indonesia, mis. "14 menit" atau "45 detik".
@@ -67,6 +68,12 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
     FarmerRoutes.push(context, BatchQrScreen(batchCode: widget.batchCode));
   }
 
+  // [FE - Event Handler] Membuka visual trace agar detail batch punya akses
+  // langsung ke perjalanan kepemilikan dan scan/konfirmasi QR.
+  void _openTrace() {
+    FarmerRoutes.push(context, BatchTraceScreen(batchCode: widget.batchCode));
+  }
+
   Future<void> _openEdit() async {
     // Buka form dalam mode ubah dengan kode batch ini (prefill + updateBatch).
     await FarmerRoutes.push(
@@ -98,6 +105,7 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
                       batch: batch,
                       repo: _repo,
                       onOpenQr: _openQr,
+                      onOpenTrace: _openTrace,
                       onOpenEdit: _openEdit,
                     ),
             ),
@@ -174,12 +182,14 @@ class _BatchDetailContent extends StatelessWidget {
     required this.batch,
     required this.repo,
     required this.onOpenQr,
+    required this.onOpenTrace,
     required this.onOpenEdit,
   });
 
   final HarvestBatch batch;
   final FarmerRepository repo;
   final VoidCallback onOpenQr;
+  final VoidCallback onOpenTrace;
   final VoidCallback onOpenEdit;
 
   @override
@@ -236,6 +246,25 @@ class _BatchDetailContent extends StatelessWidget {
           const SizedBox(height: 24),
 
           // ── Aksi Utama → QR (Req 3.7) ─────────────────────────────────────
+          OutlinedButton.icon(
+            onPressed: onOpenTrace,
+            icon: const Icon(Icons.route_rounded, size: 18),
+            label: const Text('LIHAT TRACE PERJALANAN'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.primaryContainer),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           PrimaryPillButton(label: 'LIHAT QR CODE', onPressed: onOpenQr),
 
           // ── Aksi Ubah Data — selama jendela koreksi terbuka (Req 3.8) ────

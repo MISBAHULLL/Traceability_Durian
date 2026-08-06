@@ -19,6 +19,10 @@ class AppColors {
   /// Warm off-white used as the global surface background.
   static const Color surface = Color(0xFFFAFAF4);
 
+  /// [FE - Design Token] Warna header beranda bergaya milky brown:
+  /// coklat sangat lembut yang tetap dominan putih untuk area navigasi atas.
+  static const Color homeHeaderSurface = Color(0xFFF6F1E7);
+
   /// Pure white used for the welcome header and form fields.
   static const Color white = Color(0xFFFFFFFF);
 

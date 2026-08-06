@@ -8,6 +8,7 @@ import '../models/harvest_batch.dart';
 import 'add_batch_screen.dart';
 import 'batch_detail_screen.dart';
 import 'batch_qr_screen.dart';
+import 'farmer_notifications_screen.dart';
 import 'farmer_profile_screen.dart';
 import '../widgets/farmer_drawer.dart';
 
@@ -40,6 +41,8 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   BatchFilter _activeFilter = BatchFilter.semua;
+  BatchPeriodFilter _activePeriod = BatchPeriodFilter.semua;
+  DateTimeRange? _customPeriod;
   String _query = '';
 
   late final AnimationController _animController;
@@ -92,11 +95,100 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
   // [UTIL - Helper Function] _filteredBatches menggabungkan filter chip
   // dan query pencarian menjadi satu daftar — menggunakan pure function
   // searchAndFilterBatches agar logika filter dapat diuji secara independen.
-  /// Daftar batch setelah difilter chip + query pencarian (Req 1.4, 1.5, 1.6).
+  /// Daftar batch setelah difilter status, periode, dan query pencarian.
   ///
   /// Menggunakan helper murni [searchAndFilterBatches] dari FarmerRepository.
   List<HarvestBatch> get _filteredBatches {
-    return searchAndFilterBatches(_repo.batches, _activeFilter, _query);
+    final base = searchAndFilterBatches(_repo.batches, _activeFilter, _query);
+    return base.where(_matchesPeriod).toList();
+  }
+
+  // [UTIL - Helper Function] Filter periode memakai harvestDate sebagai dasar
+  // agar daftar batch mengikuti waktu panen, bukan waktu data dibuat.
+  bool _matchesPeriod(HarvestBatch batch) {
+    final date = DateUtils.dateOnly(batch.harvestDate);
+    final today = DateUtils.dateOnly(DateTime.now());
+
+    switch (_activePeriod) {
+      case BatchPeriodFilter.semua:
+        return true;
+      case BatchPeriodFilter.hariIni:
+        return date == today;
+      case BatchPeriodFilter.tujuhHari:
+        final start = today.subtract(const Duration(days: 6));
+        return !date.isBefore(start) && !date.isAfter(today);
+      case BatchPeriodFilter.tigaPuluhHari:
+        final start = today.subtract(const Duration(days: 29));
+        return !date.isBefore(start) && !date.isAfter(today);
+      case BatchPeriodFilter.custom:
+        final range = _customPeriod;
+        if (range == null) return true;
+        final start = DateUtils.dateOnly(range.start);
+        final end = DateUtils.dateOnly(range.end);
+        return !date.isBefore(start) && !date.isAfter(end);
+    }
+  }
+
+  String _formatPeriodDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${date.day} ${months[date.month - 1]}';
+  }
+
+  // [FE - Event Handler] Handler ini mengatur filter periode dan membuka date
+  // range picker khusus saat user memilih mode Custom.
+  Future<void> _changePeriodFilter(BatchPeriodFilter filter) async {
+    if (filter != BatchPeriodFilter.custom) {
+      setState(() {
+        _activePeriod = filter;
+        _customPeriod = null;
+      });
+      return;
+    }
+
+    final today = DateUtils.dateOnly(DateTime.now());
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: today,
+      initialDateRange:
+          _customPeriod ??
+          DateTimeRange(
+            start: today.subtract(const Duration(days: 6)),
+            end: today,
+          ),
+      locale: const Locale('id', 'ID'),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primaryContainer,
+              onPrimary: AppColors.white,
+              onSurface: AppColors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked == null || !mounted) return;
+    setState(() {
+      _activePeriod = BatchPeriodFilter.custom;
+      _customPeriod = picked;
+    });
   }
 
   // ── Navigasi ───────────────────────────────────────────────────────────────
@@ -115,6 +207,11 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
   /// Buka Layar QR Batch untuk batch tertentu (Req 1.10).
   Future<void> _openBatchQr(String code) async {
     await FarmerRoutes.push(context, BatchQrScreen(batchCode: code));
+  }
+
+  // [FE - Event Handler] Membuka pusat notifikasi dari ikon lonceng beranda.
+  Future<void> _openNotifications() async {
+    await FarmerRoutes.push(context, const FarmerNotificationsScreen());
   }
 
   /// Buka Layar Profil Petani (Req 1.11).
@@ -136,69 +233,93 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
       key: _scaffoldKey,
       backgroundColor: AppColors.white,
       endDrawer: const FarmerDrawer(),
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: Column(
-              children: [
-                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
-                Expanded(
-                  child: CustomScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _GreetingBlock(profile: profile),
-                            const SizedBox(height: 16),
-                            _StatRow(repo: _repo),
-                            const SizedBox(height: 16),
-                            _AddBatchCard(onTap: _openAddBatch),
-                            const SizedBox(height: 16),
-                            _SearchField(controller: _searchController),
-                            const SizedBox(height: 14),
-                            _FilterChips(
-                              active: _activeFilter,
-                              onChanged: (f) => setState(() => _activeFilter = f),
-                            ),
-                            const SizedBox(height: 16),
-                            _SectionHeader(count: batches.length),
-                            const SizedBox(height: 12),
-                          ]),
-                        ),
-                      ),
-                      if (batches.isEmpty)
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _EmptyState(),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final batch = batches[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _BatchCard(
-                                  batch: batch,
-                                  onTap: () => _openBatchDetail(batch.code),
-                                  onShowQr: () => _openBatchQr(batch.code),
-                                ),
-                              );
-                            }, childCount: batches.length),
-                          ),
-                        ),
-                    ],
+      body: ColoredBox(
+        color: AppColors.homeHeaderSurface,
+        child: SafeArea(
+          bottom: false,
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: Column(
+                children: [
+                  _TopBar(
+                    onProfile: _openProfile,
+                    onNotifications: _openNotifications,
+                    onMenu: _openDrawer,
+                    notificationCount: _repo.attentionNotificationCount,
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: ColoredBox(
+                      color: AppColors.white,
+                      child: CustomScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _GreetingBlock(profile: profile),
+                                const SizedBox(height: 16),
+                                _StatRow(repo: _repo),
+                                const SizedBox(height: 16),
+                                _AddBatchCard(onTap: _openAddBatch),
+                                const SizedBox(height: 16),
+                                _SearchField(controller: _searchController),
+                                const SizedBox(height: 14),
+                                _FilterChips(
+                                  active: _activeFilter,
+                                  onChanged: (f) =>
+                                      setState(() => _activeFilter = f),
+                                ),
+                                const SizedBox(height: 16),
+                                _SectionHeader(
+                                  count: batches.length,
+                                  periodButton: _PeriodFilterButton(
+                                    active: _activePeriod,
+                                    customLabel: _customPeriod == null
+                                        ? null
+                                        : '${_formatPeriodDate(_customPeriod!.start)} - '
+                                              '${_formatPeriodDate(_customPeriod!.end)}',
+                                    compact: true,
+                                    onChanged: _changePeriodFilter,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                              ]),
+                            ),
+                          ),
+                          if (batches.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyState(),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate((
+                                  context,
+                                  index,
+                                ) {
+                                  final batch = batches[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _BatchCard(
+                                      batch: batch,
+                                      onTap: () => _openBatchDetail(batch.code),
+                                      onShowQr: () => _openBatchQr(batch.code),
+                                    ),
+                                  );
+                                }, childCount: batches.length),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -219,14 +340,25 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen>
 /// Ikon menu membuka navigation drawer (Beranda, Kelola Kebun, Profil,
 /// Bantuan, Tentang, Keluar).
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.onProfile, required this.onMenu});
+  const _TopBar({
+    required this.onProfile,
+    required this.onNotifications,
+    required this.onMenu,
+    required this.notificationCount,
+  });
 
   final VoidCallback onProfile;
+  final VoidCallback onNotifications;
   final VoidCallback onMenu;
+  final int notificationCount;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Container(
+      // [FE - Component Rendering] Band header ini menjadi pembatas visual
+      // antara area sistem atas dan konten utama beranda.
+      width: double.infinity,
+      color: AppColors.homeHeaderSurface,
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       child: Row(
         children: [
@@ -242,6 +374,12 @@ class _TopBar extends StatelessWidget {
           const Spacer(),
           _IconButton(icon: Icons.person_outline_rounded, onTap: onProfile),
           const SizedBox(width: 10),
+          _IconButton(
+            icon: Icons.notifications_none_rounded,
+            onTap: onNotifications,
+            badgeCount: notificationCount,
+          ),
+          const SizedBox(width: 10),
           _IconButton(icon: Icons.menu_rounded, onTap: onMenu),
         ],
       ),
@@ -250,10 +388,15 @@ class _TopBar extends StatelessWidget {
 }
 
 class _IconButton extends StatelessWidget {
-  const _IconButton({required this.icon, required this.onTap});
+  const _IconButton({
+    required this.icon,
+    required this.onTap,
+    this.badgeCount = 0,
+  });
 
   final IconData icon;
   final VoidCallback onTap;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -269,7 +412,37 @@ class _IconButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFF0F2F5)),
           ),
-          child: Icon(icon, color: AppColors.black, size: 22),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(icon, color: AppColors.black, size: 22),
+              if (badgeCount > 0)
+                Positioned(
+                  right: -7,
+                  top: -8,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 16),
+                    height: 16,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD64545),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: AppColors.white, width: 1),
+                    ),
+                    child: Text(
+                      badgeCount > 9 ? '9+' : '$badgeCount',
+                      style: const TextStyle(
+                        fontSize: 9,
+                        height: 1,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.white,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -308,7 +481,9 @@ class _GreetingBlock extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.2),
+                ),
               ),
               child: Text(
                 profile.roleLabel,
@@ -319,7 +494,7 @@ class _GreetingBlock extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             // Tampilkan lokasi hanya bila sudah dilengkapi
             if (profile.location.isNotEmpty) ...[
               const SizedBox(width: 8),
@@ -362,37 +537,85 @@ class _StatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            value: '${repo.totalBatch}',
-            label: 'Total Batch',
-            icon: Icons.inventory_2_rounded,
-            color: AppColors.primary,
+    final items = [
+      _StatItem(
+        value: '${repo.totalBatch}',
+        label: 'Total Batch',
+        icon: Icons.inventory_2_rounded,
+        color: AppColors.primary,
+      ),
+      _StatItem(
+        value: '${repo.pendingVerificationBatch}',
+        label: 'Menunggu',
+        icon: Icons.pending_actions_rounded,
+        color: const Color(0xFFD97706),
+      ),
+      _StatItem(
+        value: '${repo.verifiedBatch}',
+        label: 'Diterima',
+        icon: Icons.verified_rounded,
+        color: const Color(0xFF16A34A),
+      ),
+      _StatItem(
+        value: '${repo.rejectedBatch}',
+        label: 'Ditolak',
+        icon: Icons.cancel_outlined,
+        color: const Color(0xFFDC2626),
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 12.0;
+        const peekWidth = 10.0;
+        final rawCardWidth = (constraints.maxWidth - (gap * 3) - peekWidth) / 3;
+        final cardWidth = rawCardWidth.clamp(96.0, 118.0).toDouble();
+        const cardHeight = 112.0;
+
+        // [FE - Component Rendering] List horizontal ini menjaga tiga kartu
+        // tetap dominan di mobile, sementara kartu Ditolak tersedia via swipe.
+        return SizedBox(
+          height: cardHeight,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            clipBehavior: Clip.none,
+            itemCount: items.length,
+            separatorBuilder: (_, _) => const SizedBox(width: gap),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return SizedBox(
+                width: cardWidth,
+                height: cardHeight,
+                child: _StatCard(
+                  value: item.value,
+                  label: item.label,
+                  icon: item.icon,
+                  color: item.color,
+                ),
+              );
+            },
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            value: '${repo.pendingVerificationBatch}',
-            label: 'Menunggu',
-            icon: Icons.pending_actions_rounded,
-            color: const Color(0xFFD97706), // Oranye/Amber
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            value: '${repo.verifiedBatch}',
-            label: 'Terverifikasi',
-            icon: Icons.verified_rounded,
-            color: const Color(0xFF16A34A), // Hijau Emerald
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
+}
+
+// [FE - Component Rendering] Model tampilan ringan ini menyatukan value,
+// label, icon, dan warna agar daftar statistik mudah ditambah tanpa duplikasi.
+class _StatItem {
+  const _StatItem({
+    required this.value,
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  final String value;
+  final String label;
+  final IconData icon;
+  final Color color;
 }
 
 class _StatCard extends StatelessWidget {
@@ -410,58 +633,57 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1.0, // Membuat kartu menjadi persegi sempurna
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16), // Mempertahankan ujung melengkung
-          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+    // [FE - Component Rendering] Kartu ini mengisi ukuran dari parent strip
+    // agar isi statistik tidak overflow pada layar mobile sempit.
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 20, color: color),
+            child: Icon(icon, size: 19, color: color),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+              color: color,
+              height: 1.0,
             ),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: color,
-                height: 1.0,
-              ),
-              textAlign: TextAlign.center,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10.5,
+              color: AppColors.placeholder,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.placeholder,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -641,24 +863,189 @@ class _FilterChips extends StatelessWidget {
 // Section header daftar batch
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.count});
+// [FE - State Management] Enum ini merepresentasikan opsi periode daftar
+// batch di Beranda Petani dan dipakai untuk filter harvestDate.
+enum BatchPeriodFilter { semua, hariIni, tujuhHari, tigaPuluhHari, custom }
 
-  final int count;
+extension BatchPeriodFilterX on BatchPeriodFilter {
+  String get label {
+    switch (this) {
+      case BatchPeriodFilter.semua:
+        return 'Semua periode';
+      case BatchPeriodFilter.hariIni:
+        return 'Hari ini';
+      case BatchPeriodFilter.tujuhHari:
+        return '7 hari';
+      case BatchPeriodFilter.tigaPuluhHari:
+        return '30 hari';
+      case BatchPeriodFilter.custom:
+        return 'Custom';
+    }
+  }
+}
+
+// [FE - Component Rendering] _PeriodFilterButton merangkum filter periode
+// dalam satu pill agar area daftar batch tidak termakan banyak chip.
+class _PeriodFilterButton extends StatelessWidget {
+  const _PeriodFilterButton({
+    required this.active,
+    required this.onChanged,
+    this.customLabel,
+    this.compact = false,
+  });
+
+  final BatchPeriodFilter active;
+  final Future<void> Function(BatchPeriodFilter) onChanged;
+  final String? customLabel;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        const Text(
-          'Batch Panen Saya',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: AppColors.black,
+    final hasCustom = active == BatchPeriodFilter.custom && customLabel != null;
+    final label = hasCustom ? customLabel! : active.label;
+    final displayLabel = compact
+        ? _compactLabel(label)
+        : 'Periode: ${_compactLabel(label)}';
+
+    // [FE - Component Rendering] PopupMenuButton ini membuat filter periode
+    // muncul dari pill agar pilihan tetap dekat dengan konteks daftar batch.
+    return PopupMenuButton<BatchPeriodFilter>(
+      tooltip: 'Pilih periode',
+      color: AppColors.white,
+      elevation: 8,
+      offset: const Offset(0, 8),
+      position: PopupMenuPosition.under,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      onSelected: (filter) {
+        onChanged(filter);
+      },
+      itemBuilder: (context) {
+        return BatchPeriodFilter.values.map((filter) {
+          final isActive = filter == active;
+          final itemLabel =
+              filter == BatchPeriodFilter.custom && customLabel != null
+              ? customLabel!
+              : filter.label;
+
+          return PopupMenuItem<BatchPeriodFilter>(
+            value: filter,
+            child: Row(
+              children: [
+                Icon(
+                  filter == BatchPeriodFilter.custom
+                      ? Icons.date_range_rounded
+                      : Icons.calendar_today_outlined,
+                  size: 18,
+                  color: isActive
+                      ? AppColors.primaryContainer
+                      : AppColors.placeholder,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    itemLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                      color: isActive
+                          ? AppColors.primaryContainer
+                          : AppColors.subtitle,
+                    ),
+                  ),
+                ),
+                if (isActive) ...[
+                  const SizedBox(width: 10),
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    size: 18,
+                    color: AppColors.primaryContainer,
+                  ),
+                ],
+              ],
+            ),
+          );
+        }).toList();
+      },
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: compact ? 132 : 260),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: const Color(0xFFEAF7E5),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.primaryContainer),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.calendar_today_outlined,
+                  size: 15,
+                  color: AppColors.primaryContainer,
+                ),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    displayLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryContainer,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: AppColors.primaryContainer,
+                ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  String _compactLabel(String label) {
+    if (label == BatchPeriodFilter.semua.label) return 'Semua';
+    return label;
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.count, required this.periodButton});
+
+  final int count;
+  final Widget periodButton;
+
+  @override
+  Widget build(BuildContext context) {
+    // [FE - Component Rendering] Header ini menyatukan judul daftar, filter
+    // periode, dan jumlah batch agar kontrol daftar berada di satu baris.
+    return Row(
+      children: [
+        const Expanded(
+          child: Text(
+            'Batch Panen Saya',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.black,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        periodButton,
+        const SizedBox(width: 8),
         Text(
           '$count batch',
           style: const TextStyle(fontSize: 12, color: AppColors.placeholder),

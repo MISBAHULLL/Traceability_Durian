@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/batch_photo.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_product.dart';
+import '../models/collector_warehouse.dart';
 
 // [FE - Component Rendering] Layar ini adalah form "Tambah Transaksi" untuk
 // pengepul — turunan dari prototype screen 4. Alur: pilih produk (batch petani)
@@ -22,10 +25,17 @@ import '../models/collector_product.dart';
 /// Mengikuti alur Batch Validation Form (blueprint 08 sec 4.4): pilih produk
 /// (simulasi scan QR) → input receivedQuantity, grade, qualityNotes → submit.
 class AddTransactionScreen extends StatefulWidget {
-  const AddTransactionScreen({super.key, this.initialBatchCode});
+  const AddTransactionScreen({
+    super.key,
+    this.initialBatchCode,
+    this.initialTransactionId,
+  });
 
   /// Kode batch hasil scan QR simulasi; jika valid, produk langsung terpilih.
   final String? initialBatchCode;
+
+  /// Kode transaksi T1 yang dibuat saat QR dipindai oleh pengepul.
+  final String? initialTransactionId;
 
   @override
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
@@ -50,6 +60,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _notif = TopNotification();
 
   CollectorProduct? _selectedProduct;
+  String? _verificationPhotoPath;
+  String? _selectedWarehouseId;
 
   // [FE - State Management] Flag submit/reject ini mengunci aksi paralel
   // agar satu batch tidak diverifikasi dan ditolak bersamaan.
@@ -59,6 +71,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedWarehouseId = _repo.defaultWarehouse?.id;
 
     // [FE - State Management] Initial selection ini menghubungkan hasil scan
     // QR ke form verifikasi tanpa user memilih batch ulang dari dropdown.
@@ -100,7 +113,70 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _quantityCtrl.clear();
       _fruitCountCtrl.clear();
     }
+    _verificationPhotoPath = null;
     _clearGradeInputs();
+  }
+
+  Future<void> _pickVerificationPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_camera_outlined,
+                  color: AppColors.primary,
+                ),
+                title: const Text('Ambil dari Kamera'),
+                onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_library_outlined,
+                  color: AppColors.primary,
+                ),
+                title: const Text('Pilih dari Galeri'),
+                onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || source == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: source,
+        maxWidth: 1280,
+        imageQuality: 80,
+      );
+      if (file != null && mounted) {
+        setState(() => _verificationPhotoPath = file.path);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      _notif.show(
+        context,
+        'Gagal mengambil foto verifikasi. Coba lagi.',
+        isError: true,
+      );
+    }
+  }
+
+  void _removeVerificationPhoto() {
+    setState(() => _verificationPhotoPath = null);
   }
 
   // [FE - State Management] Helper ini mengosongkan input sortir saat batch
@@ -153,6 +229,23 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
 
     final selectedProduct = _selectedProduct!;
+    if (_selectedWarehouseId == null || _selectedWarehouseId!.isEmpty) {
+      _notif.show(
+        context,
+        'Pilih gudang penyimpanan untuk batch diterima.',
+        isError: true,
+      );
+      return;
+    }
+    if (_verificationPhotoPath == null || _verificationPhotoPath!.isEmpty) {
+      _notif.show(
+        context,
+        'Foto verifikasi fisik wajib ditambahkan.',
+        isError: true,
+      );
+      return;
+    }
+
     final quantityText = _quantityCtrl.text.trim();
     if (quantityText.isEmpty) {
       _notif.show(context, 'Berat diterima wajib diisi.', isError: true);
@@ -267,7 +360,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       receivedQuantity: quantity,
       receivedFruitCount: receivedFruitCount,
       gradeBreakdown: gradeBreakdown,
+      warehouseId: _selectedWarehouseId,
+      verificationPhotoPath: _verificationPhotoPath,
       qualityNotes: _notesCtrl.text.trim(),
+      transactionId: widget.initialTransactionId,
     );
 
     if (!ok) {
@@ -284,6 +380,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _quantityCtrl.clear();
       _fruitCountCtrl.clear();
       _clearGradeInputs();
+      _verificationPhotoPath = null;
       _notesCtrl.clear();
     });
 
@@ -328,6 +425,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final ok = _repo.rejectFreshBatch(
       code: selectedProduct.code,
       reason: reason,
+      transactionId: widget.initialTransactionId,
     );
 
     setState(() => _isRejecting = false);
@@ -346,6 +444,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _quantityCtrl.clear();
       _fruitCountCtrl.clear();
       _clearGradeInputs();
+      _verificationPhotoPath = null;
       _notesCtrl.clear();
     });
 
@@ -480,7 +579,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     const _SectionLabel(label: 'Pilih Batch Panen'),
                     const SizedBox(height: 8),
                     if (isBatchLockedFromScan)
-                      _ScannedBatchField(batch: _selectedProduct!)
+                      _ScannedBatchField(
+                        batch: _selectedProduct!,
+                        transactionId: widget.initialTransactionId,
+                      )
                     else
                       _BatchDropdown(
                         batches: products,
@@ -501,6 +603,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     // ── Data Verifikasi Pengepul ─────────────────────────
                     const _SectionLabel(label: 'Data Verifikasi'),
                     const SizedBox(height: 8),
+                    _WarehouseDropdown(
+                      warehouses: _repo.warehouses,
+                      selectedId: _selectedWarehouseId,
+                      onChanged: (id) {
+                        setState(() => _selectedWarehouseId = id);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _VerificationPhotoField(
+                      photoPath: _verificationPhotoPath,
+                      onPick: _pickVerificationPhoto,
+                      onRemove: _removeVerificationPhoto,
+                    ),
+                    const SizedBox(height: 16),
 
                     // [FE - Component Rendering] Field ini menyimpan berat
                     // fisik yang benar-benar diterima setelah timbang ulang.
@@ -744,6 +860,194 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+class _VerificationPhotoField extends StatelessWidget {
+  const _VerificationPhotoField({
+    required this.photoPath,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final String? photoPath;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPhoto = photoPath != null && photoPath!.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _FieldLabel(label: 'Foto Verifikasi Fisik'),
+        const SizedBox(height: 6),
+        if (hasPhoto)
+          Stack(
+            children: [
+              BatchPhoto(
+                path: photoPath,
+                width: double.infinity,
+                height: 160,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Row(
+                  children: [
+                    _PhotoActionButton(
+                      icon: Icons.edit_outlined,
+                      onTap: onPick,
+                    ),
+                    const SizedBox(width: 8),
+                    _PhotoActionButton(
+                      icon: Icons.close_rounded,
+                      onTap: onRemove,
+                      color: const Color(0xFFD64545),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          )
+        else
+          InkWell(
+            onTap: onPick,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: double.infinity,
+              height: 118,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add_a_photo_outlined,
+                    size: 30,
+                    color: AppColors.placeholder,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Tambahkan foto kondisi aktual',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Wajib untuk konfirmasi penerimaan',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _WarehouseDropdown extends StatelessWidget {
+  const _WarehouseDropdown({
+    required this.warehouses,
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  final List<CollectorWarehouse> warehouses;
+  final String? selectedId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _FieldLabel(label: 'Gudang Penyimpanan'),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String>(
+          initialValue:
+              warehouses.any((warehouse) => warehouse.id == selectedId)
+              ? selectedId
+              : null,
+          items: warehouses.map((warehouse) {
+            return DropdownMenuItem<String>(
+              value: warehouse.id,
+              child: Text(
+                warehouse.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            );
+          }).toList(),
+          onChanged: onChanged,
+          decoration: InputDecoration(
+            hintText: 'Pilih gudang penerimaan',
+            filled: true,
+            fillColor: AppColors.surface,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppColors.primaryContainer,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PhotoActionButton extends StatelessWidget {
+  const _PhotoActionButton({
+    required this.icon,
+    required this.onTap,
+    this.color,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.white.withValues(alpha: 0.94),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 34,
+          height: 34,
+          child: Icon(icon, size: 18, color: color ?? AppColors.subtitle),
+        ),
+      ),
+    );
+  }
+}
+
 class _FieldLabel extends StatelessWidget {
   const _FieldLabel({required this.label});
 
@@ -819,9 +1123,10 @@ class _BatchDropdown extends StatelessWidget {
 // [FE - Component Rendering] Hasil scan QR dikunci sebagai batch read-only
 // agar pengepul tidak berpindah ke DRN lain setelah memindai barang fisik.
 class _ScannedBatchField extends StatelessWidget {
-  const _ScannedBatchField({required this.batch});
+  const _ScannedBatchField({required this.batch, this.transactionId});
 
   final CollectorProduct batch;
+  final String? transactionId;
 
   @override
   Widget build(BuildContext context) {
@@ -853,6 +1158,17 @@ class _ScannedBatchField extends StatelessWidget {
                     color: AppColors.black,
                   ),
                 ),
+                if (transactionId?.trim().isNotEmpty == true) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Transaksi T1: ${transactionId!.trim()}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 2),
                 Text(
                   batch.name,

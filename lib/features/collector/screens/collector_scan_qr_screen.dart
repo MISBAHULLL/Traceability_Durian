@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/mobile_scanner_feedback.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../collector_routes.dart';
@@ -113,11 +114,28 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
   }
 
   // [FE - Event Handler] Navigasi ini membawa kode hasil scan ke form
-  // verifikasi sehingga produk terpilih otomatis.
+  // verifikasi sekaligus mencatat transaksi T1 penerimaan dari petani.
   Future<void> _openVerification(String code) async {
+    final transaction = _repo.initiatePurchaseTransaction(code);
+    if (transaction == null) {
+      _notification.show(
+        context,
+        'Transaksi T1 gagal dibuat. Pastikan batch masih tersedia.',
+        isError: true,
+      );
+      if (_isCameraMode) {
+        if (mounted) setState(() => _isHandlingScan = false);
+        await _scannerController.start();
+      }
+      return;
+    }
+
     final completed = await CollectorRoutes.push<bool>(
       context,
-      AddTransactionScreen(initialBatchCode: code),
+      AddTransactionScreen(
+        initialBatchCode: code,
+        initialTransactionId: transaction.id,
+      ),
     );
     if (!mounted) return;
 
@@ -405,7 +423,7 @@ class _CameraScannerBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 280,
+      height: 320,
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -415,44 +433,73 @@ class _CameraScannerBox extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(controller: controller, onDetect: onDetect),
-          Center(
-            child: Container(
-              width: 210,
-              height: 210,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: AppColors.white.withValues(alpha: 0.85),
-                  width: 2,
+          MobileScanner(
+            controller: controller,
+            onDetect: onDetect,
+            errorBuilder: (context, error) =>
+                MobileScannerFeedback(error: error),
+            placeholderBuilder: (context) => const MobileScannerLoading(),
+          ),
+          // [FE - Component Rendering] Frame scan dibuat kompak di area kamera
+          // penuh agar tidak memanjang sampai caption instruksi.
+          Positioned(
+            top: 28,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                width: 230,
+                height: 230,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.9),
+                    width: 2,
+                  ),
                 ),
               ),
             ),
           ),
           Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.black.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                isHandlingScan
+            left: 20,
+            right: 20,
+            bottom: 18,
+            child: Center(
+              child: _ScannerCaption(
+                text: isHandlingScan
                     ? 'QR terbaca, membuka verifikasi...'
                     : 'Arahkan kamera ke QR batch petani.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.white,
-                ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ScannerCaption extends StatelessWidget {
+  const _ScannerCaption({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 270),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.black.withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: AppColors.white,
+        ),
       ),
     );
   }

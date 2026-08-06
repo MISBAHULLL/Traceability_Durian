@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/batch_photo.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
@@ -216,7 +217,7 @@ class _ShipmentHistoryList extends StatelessWidget {
         icon: Icons.local_shipping_outlined,
         title: 'Belum ada aktivitas pengiriman',
         message:
-            'Manifest yang dibuat untuk UMKM atau distributor akan muncul di sini.',
+            'Manifest yang dibuat untuk UMKM, distributor, konsumen, atau pengepul lain akan muncul di sini.',
       );
     }
 
@@ -387,6 +388,46 @@ class _ReceiptCard extends StatelessWidget {
                   .trim(),
               isError: _isRejected,
             ),
+          if (!_isRejected &&
+              batch.verificationPhotoPath?.trim().isNotEmpty == true)
+            _VerificationPhotoPreview(path: batch.verificationPhotoPath!),
+        ],
+      ),
+    );
+  }
+}
+
+class _VerificationPhotoPreview extends StatelessWidget {
+  const _VerificationPhotoPreview({required this.path});
+
+  final String path;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: _borderColor)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Foto Verifikasi Fisik',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: AppColors.placeholder,
+            ),
+          ),
+          const SizedBox(height: 8),
+          BatchPhoto(
+            path: path,
+            width: double.infinity,
+            height: 150,
+            borderRadius: BorderRadius.circular(8),
+          ),
         ],
       ),
     );
@@ -449,7 +490,10 @@ class _ShipmentHistoryCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          'Tujuan ${shipment.destinationType.label}',
+                          shipment.destinationName?.trim().isNotEmpty == true
+                              ? '${shipment.destinationType.label} - '
+                                    '${shipment.destinationName!.trim()}'
+                              : 'Tujuan ${shipment.destinationType.label}',
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,

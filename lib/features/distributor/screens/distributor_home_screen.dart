@@ -8,6 +8,8 @@ import '../distributor_routes.dart';
 import '../models/distributor_profile.dart';
 import '../widgets/distributor_drawer.dart';
 import 'distributor_profile_screen.dart';
+import 'distributor_receipt_screen.dart';
+import 'distributor_scan_qr_screen.dart';
 import 'distributor_shipment_detail_screen.dart';
 
 // [FE - Component Rendering] DistributorHomeScreen mengikuti pola layout
@@ -71,6 +73,10 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
   }
 
   void _openQrSimulation() {
+    // [FE - Event Handler] CTA beranda membuka scanner kamera penuh; daftar
+    // lama di bawah dinonaktifkan sementara untuk menjaga diff tetap terarah.
+    DistributorRoutes.push(context, const DistributorScanQrScreen());
+    /*
     final readyShipments = _repo.readyToPickShipments;
     showModalBottomSheet(
       context: context,
@@ -194,7 +200,7 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                onPressed: () {
+                                onPressed: () async {
                                   final ok = _repo.takeShipment(s.code);
                                   Navigator.pop(sheetCtx);
                                   _notif.show(
@@ -203,6 +209,14 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
                                         ? 'Berhasil mengambil ${s.code}!'
                                         : 'Gagal memproses QR Code.',
                                   );
+                                  if (ok && mounted) {
+                                    await DistributorRoutes.push<bool>(
+                                      context,
+                                      DistributorReceiptScreen(
+                                        shipmentCode: s.code,
+                                      ),
+                                    );
+                                  }
                                 },
                                 child: const Text(
                                   'Ambil',
@@ -222,6 +236,7 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
         ),
       ),
     );
+    */
   }
 
   // [FE - Event Handler] Navigasi ini membuka detail pengiriman agar
@@ -233,91 +248,12 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
     );
   }
 
-  void _markAsArrived(CollectorShipmentBatch shipment) {
-    final noteCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppColors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Konfirmasi Tiba: ${shipment.code}',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Apakah pengiriman ini sudah sampai di gudang tujuan?',
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: AppColors.subtitle,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: noteCtrl,
-              maxLines: 2,
-              style: const TextStyle(fontSize: 13),
-              decoration: InputDecoration(
-                hintText: 'Catatan penerimaan (opsional)...',
-                hintStyle: const TextStyle(color: AppColors.placeholder),
-                contentPadding: const EdgeInsets.all(10),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(
-                    color: AppColors.primaryContainer,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text(
-              'Batal',
-              style: TextStyle(color: AppColors.placeholder),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            onPressed: () {
-              final note = noteCtrl.text.trim();
-              final ok = _repo.completeShipment(
-                shipment.code,
-                warehouseNote: note.isEmpty ? null : note,
-              );
-              Navigator.pop(dialogCtx);
-              // [FE - Event Handler] Feedback ini memberi tahu distributor
-              // bahwa konfirmasi tiba berhasil mengubah status shipment.
-              if (ok) {
-                _notif.show(
-                  context,
-                  '${shipment.code} berhasil ditandai Tiba!',
-                );
-              }
-            },
-            child: const Text(
-              'Konfirmasi Tiba',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
+  // [FE - Event Handler] Kartu transit membuka form verifikasi penerimaan
+  // sehingga status tidak dapat diselesaikan tanpa timbang dan inspeksi.
+  Future<void> _markAsArrived(CollectorShipmentBatch shipment) async {
+    await DistributorRoutes.push<bool>(
+      context,
+      DistributorReceiptScreen(shipmentCode: shipment.code),
     );
   }
 
@@ -330,77 +266,88 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
       key: _scaffoldKey,
       backgroundColor: AppColors.white,
       endDrawer: const DistributorDrawer(),
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: Column(
-              children: [
-                _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
-                Expanded(
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _GreetingBlock(profile: profile),
-                            const SizedBox(height: 16),
-                            _StatRow(repo: _repo),
-                            const SizedBox(height: 16),
-                            _CtaCard(onTap: _openQrSimulation),
-                            const SizedBox(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Pengiriman Aktif',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.black,
-                                  ),
+      body: ColoredBox(
+        color: AppColors.homeHeaderSurface,
+        child: SafeArea(
+          bottom: false,
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: Column(
+                children: [
+                  _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
+                  Expanded(
+                    child: ColoredBox(
+                      color: AppColors.white,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _GreetingBlock(profile: profile),
+                                const SizedBox(height: 16),
+                                _StatRow(repo: _repo),
+                                const SizedBox(height: 16),
+                                _CtaCard(onTap: _openQrSimulation),
+                                const SizedBox(height: 16),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'Pengiriman Aktif',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.black,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${activeShipments.length} transit',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.placeholder,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  '${activeShipments.length} transit',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.placeholder,
-                                  ),
-                                ),
-                              ],
+                                const SizedBox(height: 12),
+                              ]),
                             ),
-                            const SizedBox(height: 12),
-                          ]),
-                        ),
-                      ),
-                      if (activeShipments.isEmpty)
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _EmptyState(),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate((context, i) {
-                              final s = activeShipments[i];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _ShipmentCard(
-                                  shipment: s,
-                                  onDetail: () => _openShipmentDetail(s),
-                                  onArrive: () => _markAsArrived(s),
-                                ),
-                              );
-                            }, childCount: activeShipments.length),
                           ),
-                        ),
-                    ],
+                          if (activeShipments.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyState(),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate((
+                                  context,
+                                  i,
+                                ) {
+                                  final s = activeShipments[i];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _ShipmentCard(
+                                      shipment: s,
+                                      onDetail: () => _openShipmentDetail(s),
+                                      onArrive: () => _markAsArrived(s),
+                                    ),
+                                  );
+                                }, childCount: activeShipments.length),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -418,7 +365,11 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Container(
+      // [FE - Component Rendering] Band header ini menjaga navigasi beranda
+      // distributor terbaca sebagai area tetap di atas konten.
+      width: double.infinity,
+      color: AppColors.homeHeaderSurface,
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
       child: Row(
         children: [
@@ -799,59 +750,91 @@ class _ShipmentCard extends StatelessWidget {
           ),
           const Divider(height: 1, color: Color(0xFFF0F0F0)),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(14, 9, 14, 12),
+            // [FE - Component Rendering] Footer memisahkan status dan aksi
+            // agar label tombol tidak overflow pada viewport mobile sempit.
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.timer_outlined,
-                  size: 14,
-                  color: AppColors.placeholder,
-                ),
-                const SizedBox(width: 4),
-                const Text(
-                  'Dalam perjalanan',
-                  style: TextStyle(fontSize: 11, color: AppColors.placeholder),
-                ),
-                const Spacer(),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    minimumSize: const Size(0, 32),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.timer_outlined,
+                      size: 14,
+                      color: AppColors.placeholder,
                     ),
-                  ),
-                  onPressed: onDetail,
-                  icon: const Icon(Icons.visibility_outlined, size: 14),
-                  label: const Text(
-                    'Detail',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    minimumSize: const Size(0, 32),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
+                    SizedBox(width: 5),
+                    Text(
+                      'Dalam perjalanan',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.placeholder,
+                      ),
                     ),
-                  ),
-                  onPressed: onArrive,
-                  icon: const Icon(
-                    Icons.check_circle_outline_rounded,
-                    size: 14,
-                  ),
-                  label: const Text(
-                    'Tandai Tiba',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                  ),
+                  ],
+                ),
+                const SizedBox(height: 9),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          side: const BorderSide(color: AppColors.primary),
+                          minimumSize: const Size.fromHeight(38),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        onPressed: onDetail,
+                        icon: const Icon(Icons.visibility_outlined, size: 15),
+                        label: const Text(
+                          'Detail',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color.fromARGB(
+                            255,
+                            88,
+                            168,
+                            53,
+                          ),
+                          foregroundColor: AppColors.white,
+                          elevation: 0,
+                          minimumSize: const Size.fromHeight(38),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        onPressed: onArrive,
+                        icon: const Icon(Icons.fact_check_outlined, size: 15),
+                        label: const Text(
+                          'Verifikasi Terima',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

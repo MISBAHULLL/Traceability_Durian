@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
-import '../../../shared/widgets/top_notification_banner.dart';
 import '../../collector/models/collector_shipment_batch.dart';
 import '../../collector/models/collector_stock_summary.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../data/distributor_repository.dart';
+import '../distributor_routes.dart';
+import '../models/distributor_receipt.dart';
+import 'distributor_receipt_screen.dart';
 
 // [FE - Component Rendering] Screen ini menampilkan detail batch pengiriman
 // distributor, termasuk data agregat dan provenance tree dari batch petani.
@@ -26,7 +28,6 @@ class DistributorShipmentDetailScreen extends StatefulWidget {
 class _DistributorShipmentDetailScreenState
     extends State<DistributorShipmentDetailScreen> {
   final _repo = DistributorRepository.instance;
-  final TopNotification _notification = TopNotification();
 
   @override
   void initState() {
@@ -37,7 +38,6 @@ class _DistributorShipmentDetailScreenState
   @override
   void dispose() {
     _repo.removeListener(_onRepoChanged);
-    _notification.dispose();
     super.dispose();
   }
 
@@ -47,102 +47,19 @@ class _DistributorShipmentDetailScreenState
     }
   }
 
-  // [FE - Event Handler] Handler ini mengubah status shipment dari transit
-  // ke selesai melalui repository distributor, bukan langsung dari widget UI.
-  Future<void> _confirmArrived(CollectorShipmentBatch shipment) async {
-    final noteCtrl = TextEditingController(text: shipment.warehouseNote ?? '');
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppColors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Konfirmasi Tiba: ${shipment.code}',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Pastikan pengiriman sudah diterima di gudang distributor.',
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: AppColors.subtitle,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: noteCtrl,
-              maxLines: 3,
-              style: const TextStyle(fontSize: 13),
-              decoration: InputDecoration(
-                hintText: 'Catatan penerimaan (opsional)',
-                hintStyle: const TextStyle(color: AppColors.placeholder),
-                contentPadding: const EdgeInsets.all(12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(
-                    color: AppColors.primaryContainer,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text(
-              'Batal',
-              style: TextStyle(color: AppColors.placeholder),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            onPressed: () {
-              final ok = _repo.completeShipment(
-                shipment.code,
-                warehouseNote: noteCtrl.text.trim().isEmpty
-                    ? null
-                    : noteCtrl.text.trim(),
-              );
-              Navigator.pop(dialogCtx, ok);
-            },
-            child: const Text(
-              'Konfirmasi',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    noteCtrl.dispose();
-    if (!mounted || confirmed == null) return;
-
-    _notification.show(
+  // [FE - Event Handler] Navigasi ini membuka pemeriksaan kuantitas dan
+  // kondisi sebelum distributor boleh menyelesaikan penerimaan shipment.
+  Future<void> _openReceipt(CollectorShipmentBatch shipment) async {
+    await DistributorRoutes.push<bool>(
       context,
-      confirmed
-          ? '${shipment.code} berhasil ditandai tiba.'
-          : 'Gagal menandai pengiriman tiba.',
+      DistributorReceiptScreen(shipmentCode: shipment.code),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final shipment = _repo.findShipment(widget.shipmentCode);
+    final receipt = _repo.receiptForShipment(widget.shipmentCode);
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -155,10 +72,11 @@ class _DistributorShipmentDetailScreenState
                   ? const _MissingShipment()
                   : _ShipmentDetailContent(
                       shipment: shipment,
+                      receipt: receipt,
                       sourceBatches: _repo.sourceBatchesForShipment(shipment),
                       onConfirmArrived:
                           shipment.status == CollectorShipmentStatus.sent
-                          ? () => _confirmArrived(shipment)
+                          ? () => _openReceipt(shipment)
                           : null,
                     ),
             ),
@@ -174,11 +92,13 @@ class _DistributorShipmentDetailScreenState
 class _ShipmentDetailContent extends StatelessWidget {
   const _ShipmentDetailContent({
     required this.shipment,
+    required this.receipt,
     required this.sourceBatches,
     required this.onConfirmArrived,
   });
 
   final CollectorShipmentBatch shipment;
+  final DistributorReceipt? receipt;
   final List<HarvestBatch> sourceBatches;
   final VoidCallback? onConfirmArrived;
 
@@ -190,6 +110,15 @@ class _ShipmentDetailContent extends StatelessWidget {
         _HeaderPanel(shipment: shipment),
         const SizedBox(height: 16),
         _SummaryGrid(shipment: shipment),
+        if (receipt != null) ...[
+          const SizedBox(height: 20),
+          const _SectionTitle(
+            icon: Icons.fact_check_outlined,
+            title: 'Hasil Penerimaan Distributor',
+          ),
+          const SizedBox(height: 10),
+          _ReceiptPanel(receipt: receipt!),
+        ],
         const SizedBox(height: 20),
         _SectionTitle(
           icon: Icons.stacked_bar_chart_rounded,
@@ -242,7 +171,7 @@ class _ShipmentDetailContent extends StatelessWidget {
               onPressed: onConfirmArrived,
               icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
               label: const Text(
-                'KONFIRMASI TIBA',
+                'VERIFIKASI PENERIMAAN',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
@@ -354,6 +283,320 @@ class _SummaryGrid extends StatelessWidget {
           value: _formatShortDate(shipment.packagedAt),
         ),
       ],
+    );
+  }
+}
+
+// [FE - Component Rendering] Panel receipt membandingkan manifest pengepul
+// dengan hasil aktual distributor sebagai bukti rekonsiliasi penerimaan.
+class _ReceiptPanel extends StatelessWidget {
+  const _ReceiptPanel({required this.receipt});
+
+  final DistributorReceipt receipt;
+
+  @override
+  Widget build(BuildContext context) {
+    final differenceColor = receipt.hasDiscrepancy
+        ? const Color(0xFF9A6700)
+        : AppColors.primary;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Icon(
+                  receipt.hasDiscrepancy
+                      ? Icons.warning_amber_rounded
+                      : Icons.verified_outlined,
+                  size: 22,
+                  color: differenceColor,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        receipt.hasDiscrepancy
+                            ? 'Diterima dengan selisih'
+                            : 'Sesuai dengan manifest',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: differenceColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatDateTime(receipt.receivedAt),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _ConditionBadge(condition: receipt.condition),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              children: [
+                _ReceiptComparisonRow(
+                  label: 'Berat',
+                  expected: _formatWeight(receipt.expectedWeightKg),
+                  received: _formatWeight(receipt.receivedWeightKg),
+                  difference: '${_signedDouble(receipt.weightDifferenceKg)} kg',
+                  hasDifference: receipt.weightDifferenceKg.abs() > 0.01,
+                ),
+                const SizedBox(height: 12),
+                _ReceiptComparisonRow(
+                  label: 'Jumlah',
+                  expected: '${receipt.expectedFruitCount} butir',
+                  received: '${receipt.receivedFruitCount} butir',
+                  difference: '${_signedInt(receipt.fruitDifference)} butir',
+                  hasDifference: receipt.fruitDifference != 0,
+                ),
+                const SizedBox(height: 12),
+                _ReceiptMetaRow(
+                  icon: Icons.location_on_outlined,
+                  label: 'Lokasi Terima',
+                  value: receipt.destinationLocation,
+                ),
+                if (receipt.temperatureCelsius != null) ...[
+                  const SizedBox(height: 8),
+                  _ReceiptMetaRow(
+                    icon: Icons.thermostat_outlined,
+                    label: 'Suhu Terima',
+                    value:
+                        '${_formatTemperature(receipt.temperatureCelsius!)} C',
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (receipt.discrepancyNote?.isNotEmpty == true)
+            _ReceiptNote(
+              label: 'Alasan Selisih',
+              text: receipt.discrepancyNote!,
+              color: const Color(0xFF9A6700),
+            ),
+          if (receipt.qualityNote?.isNotEmpty == true)
+            _ReceiptNote(
+              label: 'Catatan Pemeriksaan',
+              text: receipt.qualityNote!,
+              color: AppColors.subtitle,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConditionBadge extends StatelessWidget {
+  const _ConditionBadge({required this.condition});
+
+  final DistributorReceiptCondition condition;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (condition) {
+      DistributorReceiptCondition.good => AppColors.primary,
+      DistributorReceiptCondition.minorDamage => const Color(0xFF9A6700),
+      DistributorReceiptCondition.damaged => const Color(0xFFC83B3B),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        condition.label,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _ReceiptComparisonRow extends StatelessWidget {
+  const _ReceiptComparisonRow({
+    required this.label,
+    required this.expected,
+    required this.received,
+    required this.difference,
+    required this.hasDifference,
+  });
+
+  final String label;
+  final String expected;
+  final String received;
+  final String difference;
+  final bool hasDifference;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 56,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: AppColors.placeholder),
+          ),
+        ),
+        Expanded(
+          child: _ComparisonValue(label: 'Manifest', value: expected),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _ComparisonValue(label: 'Diterima', value: received),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          difference,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: hasDifference ? const Color(0xFF9A6700) : AppColors.primary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReceiptMetaRow extends StatelessWidget {
+  const _ReceiptMetaRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: AppColors.primary),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 92,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: AppColors.placeholder,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: AppColors.subtitle,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ComparisonValue extends StatelessWidget {
+  const _ComparisonValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 9, color: AppColors.placeholder),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: AppColors.subtitle,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReceiptNote extends StatelessWidget {
+  const _ReceiptNote({
+    required this.label,
+    required this.text,
+    required this.color,
+  });
+
+  final String label;
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF8F9F7),
+        border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 11,
+              height: 1.4,
+              color: AppColors.subtitle,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -613,123 +856,147 @@ class _SourceTraceDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     // [FE - Component Rendering] Expansion ini menjaga provenance tetap
     // ringkas; detail lintas role dibuka hanya ketika distributor membutuhkannya.
-    return Theme(
-      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-      child: ExpansionTile(
-        tilePadding: EdgeInsets.zero,
-        childrenPadding: const EdgeInsets.only(top: 8),
-        title: const Text(
-          'Data asal & verifikasi',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
+    // [FE - Component Rendering] Material lokal menjadi surface ListTile
+    // internal ExpansionTile agar ink splash tidak tertutup card provenance.
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(8),
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 10),
+          childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+          backgroundColor: const Color(0xFFF7FAF5),
+          collapsedBackgroundColor: const Color(0xFFF7FAF5),
+          iconColor: AppColors.primary,
+          collapsedIconColor: AppColors.primary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: const BorderSide(color: Color(0xFFDCE8D7)),
+          ),
+          collapsedShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: const BorderSide(color: Color(0xFFDCE8D7)),
+          ),
+          leading: const Icon(
+            Icons.account_tree_outlined,
+            size: 18,
             color: AppColors.primary,
           ),
-        ),
-        children: [
-        // [FE - Component Rendering] Blok ini adalah data asal dari petani
-        // yang diwariskan ke distributor melalui provenance source batch.
-        _TraceDetailBlock(
-          title: 'Data dari Petani',
-          icon: Icons.agriculture_outlined,
+          title: const Text(
+            'Data asal & verifikasi',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
+            ),
+          ),
           children: [
-            _TraceDetailLine(label: 'Varietas', value: batch.variety),
-            _TraceDetailLine(label: 'Kebun', value: batch.farmName),
-            _TraceDetailLine(
-              label: 'Tanggal Panen',
-              value: _formatShortDate(batch.harvestDate),
-            ),
-            _TraceDetailLine(
-              label: 'Jumlah Awal',
-              value:
-                  '${_formatWeight(batch.quantity)} • ${batch.fruitCount ?? 0} butir',
-            ),
-            _TraceDetailLine(
-              label: 'Grade Awal',
-              value: 'Grade ${batch.grade}',
-            ),
-            _TraceDetailLine(
-              label: 'Metode Panen',
-              value: _valueOrDash(batch.harvestMethod),
-            ),
-            _TraceDetailLine(
-              label: 'Pupuk',
-              value: _valueOrDash(batch.fertilizer),
-            ),
-            _TraceDetailLine(
-              label: 'Kematangan',
-              value: _valueOrDash(batch.maturityLevel),
-            ),
-            _TraceDetailLine(
-              label: 'Estimasi Simpan',
-              value: _valueOrDash(batch.shelfLifeEstimate),
-            ),
-            _TraceDetailLine(
-              label: 'Foto Durian',
-              value: batch.photoPath == null ? 'Tidak ada' : 'Tersimpan',
-            ),
-            if (batch.notes != null && batch.notes!.trim().isNotEmpty)
-              _TraceDetailLine(label: 'Catatan', value: batch.notes!),
-          ],
-        ),
-        const SizedBox(height: 10),
-        // [FE - Component Rendering] Blok ini adalah hasil validasi pengepul
-        // sehingga distributor tahu data mana yang sudah dikoreksi secara fisik.
-        _TraceDetailBlock(
-          title: 'Verifikasi Pengepul',
-          icon: Icons.fact_check_outlined,
-          children: [
-            _TraceDetailLine(
-              label: 'Berat Diterima',
-              value: batch.receivedQuantity == null
-                  ? '-'
-                  : _formatWeight(batch.receivedQuantity!),
-            ),
-            _TraceDetailLine(
-              label: 'Butir Diterima',
-              value: batch.receivedFruitCount == null
-                  ? '-'
-                  : '${batch.receivedFruitCount} butir',
-            ),
-            _TraceDetailLine(
-              label: 'Grade Riil',
-              value: batch.verifiedGrade == null
-                  ? '-'
-                  : 'Grade ${batch.verifiedGrade}',
-            ),
-            _TraceDetailLine(
-              label: 'Diverifikasi Oleh',
-              value: _valueOrDash(batch.verifiedBy),
-            ),
-            _TraceDetailLine(
-              label: 'Waktu Verifikasi',
-              value: batch.verifiedAt == null
-                  ? '-'
-                  : _formatDateTime(batch.verifiedAt!),
-            ),
-            if (batch.gradeBreakdown.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              const Text(
-                'Breakdown Grade',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.placeholder,
+            // [FE - Component Rendering] Blok ini adalah data asal dari petani
+            // yang diwariskan ke distributor melalui provenance source batch.
+            _TraceDetailBlock(
+              title: 'Data dari Petani',
+              icon: Icons.agriculture_outlined,
+              children: [
+                _TraceDetailLine(label: 'Varietas', value: batch.variety),
+                _TraceDetailLine(label: 'Kebun', value: batch.farmName),
+                _TraceDetailLine(
+                  label: 'Tanggal Panen',
+                  value: _formatShortDate(batch.harvestDate),
                 ),
-              ),
-              const SizedBox(height: 6),
-              ...batch.gradeBreakdown.map(
-                (item) => _TraceGradeLine(item: item),
-              ),
-            ],
-            if (batch.qualityNotes != null &&
-                batch.qualityNotes!.trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _TraceNotice(text: batch.qualityNotes!),
-            ],
+                _TraceDetailLine(
+                  label: 'Jumlah Awal',
+                  value:
+                      '${_formatWeight(batch.quantity)} • ${batch.fruitCount ?? 0} butir',
+                ),
+                _TraceDetailLine(
+                  label: 'Grade Awal',
+                  value: 'Grade ${batch.grade}',
+                ),
+                _TraceDetailLine(
+                  label: 'Metode Panen',
+                  value: _valueOrDash(batch.harvestMethod),
+                ),
+                _TraceDetailLine(
+                  label: 'Pupuk',
+                  value: _valueOrDash(batch.fertilizer),
+                ),
+                _TraceDetailLine(
+                  label: 'Kematangan',
+                  value: _valueOrDash(batch.maturityLevel),
+                ),
+                _TraceDetailLine(
+                  label: 'Estimasi Simpan',
+                  value: _valueOrDash(batch.shelfLifeEstimate),
+                ),
+                _TraceDetailLine(
+                  label: 'Foto Durian',
+                  value: batch.photoPath == null ? 'Tidak ada' : 'Tersimpan',
+                ),
+                if (batch.notes != null && batch.notes!.trim().isNotEmpty)
+                  _TraceDetailLine(label: 'Catatan', value: batch.notes!),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // [FE - Component Rendering] Blok ini adalah hasil validasi pengepul
+            // sehingga distributor tahu data mana yang sudah dikoreksi secara fisik.
+            _TraceDetailBlock(
+              title: 'Verifikasi Pengepul',
+              icon: Icons.fact_check_outlined,
+              children: [
+                _TraceDetailLine(
+                  label: 'Berat Diterima',
+                  value: batch.receivedQuantity == null
+                      ? '-'
+                      : _formatWeight(batch.receivedQuantity!),
+                ),
+                _TraceDetailLine(
+                  label: 'Butir Diterima',
+                  value: batch.receivedFruitCount == null
+                      ? '-'
+                      : '${batch.receivedFruitCount} butir',
+                ),
+                _TraceDetailLine(
+                  label: 'Grade Riil',
+                  value: batch.verifiedGrade == null
+                      ? '-'
+                      : 'Grade ${batch.verifiedGrade}',
+                ),
+                _TraceDetailLine(
+                  label: 'Diverifikasi Oleh',
+                  value: _valueOrDash(batch.verifiedBy),
+                ),
+                _TraceDetailLine(
+                  label: 'Waktu Verifikasi',
+                  value: batch.verifiedAt == null
+                      ? '-'
+                      : _formatDateTime(batch.verifiedAt!),
+                ),
+                if (batch.gradeBreakdown.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Breakdown Grade',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ...batch.gradeBreakdown.map(
+                    (item) => _TraceGradeLine(item: item),
+                  ),
+                ],
+                if (batch.qualityNotes != null &&
+                    batch.qualityNotes!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _TraceNotice(text: batch.qualityNotes!),
+                ],
+              ],
+            ),
           ],
         ),
-        ],
       ),
     );
   }
@@ -1102,6 +1369,22 @@ String _formatWeight(double value) {
       ? value.toStringAsFixed(0)
       : value.toStringAsFixed(2);
   return '$text kg';
+}
+
+String _signedDouble(double value) {
+  final prefix = value > 0 ? '+' : '';
+  final text = value % 1 == 0
+      ? value.toStringAsFixed(0)
+      : value.toStringAsFixed(2);
+  return '$prefix$text';
+}
+
+String _signedInt(int value) {
+  return value > 0 ? '+$value' : '$value';
+}
+
+String _formatTemperature(double value) {
+  return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
 }
 
 String _valueOrDash(String? value) {

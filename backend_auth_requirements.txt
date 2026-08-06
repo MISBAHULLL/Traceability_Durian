@@ -1,0 +1,178 @@
+PROJECT: DurianTrace
+TOPIC: Backend auth spec for Laravel + MySQL
+
+Goal:
+- Replace the current dummy login/register flow in Flutter with real backend verification.
+- Login must include 1 role dropdown so the backend can validate role and return the correct dashboard destination.
+- Register must store real user data in MySQL, not local mock data.
+
+Frontend auth fields currently used:
+- Login:
+  - identifier (email or username)
+  - password
+  - role dropdown
+- Register:
+  - first_name
+  - last_name
+  - phone
+  - email
+  - password
+  - confirm_password
+  - role
+
+Supported roles:
+- petani
+- pengepul
+- distributor
+- umkm
+- konsumen
+
+Recommended backend stack:
+- Laravel API
+- Laravel Sanctum for token auth
+- MySQL 8+
+
+Auth API requirements:
+
+1) POST /api/register
+Request body:
+{
+  "first_name": "Budi",
+  "last_name": "Santoso",
+  "phone": "8123456789",
+  "email": "budi@example.com",
+  "password": "Password123!",
+  "password_confirmation": "Password123!",
+  "role": "petani"
+}
+
+Recommended validation:
+- first_name required string max 100
+- last_name required string max 100
+- phone required string unique max 20
+- email required email unique max 191
+- password required min 8, must be hashed with bcrypt
+- password_confirmation required and must match password
+- role required in allowed roles list
+
+Suggested response:
+{
+  "success": true,
+  "message": "Register berhasil",
+  "data": {
+    "user": {
+      "id": 1,
+      "first_name": "Budi",
+      "last_name": "Santoso",
+      "phone": "8123456789",
+      "email": "budi@example.com",
+      "role": "petani"
+    },
+    "token": "sanctum_token_here",
+    "dashboard": "petani"
+  }
+}
+
+2) POST /api/login
+Request body:
+{
+  "identifier": "budi@example.com",
+  "password": "Password123!",
+  "role": "petani"
+}
+
+Login rules:
+- identifier can be email or username
+- password must match hashed password
+- role must match the stored role of the account
+- if identifier is email and username is not used yet, backend may treat identifier as email only
+
+Suggested status handling:
+- 422: validation error
+- 401: wrong password
+- 404: account not found
+- 403: role mismatch
+
+Suggested response on success:
+{
+  "success": true,
+  "message": "Login berhasil",
+  "data": {
+    "user": {
+      "id": 1,
+      "first_name": "Budi",
+      "last_name": "Santoso",
+      "email": "budi@example.com",
+      "phone": "8123456789",
+      "role": "petani"
+    },
+    "token": "sanctum_token_here",
+    "dashboard": "petani"
+  }
+}
+
+Dashboard mapping expected by Flutter:
+- petani -> farmer dashboard
+- pengepul -> collector dashboard
+- distributor -> distributor dashboard
+- umkm -> umkm dashboard
+- konsumen -> consumer dashboard
+
+3) GET /api/me
+- Return current authenticated user from token.
+- Needed so Flutter can restore session after app restart.
+
+4) POST /api/logout
+- Revoke current token.
+
+Recommended MySQL schema:
+
+Table: users
+- id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT
+- first_name VARCHAR(100) NOT NULL
+- last_name VARCHAR(100) NOT NULL
+- phone VARCHAR(20) NOT NULL UNIQUE
+- email VARCHAR(191) NOT NULL UNIQUE
+- username VARCHAR(50) NULL UNIQUE
+- password VARCHAR(255) NOT NULL
+- role ENUM('petani','pengepul','distributor','umkm','konsumen') NOT NULL
+- email_verified_at TIMESTAMP NULL
+- is_active TINYINT(1) NOT NULL DEFAULT 1
+- last_login_at TIMESTAMP NULL
+- remember_token VARCHAR(100) NULL
+- created_at TIMESTAMP NULL
+- updated_at TIMESTAMP NULL
+
+Notes:
+- If username is not collected on register, it can stay NULL for now.
+- If you want login by username, add a username field in the register UI later.
+- For the current Flutter UI, role must be stored on register and sent again on login.
+
+Laravel tables to keep:
+- users
+- password_reset_tokens
+- personal_access_tokens
+
+Optional future tables if role-specific profile data is needed:
+- farmer_profiles
+- collector_profiles
+- distributor_profiles
+- umkm_profiles
+- consumer_profiles
+
+Important implementation notes:
+- Use bcrypt/Hash::make for password storage.
+- Never store plain-text passwords.
+- Return only safe user fields in API responses.
+- Keep a single role per user for now.
+- If the role in login request does not match the user role, reject the request.
+- The Flutter app will use the returned role to open the correct dashboard.
+
+Flutter integration notes:
+- The Flutter app should keep one API config file for the base URL only:
+  - default: http://127.0.0.1:8000/api
+  - override later with host/IP/domain without changing endpoint code
+- Login should send identifier + password + role.
+- Register should send all form fields plus role.
+- On successful login, backend should return token and role.
+- The frontend should stop using dummy navigation based on typed text.

@@ -3,9 +3,11 @@ import 'package:flutter/foundation.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../models/collector_purchase_transaction.dart';
 import '../models/collector_product.dart';
 import '../models/collector_shipment_batch.dart';
 import '../models/collector_stock_summary.dart';
+import '../models/collector_warehouse.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CollectorRepository
@@ -59,11 +61,44 @@ class CollectorRepository extends ChangeNotifier {
     _shipmentCounter =
         LocalStorageService.loadInt('collector_shipment_counter') ??
         _shipmentBatches.length;
+
+    final purchaseJsonList = LocalStorageService.loadJsonList(
+      'collector_purchase_transactions',
+    );
+    if (purchaseJsonList != null) {
+      _purchaseTransactions = purchaseJsonList
+          .map((e) => CollectorPurchaseTransaction.fromJson(e))
+          .toList();
+    } else {
+      _purchaseTransactions = [];
+    }
+    _purchaseTransactionCounter =
+        LocalStorageService.loadInt('collector_purchase_transaction_counter') ??
+        _purchaseTransactions.length;
+
+    final warehousesJsonList = LocalStorageService.loadJsonList(
+      'collector_warehouses',
+    );
+    if (warehousesJsonList != null) {
+      _warehouses = warehousesJsonList
+          .map((e) => CollectorWarehouse.fromJson(e))
+          .toList();
+    } else {
+      _warehouses = _buildSeedWarehouses();
+    }
+    _warehouseCounter =
+        LocalStorageService.loadInt('collector_warehouse_counter') ??
+        _warehouses.length;
+
     final seedShipmentMigrated = _migratePrimarySeedShipment();
+    final simulationShipmentsAdded = _ensureDistributorSimulationShipments();
 
     // [FE - State Management] Seed pengiriman baru disimpan setelah counter
     // siap agar fresh install tidak membaca late field yang belum diinisialisasi.
-    if (shipmentsJsonList == null || seedShipmentMigrated) {
+    if (shipmentsJsonList == null ||
+        seedShipmentMigrated ||
+        simulationShipmentsAdded ||
+        warehousesJsonList == null) {
       _saveToLocal();
     }
   }
@@ -78,6 +113,22 @@ class CollectorRepository extends ChangeNotifier {
       _shipmentBatches.map((e) => e.toJson()).toList(),
     );
     LocalStorageService.saveInt('collector_shipment_counter', _shipmentCounter);
+    LocalStorageService.saveJsonList(
+      'collector_purchase_transactions',
+      _purchaseTransactions.map((e) => e.toJson()).toList(),
+    );
+    LocalStorageService.saveInt(
+      'collector_purchase_transaction_counter',
+      _purchaseTransactionCounter,
+    );
+    LocalStorageService.saveJsonList(
+      'collector_warehouses',
+      _warehouses.map((e) => e.toJson()).toList(),
+    );
+    LocalStorageService.saveInt(
+      'collector_warehouse_counter',
+      _warehouseCounter,
+    );
   }
 
   // [FE - State Management] Sinkronisasi ini menjaga data lama/local storage:
@@ -166,6 +217,23 @@ class CollectorRepository extends ChangeNotifier {
     return true;
   }
 
+  // [FE - State Management] Migrasi ini menambahkan manifest siap-scan untuk
+  // testing distributor tanpa menghapus shipment lokal yang sudah dibuat user.
+  bool _ensureDistributorSimulationShipments() {
+    final existingCodes = _shipmentBatches.map((item) => item.code).toSet();
+    final simulations = _buildDistributorSimulationShipments();
+    final missing = simulations
+        .where((shipment) => !existingCodes.contains(shipment.code))
+        .toList();
+    if (missing.isEmpty) return false;
+
+    _shipmentBatches.addAll(missing);
+    if (_shipmentCounter < _shipmentBatches.length) {
+      _shipmentCounter = _shipmentBatches.length;
+    }
+    return true;
+  }
+
   // ── Konstanta seed ─────────────────────────────────────────────────────────
 
   static const String _kSeedCollectorId = 'collector-001';
@@ -251,7 +319,11 @@ class CollectorRepository extends ChangeNotifier {
   late CollectorProfile _profile;
   late List<CollectorProduct> _products;
   late List<CollectorShipmentBatch> _shipmentBatches;
+  late List<CollectorPurchaseTransaction> _purchaseTransactions;
+  late List<CollectorWarehouse> _warehouses;
   late int _shipmentCounter;
+  late int _purchaseTransactionCounter;
+  late int _warehouseCounter;
   final FarmerRepository _farmerRepo = FarmerRepository.instance;
 
   // ── Identitas sesi ──────────────────────────────────────────────────────────
@@ -289,6 +361,108 @@ class CollectorRepository extends ChangeNotifier {
   // sudah diverifikasi pengepul dan siap masuk flow distribusi berikutnya.
   List<HarvestBatch> get stockBatches => _farmerRepo.batchesForCollectorStock;
 
+  List<CollectorWarehouse> get warehouses {
+    final items = List<CollectorWarehouse>.from(_warehouses);
+    items.sort((a, b) {
+      if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
+      return a.name.compareTo(b.name);
+    });
+    return List.unmodifiable(items);
+  }
+
+  CollectorWarehouse? get defaultWarehouse {
+    if (_warehouses.isEmpty) return null;
+    try {
+      return _warehouses.firstWhere((warehouse) => warehouse.isDefault);
+    } catch (_) {
+      return _warehouses.first;
+    }
+  }
+
+  CollectorWarehouse? findWarehouse(String? id) {
+    if (id == null || id.trim().isEmpty) return null;
+    try {
+      return _warehouses.firstWhere((warehouse) => warehouse.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String warehouseLabel(String? id) {
+    final warehouse = findWarehouse(id);
+    return warehouse == null ? 'Gudang belum dipilih' : warehouse.name;
+  }
+
+  CollectorWarehouse createWarehouse({
+    required String name,
+    required String location,
+    String? note,
+    bool setAsDefault = false,
+  }) {
+    final warehouse = CollectorWarehouse(
+      id: _generateWarehouseId(),
+      name: name.trim(),
+      location: location.trim(),
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+      isDefault: setAsDefault || _warehouses.isEmpty,
+      createdAt: DateTime.now(),
+    );
+    if (warehouse.isDefault) {
+      _warehouses = _warehouses
+          .map((item) => item.copyWith(isDefault: false))
+          .toList();
+    }
+    _warehouses.add(warehouse);
+    _saveToLocal();
+    notifyListeners();
+    return warehouse;
+  }
+
+  bool updateWarehouse(
+    String id, {
+    required String name,
+    required String location,
+    String? note,
+    bool setAsDefault = false,
+  }) {
+    final index = _warehouses.indexWhere((warehouse) => warehouse.id == id);
+    if (index == -1) return false;
+
+    if (setAsDefault) {
+      _warehouses = _warehouses
+          .map((item) => item.copyWith(isDefault: false))
+          .toList();
+    }
+    final existing = _warehouses[index];
+    _warehouses[index] = CollectorWarehouse(
+      id: existing.id,
+      name: name.trim(),
+      location: location.trim(),
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+      isDefault: setAsDefault ? true : existing.isDefault,
+      createdAt: existing.createdAt,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  bool deleteWarehouse(String id) {
+    final index = _warehouses.indexWhere((warehouse) => warehouse.id == id);
+    if (index == -1) return false;
+
+    final isUsed = stockBatches.any((batch) => batch.warehouseId == id);
+    if (isUsed || _warehouses.length <= 1) return false;
+
+    final removed = _warehouses.removeAt(index);
+    if (removed.isDefault && _warehouses.isNotEmpty) {
+      _warehouses[0] = _warehouses[0].copyWith(isDefault: true);
+    }
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
   // [FE - State Management] Batch tersedia untuk agregasi mengecualikan
   // source batch yang sudah pernah masuk batch pengiriman pengepul.
   List<HarvestBatch> get availableStockBatches {
@@ -304,6 +478,14 @@ class CollectorRepository extends ChangeNotifier {
     final items = _shipmentBatches
         .where((batch) => batch.collectorId == _currentCollectorId)
         .toList();
+    items.sort((a, b) => b.packagedAt.compareTo(a.packagedAt));
+    return List.unmodifiable(items);
+  }
+
+  // [FE - State Management] Feed lintas pengepul ini hanya untuk role
+  // penerima; backend nanti menggantinya dengan query berdasarkan destination.
+  List<CollectorShipmentBatch> get allShipmentBatches {
+    final items = List<CollectorShipmentBatch>.from(_shipmentBatches);
     items.sort((a, b) => b.packagedAt.compareTo(a.packagedAt));
     return List.unmodifiable(items);
   }
@@ -347,15 +529,83 @@ class CollectorRepository extends ChangeNotifier {
   // gudang; nantinya bisa diganti langsung oleh response backend.
   CollectorStockOverview get stockOverview => _overviewForBatches(stockBatches);
 
+  // [FE - State Management] Daftar transaksi T1 yang dibuat saat pengepul
+  // memindai QR batch petani. Status initiated berarti menunggu T2.
+  List<CollectorPurchaseTransaction> get purchaseTransactions {
+    final items = _purchaseTransactions
+        .where((item) => item.collectorId == _currentCollectorId)
+        .toList();
+    items.sort((a, b) => b.initiatedAt.compareTo(a.initiatedAt));
+    return List.unmodifiable(items);
+  }
+
+  List<CollectorPurchaseTransaction> get pendingPurchaseTransactions {
+    return List.unmodifiable(
+      purchaseTransactions.where(
+        (item) => item.status == CollectorPurchaseStatus.initiated,
+      ),
+    );
+  }
+
+  CollectorPurchaseTransaction? findPurchaseTransaction(String id) {
+    try {
+      return purchaseTransactions.firstWhere((item) => item.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // [FE - Event Handler] Inisiasi T1 dari scan QR. Transaksi ini hanya
+  // menyimpan bukti penerimaan awal/provenance, bukan harga atau pembayaran.
+  CollectorPurchaseTransaction? initiatePurchaseTransaction(String batchCode) {
+    final product = findProduct(batchCode);
+    if (product == null || product.category != ProductCategory.durianSegar) {
+      return null;
+    }
+
+    final existing = _purchaseTransactions.where((item) {
+      return item.collectorId == _currentCollectorId &&
+          item.batchCode == product.code &&
+          item.status == CollectorPurchaseStatus.initiated;
+    }).toList();
+    if (existing.isNotEmpty) return existing.first;
+
+    final transaction = CollectorPurchaseTransaction(
+      id: _generatePurchaseTransactionId(),
+      collectorId: _currentCollectorId,
+      batchCode: product.code,
+      batchName: product.name,
+      originLabel: product.location,
+      farmerLabel: product.treeOwner,
+      initiatedAt: DateTime.now(),
+      status: CollectorPurchaseStatus.initiated,
+    );
+
+    _purchaseTransactions.add(transaction);
+    _saveToLocal();
+    notifyListeners();
+    return transaction;
+  }
+
   // [FE - Event Handler] Mutasi ini membuat batch pengiriman agregat dari
   // beberapa batch petani terverifikasi tanpa menyentuh blockchain/backend.
   CollectorShipmentBatch? createShipmentBatch({
     required List<String> sourceBatchCodes,
     required ShipmentDestinationType destinationType,
+    String? destinationName,
+    String? destinationLocation,
     String? warehouseNote,
   }) {
     final cleanCodes = sourceBatchCodes.toSet().toList();
     if (cleanCodes.isEmpty) return null;
+    final cleanDestinationName = destinationName?.trim();
+    final cleanDestinationLocation = destinationLocation?.trim();
+    if (cleanDestinationName == null ||
+        cleanDestinationName.isEmpty ||
+        cleanDestinationLocation == null ||
+        cleanDestinationLocation.isEmpty) {
+      return null;
+    }
 
     final availableByCode = {
       for (final batch in availableStockBatches) batch.code: batch,
@@ -378,6 +628,8 @@ class CollectorRepository extends ChangeNotifier {
       packagedAt: DateTime.now(),
       status: CollectorShipmentStatus.readyToShip,
       destinationType: destinationType,
+      destinationName: cleanDestinationName,
+      destinationLocation: cleanDestinationLocation,
       warehouseNote: warehouseNote?.trim().isEmpty == true
           ? null
           : warehouseNote?.trim(),
@@ -393,8 +645,7 @@ class CollectorRepository extends ChangeNotifier {
   // dan mengonfirmasi bahwa batch pengiriman mulai dibawa/diserahkan.
   bool markShipmentSent(String code) {
     final index = _shipmentBatches.indexWhere(
-      (shipment) =>
-          shipment.collectorId == _currentCollectorId && shipment.code == code,
+      (shipment) => shipment.code == code,
     );
     if (index == -1) return false;
 
@@ -420,8 +671,7 @@ class CollectorRepository extends ChangeNotifier {
   // distributor bahwa batch pengiriman sudah diterima/selesai.
   bool completeShipment(String code, {String? warehouseNote}) {
     final index = _shipmentBatches.indexWhere(
-      (shipment) =>
-          shipment.collectorId == _currentCollectorId && shipment.code == code,
+      (shipment) => shipment.code == code,
     );
     if (index == -1) return false;
 
@@ -455,6 +705,42 @@ class CollectorRepository extends ChangeNotifier {
     final year = DateTime.now().year;
     final seq = _shipmentCounter.toString().padLeft(6, '0');
     return 'PGL-$year-$seq';
+  }
+
+  String _generatePurchaseTransactionId() {
+    _purchaseTransactionCounter++;
+    final year = DateTime.now().year;
+    final seq = _purchaseTransactionCounter.toString().padLeft(6, '0');
+    return 'T1-$year-$seq';
+  }
+
+  String _generateWarehouseId() {
+    _warehouseCounter++;
+    final seq = _warehouseCounter.toString().padLeft(4, '0');
+    return 'WH-$_currentCollectorId-$seq';
+  }
+
+  void _closePurchaseTransaction({
+    required String batchCode,
+    required CollectorPurchaseStatus status,
+    String? transactionId,
+  }) {
+    final index = _purchaseTransactions.indexWhere((item) {
+      final matchesTransaction =
+          transactionId != null && item.id == transactionId;
+      final matchesBatch =
+          transactionId == null &&
+          item.collectorId == _currentCollectorId &&
+          item.batchCode == batchCode &&
+          item.status == CollectorPurchaseStatus.initiated;
+      return matchesTransaction || matchesBatch;
+    });
+    if (index == -1) return;
+
+    _purchaseTransactions[index] = _purchaseTransactions[index].copyWith(
+      status: status,
+      closedAt: DateTime.now(),
+    );
   }
 
   // [UTIL - Helper Function] Helper ini menghitung overview dari kumpulan
@@ -591,26 +877,71 @@ class CollectorRepository extends ChangeNotifier {
     required double receivedQuantity,
     required int receivedFruitCount,
     required List<BatchGradeBreakdown> gradeBreakdown,
+    String? warehouseId,
+    String? verificationPhotoPath,
     String? qualityNotes,
+    String? transactionId,
   }) {
-    return _farmerRepo.verifyBatchByCollector(
+    final ok = _farmerRepo.verifyBatchByCollector(
       code: code,
       receivedQuantity: receivedQuantity,
       receivedFruitCount: receivedFruitCount,
       gradeBreakdown: gradeBreakdown,
+      warehouseId: warehouseId,
+      verificationPhotoPath: verificationPhotoPath,
       qualityNotes: qualityNotes,
       verifiedBy: _profile.fullName,
     );
+    if (!ok) return false;
+
+    _closePurchaseTransaction(
+      batchCode: code,
+      transactionId: transactionId,
+      status: CollectorPurchaseStatus.verified,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  // [FE - Event Handler] Grading lanjutan memecah stok terverifikasi menjadi
+  // sub-batch grade lebih detail tanpa mengubah status kepemilikan batch.
+  bool updateAdvancedGrading({
+    required String code,
+    required List<BatchGradeBreakdown> gradeBreakdown,
+  }) {
+    final ok = _farmerRepo.updateCollectorAdvancedGrading(
+      code: code,
+      gradeBreakdown: gradeBreakdown,
+    );
+    if (!ok) return false;
+
+    notifyListeners();
+    return true;
   }
 
   // [FE - Event Handler] Submit penolakan pengepul meneruskan alasan reject
   // ke FarmerRepository sebagai state utama rantai pasok.
-  bool rejectFreshBatch({required String code, required String reason}) {
-    return _farmerRepo.rejectBatchByCollector(
+  bool rejectFreshBatch({
+    required String code,
+    required String reason,
+    String? transactionId,
+  }) {
+    final ok = _farmerRepo.rejectBatchByCollector(
       code: code,
       reason: reason,
       rejectedBy: _profile.fullName,
     );
+    if (!ok) return false;
+
+    _closePurchaseTransaction(
+      batchCode: code,
+      transactionId: transactionId,
+      status: CollectorPurchaseStatus.rejected,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
   }
 
   // ── Sesi ─────────────────────────────────────────────────────────────────────
@@ -694,6 +1025,26 @@ class CollectorRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  static List<CollectorWarehouse> _buildSeedWarehouses() {
+    return [
+      CollectorWarehouse(
+        id: 'WH-collector-001-0001',
+        name: 'Gudang Utama Pakis',
+        location: 'Desa Pakis, Kecamatan Panti, Jember',
+        note: 'Lokasi penerimaan utama dari petani sekitar Pakis.',
+        isDefault: true,
+        createdAt: DateTime(2026, 1, 1),
+      ),
+      CollectorWarehouse(
+        id: 'WH-collector-001-0002',
+        name: 'Gudang Sortir Semboro',
+        location: 'Kecamatan Semboro, Jember',
+        note: 'Dipakai saat volume masuk tinggi.',
+        createdAt: DateTime(2026, 1, 5),
+      ),
+    ];
+  }
+
   static List<CollectorShipmentBatch> _buildSeedShipmentBatches() {
     final now = DateTime.now();
     return [
@@ -766,6 +1117,136 @@ class CollectorRepository extends ChangeNotifier {
           status: CollectorShipmentStatus.completed,
           warehouseNote: 'Selesai diantar ke hub distributor $i',
         ),
+    ];
+  }
+
+  // [FE - State Management] Seed simulasi menyediakan beberapa kondisi
+  // manifest agar scan, penerimaan sesuai, dan penerimaan berselisih bisa dites.
+  static List<CollectorShipmentBatch> _buildDistributorSimulationShipments() {
+    final now = DateTime.now();
+    return [
+      CollectorShipmentBatch(
+        code: 'PGL-2026-000901',
+        collectorId: 'collector-demo-pakis',
+        sourceBatchCodes: const ['DRN-DEMO-PAKIS-001'],
+        totalWeightKg: 245,
+        totalFruitCount: 67,
+        gradeBreakdown: const [
+          CollectorStockBreakdown(
+            key: 'A',
+            label: 'Grade A',
+            totalWeightKg: 150,
+            totalFruitCount: 40,
+            batchCount: 1,
+          ),
+          CollectorStockBreakdown(
+            key: 'B',
+            label: 'Grade B',
+            totalWeightKg: 95,
+            totalFruitCount: 27,
+            batchCount: 1,
+          ),
+        ],
+        varietyBreakdown: const [
+          CollectorStockBreakdown(
+            key: 'bawor',
+            label: 'Durian Bawor',
+            totalWeightKg: 245,
+            totalFruitCount: 67,
+            batchCount: 1,
+          ),
+        ],
+        packagedAt: now.subtract(const Duration(hours: 2)),
+        status: CollectorShipmentStatus.readyToShip,
+        destinationType: ShipmentDestinationType.distributor,
+        warehouseNote: 'Simulasi dari Pengepul Pakis.',
+      ),
+      CollectorShipmentBatch(
+        code: 'PGL-2026-000902',
+        collectorId: 'collector-demo-semboro',
+        sourceBatchCodes: const [
+          'DRN-DEMO-SEMBORO-001',
+          'DRN-DEMO-SEMBORO-002',
+        ],
+        totalWeightKg: 520,
+        totalFruitCount: 136,
+        gradeBreakdown: const [
+          CollectorStockBreakdown(
+            key: 'A',
+            label: 'Grade A',
+            totalWeightKg: 320,
+            totalFruitCount: 82,
+            batchCount: 2,
+          ),
+          CollectorStockBreakdown(
+            key: 'B',
+            label: 'Grade B',
+            totalWeightKg: 200,
+            totalFruitCount: 54,
+            batchCount: 2,
+          ),
+        ],
+        varietyBreakdown: const [
+          CollectorStockBreakdown(
+            key: 'montong',
+            label: 'Durian Montong',
+            totalWeightKg: 520,
+            totalFruitCount: 136,
+            batchCount: 2,
+          ),
+        ],
+        packagedAt: now.subtract(const Duration(hours: 5)),
+        status: CollectorShipmentStatus.readyToShip,
+        destinationType: ShipmentDestinationType.distributor,
+        warehouseNote: 'Simulasi muatan sedang dari Pengepul Semboro.',
+      ),
+      CollectorShipmentBatch(
+        code: 'PGL-2026-000903',
+        collectorId: 'collector-demo-banyuwangi',
+        sourceBatchCodes: const [
+          'DRN-DEMO-BWI-001',
+          'DRN-DEMO-BWI-002',
+          'DRN-DEMO-BWI-003',
+        ],
+        totalWeightKg: 1080,
+        totalFruitCount: 281,
+        gradeBreakdown: const [
+          CollectorStockBreakdown(
+            key: 'A',
+            label: 'Grade A',
+            totalWeightKg: 610,
+            totalFruitCount: 156,
+            batchCount: 3,
+          ),
+          CollectorStockBreakdown(
+            key: 'B',
+            label: 'Grade B',
+            totalWeightKg: 470,
+            totalFruitCount: 125,
+            batchCount: 3,
+          ),
+        ],
+        varietyBreakdown: const [
+          CollectorStockBreakdown(
+            key: 'musang-king',
+            label: 'Durian Musang King',
+            totalWeightKg: 640,
+            totalFruitCount: 161,
+            batchCount: 2,
+          ),
+          CollectorStockBreakdown(
+            key: 'montong',
+            label: 'Durian Montong',
+            totalWeightKg: 440,
+            totalFruitCount: 120,
+            batchCount: 1,
+          ),
+        ],
+        packagedAt: now.subtract(const Duration(hours: 8)),
+        status: CollectorShipmentStatus.readyToShip,
+        destinationType: ShipmentDestinationType.distributor,
+        warehouseNote: 'Simulasi muatan besar dari Pengepul Banyuwangi.',
+      ),
     ];
   }
 }

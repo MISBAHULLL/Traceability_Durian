@@ -2,7 +2,13 @@
     <!-- [CONFIG - Environment] Permission ini mengizinkan plugin scanner
          membuka kamera device untuk membaca QR batch. -->
     <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- [CONFIG - Environment] Permission ini menjaga akses galeri image_picker
+         kompatibel di Android lama dan Android 13+. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
     <application
         android:label="DurianTrace"

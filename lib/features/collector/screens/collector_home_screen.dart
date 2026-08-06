@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/product_media_tile.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
@@ -8,6 +9,7 @@ import '../models/collector_product.dart';
 import '../widgets/collector_drawer.dart';
 import 'collector_profile_screen.dart';
 import 'collector_scan_qr_screen.dart';
+import 'collector_stock_screen.dart';
 
 // [FE - Component Rendering] Screen ini adalah layar root pengepul setelah
 // login — turunan langsung dari prototype "Beranda — Pengepul Durian".
@@ -89,6 +91,33 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
     return searchAndFilterProducts(_repo.products, _activeCategory, _query);
   }
 
+  int get _incomingTodayCount {
+    final now = DateTime.now();
+    return _repo.stockBatches.where((batch) {
+      final receivedAt =
+          batch.verifiedAt ?? batch.createdAt ?? batch.harvestDate;
+      return _isSameDay(receivedAt, now);
+    }).length;
+  }
+
+  double get _incomingTodayWeight {
+    final now = DateTime.now();
+    return _repo.stockBatches
+        .where((batch) {
+          final receivedAt =
+              batch.verifiedAt ?? batch.createdAt ?? batch.harvestDate;
+          return _isSameDay(receivedAt, now);
+        })
+        .fold<double>(
+          0,
+          (sum, batch) => sum + (batch.receivedQuantity ?? batch.quantity),
+        );
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
   // ── Navigasi ───────────────────────────────────────────────────────────────
 
   void _openDrawer() => _scaffoldKey.currentState?.openEndDrawer();
@@ -116,6 +145,10 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
     await CollectorRoutes.push(context, const CollectorScanQrScreen());
   }
 
+  Future<void> _openStock() async {
+    await CollectorRoutes.push(context, const CollectorStockScreen());
+  }
+
   void _onProductTap(CollectorProduct product) {
     _notif.show(
       context,
@@ -127,73 +160,89 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
   Widget build(BuildContext context) {
     final products = _filteredProducts;
     final profile = _repo.profile;
+    final overview = _repo.stockOverview;
+    final pendingCount = _repo.pendingPurchaseTransactions.length;
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.white,
       endDrawer: const CollectorDrawer(),
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: Column(
-              children: [
-                _TopBar(
-                  onBack: () => Navigator.maybePop(context),
-                  onProfile: _openProfile,
-                  onMenu: _openDrawer,
-                ),
-                Expanded(
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _GreetingBlock(profile: profile),
-                            const SizedBox(height: 16),
-                            _AddTransactionCard(onTap: _openScanQr),
-                            const SizedBox(height: 16),
-                            _SearchField(controller: _searchController),
-                            const SizedBox(height: 14),
-                            _CategoryChips(
-                              active: _activeCategory,
-                              onChanged: (c) =>
-                                  setState(() => _activeCategory = c),
-                            ),
-                            const SizedBox(height: 16),
-                          ]),
-                        ),
-                      ),
-                      if (products.isEmpty)
-                        const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _EmptyState(),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final product = products[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _ProductCard(
-                                  product: product,
-                                  onTap: () => _onProductTap(product),
+      body: ColoredBox(
+        color: AppColors.homeHeaderSurface,
+        child: SafeArea(
+          bottom: false,
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: Column(
+                children: [
+                  _TopBar(onProfile: _openProfile, onMenu: _openDrawer),
+                  Expanded(
+                    child: ColoredBox(
+                      color: AppColors.white,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                            sliver: SliverList(
+                              delegate: SliverChildListDelegate([
+                                _GreetingBlock(profile: profile),
+                                const SizedBox(height: 16),
+                                _OperationalSummaryGrid(
+                                  incomingTodayCount: _incomingTodayCount,
+                                  incomingTodayWeight: _incomingTodayWeight,
+                                  pendingCount: pendingCount,
+                                  activeBatchCount: overview.activeBatchCount,
+                                  totalWeightKg: overview.totalWeightKg,
+                                  totalFruitCount: overview.totalFruitCount,
+                                  onOpenScan: _openScanQr,
+                                  onOpenStock: _openStock,
                                 ),
-                              );
-                            }, childCount: products.length),
+                                const SizedBox(height: 16),
+                                _AddTransactionCard(onTap: _openScanQr),
+                                const SizedBox(height: 16),
+                                _SearchField(controller: _searchController),
+                                const SizedBox(height: 14),
+                                _CategoryChips(
+                                  active: _activeCategory,
+                                  onChanged: (c) =>
+                                      setState(() => _activeCategory = c),
+                                ),
+                                const SizedBox(height: 16),
+                              ]),
+                            ),
                           ),
-                        ),
-                    ],
+                          if (products.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyState(),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate((
+                                  context,
+                                  index,
+                                ) {
+                                  final product = products[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _ProductCard(
+                                      product: product,
+                                      onTap: () => _onProductTap(product),
+                                    ),
+                                  );
+                                }, childCount: products.length),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -206,64 +255,36 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
 // Top bar
 // ─────────────────────────────────────────────────────────────────────────────
 
-// [FE - Component Rendering] _TopBar mereplikasi top bar prototype: tombol
-// back di kiri, judul "Beranda" di tengah, ikon profil & menu di kanan.
+// [FE - Component Rendering] _TopBar mengikuti pola beranda petani:
+// judul "Beranda" di kiri dan ikon aksi di kanan.
 class _TopBar extends StatelessWidget {
-  const _TopBar({
-    required this.onBack,
-    required this.onProfile,
-    required this.onMenu,
-  });
+  const _TopBar({required this.onProfile, required this.onMenu});
 
-  final VoidCallback onBack;
   final VoidCallback onProfile;
   final VoidCallback onMenu;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
-      child: Stack(
-        alignment: Alignment.center,
+    return Container(
+      // [FE - Component Rendering] Band header ini memberi warna pembatas
+      // untuk area navigasi utama di beranda pengepul.
+      width: double.infinity,
+      color: AppColors.homeHeaderSurface,
+      padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
+      child: Row(
         children: [
-          // Judul di tengah
           const Text(
             'Beranda',
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-              letterSpacing: -0.2,
-            ),
-          ),
-          // Tombol back di kiri
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _IconButton(
-              icon: Icons.arrow_back_ios_new_rounded,
               color: AppColors.black,
-              onTap: onBack,
             ),
           ),
-          // Aksi di kanan
-          Align(
-            alignment: Alignment.centerRight,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _IconButton(
-                  icon: Icons.person_rounded,
-                  color: AppColors.primary,
-                  onTap: onProfile,
-                ),
-                _IconButton(
-                  icon: Icons.menu_rounded,
-                  color: AppColors.black,
-                  onTap: onMenu,
-                ),
-              ],
-            ),
-          ),
+          const Spacer(),
+          _IconButton(icon: Icons.person_outline_rounded, onTap: onProfile),
+          const SizedBox(width: 4),
+          _IconButton(icon: Icons.menu_rounded, onTap: onMenu),
         ],
       ),
     );
@@ -271,21 +292,16 @@ class _TopBar extends StatelessWidget {
 }
 
 class _IconButton extends StatelessWidget {
-  const _IconButton({
-    required this.icon,
-    required this.onTap,
-    required this.color,
-  });
+  const _IconButton({required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
       onPressed: onTap,
-      icon: Icon(icon, color: color, size: 24),
+      icon: Icon(icon, color: AppColors.black, size: 24),
       splashRadius: 22,
     );
   }
@@ -342,6 +358,191 @@ class _GreetingBlock extends StatelessWidget {
 
 // [FE - Component Rendering] _AddTransactionCard adalah CTA utama pengepul —
 // turunan dari kartu "Tambah Transaksi" pada prototype.
+class _OperationalSummaryGrid extends StatelessWidget {
+  const _OperationalSummaryGrid({
+    required this.incomingTodayCount,
+    required this.incomingTodayWeight,
+    required this.pendingCount,
+    required this.activeBatchCount,
+    required this.totalWeightKg,
+    required this.totalFruitCount,
+    required this.onOpenScan,
+    required this.onOpenStock,
+  });
+
+  final int incomingTodayCount;
+  final double incomingTodayWeight;
+  final int pendingCount;
+  final int activeBatchCount;
+  final double totalWeightKg;
+  final int totalFruitCount;
+  final VoidCallback onOpenScan;
+  final VoidCallback onOpenStock;
+
+  static const double _gap = 8;
+
+  String _formatWeight(double value) {
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemWidth = (constraints.maxWidth - _gap) / 2;
+
+        return Wrap(
+          spacing: _gap,
+          runSpacing: _gap,
+          children: [
+            _SummaryMetricCard(
+              width: itemWidth,
+              icon: Icons.move_to_inbox_outlined,
+              title: 'Durian Masuk Hari Ini',
+              value: '$incomingTodayCount batch',
+              detail: '${_formatWeight(incomingTodayWeight)} kg diterima',
+              color: AppColors.primary,
+              onTap: onOpenStock,
+            ),
+            _SummaryMetricCard(
+              width: itemWidth,
+              icon: Icons.pending_actions_outlined,
+              title: 'Transaksi Menunggu',
+              value: '$pendingCount batch',
+              detail: 'perlu scan dan verifikasi',
+              color: const Color(0xFFB45309),
+              onTap: onOpenScan,
+            ),
+            _SummaryMetricCard(
+              width: itemWidth,
+              icon: Icons.inventory_2_outlined,
+              title: 'Batch Aktif',
+              value: '$activeBatchCount batch',
+              detail: 'stok siap dikelola',
+              color: const Color(0xFF1D6FA4),
+              onTap: onOpenStock,
+            ),
+            _SummaryMetricCard(
+              width: itemWidth,
+              icon: Icons.scale_outlined,
+              title: 'Ringkasan Stok',
+              value: '${_formatWeight(totalWeightKg)} kg',
+              detail: '$totalFruitCount butir tercatat',
+              color: const Color(0xFF6B21A8),
+              onTap: onOpenStock,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SummaryMetricCard extends StatelessWidget {
+  const _SummaryMetricCard({
+    required this.width,
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.detail,
+    required this.color,
+    required this.onTap,
+  });
+
+  final double width;
+  final IconData icon;
+  final String title;
+  final String value;
+  final String detail;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: 74,
+      child: Material(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 17, color: color),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          height: 1.15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.1,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        detail,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          height: 1.1,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 16,
+                  color: AppColors.placeholder.withValues(alpha: 0.55),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AddTransactionCard extends StatelessWidget {
   const _AddTransactionCard({required this.onTap});
 
@@ -547,74 +748,51 @@ class _ProductCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.black),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: IntrinsicHeight(
+        child: Padding(
+          padding: const EdgeInsets.all(10),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Thumbnail produk (1/3 lebar)
-              SizedBox(
-                width: 104,
-                child: Container(
-                  color: AppColors.surface,
-                  child:
-                      (product.imagePath != null &&
-                          product.imagePath!.isNotEmpty)
-                      ? Image.asset(
-                          product.imagePath!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const _ImageFallback(),
-                        )
-                      : Image.asset(
-                          'assets/images/durian.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const _ImageFallback(),
-                        ),
-                ),
-              ),
-              // Detail produk (2/3 lebar)
+              // [FE - Component Rendering] Media tile menjaga gambar batch
+              // tidak memanjang mengikuti tinggi detail traceability.
+              ProductMediaTile(imagePath: product.imagePath),
+              const SizedBox(width: 12),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        product.name,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.black,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      product.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.25,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.black,
                       ),
-                      const SizedBox(height: 6),
-                      _Bullet(text: 'Berat : ${product.weightRange}'),
-                      if (product.taste.trim() != '-')
-                        _Bullet(text: 'Rasa : ${product.taste}'),
-                      // [FE - Component Rendering] Jumlah buah dari petani
-                      // membantu pengepul membaca batch dalam satuan butir.
-                      if (product.fruitCount != null)
-                        _Bullet(
-                          text: 'Jumlah Buah : ${product.fruitCount} butir',
-                        ),
+                    ),
+                    const SizedBox(height: 7),
+                    _Bullet(text: 'Berat : ${product.weightRange}'),
+                    if (product.taste.trim() != '-')
+                      _Bullet(text: 'Rasa : ${product.taste}'),
+                    if (product.fruitCount != null)
                       _Bullet(
-                        text: 'Daging Buah : ${product.fleshDescription}',
+                        text: 'Jumlah Buah : ${product.fruitCount} butir',
                       ),
-                      // [FE - Component Rendering] Info traceability dari
-                      // petani ditampilkan ringkas di kartu antrean pengepul.
-                      if (product.shelfLifeEstimate != null &&
-                          product.shelfLifeEstimate!.isNotEmpty)
-                        _Bullet(
-                          text: 'Masa Simpan : ${product.shelfLifeEstimate}',
-                        ),
-                      _Bullet(text: 'Lokasi : ${product.location}'),
+                    _Bullet(text: 'Daging Buah : ${product.fleshDescription}'),
+                    if (product.shelfLifeEstimate != null &&
+                        product.shelfLifeEstimate!.isNotEmpty)
                       _Bullet(
-                        text:
-                            'Waktu Panen : ${_formatDate(product.harvestDate)}',
+                        text: 'Masa Simpan : ${product.shelfLifeEstimate}',
                       ),
-                      _Bullet(text: 'Pemilik Pohon : ${product.treeOwner}'),
-                    ],
-                  ),
+                    _Bullet(text: 'Lokasi : ${product.location}'),
+                    _Bullet(
+                      text: 'Waktu Panen : ${_formatDate(product.harvestDate)}',
+                    ),
+                    _Bullet(text: 'Pemilik Pohon : ${product.treeOwner}'),
+                  ],
                 ),
               ),
             ],
@@ -625,6 +803,7 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _ImageFallback extends StatelessWidget {
   const _ImageFallback();
 

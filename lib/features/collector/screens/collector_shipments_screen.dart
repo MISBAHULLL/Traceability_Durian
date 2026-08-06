@@ -240,8 +240,18 @@ class _ShipmentCard extends StatelessWidget {
           const SizedBox(height: 12),
           _BreakdownText(
             title: 'Tujuan Pengiriman',
-            text: shipment.destinationType.label,
+            text: shipment.destinationName?.trim().isNotEmpty == true
+                ? '${shipment.destinationType.label} - '
+                      '${shipment.destinationName!.trim()}'
+                : shipment.destinationType.label,
           ),
+          if (shipment.destinationLocation?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            _BreakdownText(
+              title: 'Lokasi Tujuan',
+              text: shipment.destinationLocation!.trim(),
+            ),
+          ],
           const SizedBox(height: 10),
           _BreakdownText(
             title: 'Source Batch',

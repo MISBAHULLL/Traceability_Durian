@@ -1,6 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../collector/data/collector_repository.dart';
+import '../../collector/screens/collector_home_screen.dart';
+import '../../consumer/data/consumer_repository.dart';
+import '../../consumer/screens/consumer_home_screen.dart';
+import '../../farmer/data/farmer_repository.dart';
+import '../../farmer/screens/farmer_home_screen.dart';
+import '../../umkm/data/umkm_repository.dart';
+import '../../umkm/models/umkm_profile.dart';
+import '../../umkm/screens/umkm_home_screen.dart';
+import 'temp_distributor_home_screen.dart';
 import 'register_form_screen.dart';
 
 /// Model data untuk setiap pilihan peran.
@@ -44,6 +55,12 @@ const List<_RoleOption> _roles = [
     value: 'konsumen',
   ),
 ];
+
+/// Toggle sementara untuk testing UI.
+///
+/// Saat aktif di debug, alur register akan langsung seed data dummy dan
+/// masuk ke halaman role masing-masing tanpa lewat form register.
+const bool _kBypassRegisterFormForUiTesting = false;
 
 /// Halaman pemilihan peran saat pendaftaran akun baru.
 ///
@@ -125,6 +142,11 @@ class _RegisterRoleScreenState extends State<RegisterRoleScreen>
       return;
     }
 
+    if (kDebugMode && _kBypassRegisterFormForUiTesting) {
+      _navigateWithDummySession(_selectedRole!);
+      return;
+    }
+
     Navigator.push(
       context,
       PageRouteBuilder(
@@ -138,6 +160,80 @@ class _RegisterRoleScreenState extends State<RegisterRoleScreen>
           child: child,
         ),
       ),
+    );
+  }
+
+  void _navigateWithDummySession(String role) {
+    Widget destination;
+
+    switch (role) {
+      case 'petani':
+        FarmerRepository.instance.registerFarmer(
+          firstName: 'Budi',
+          lastName: 'Santoso',
+          phone: '812345678901',
+          email: 'petani.demo@example.com',
+        );
+        destination = const FarmerHomeScreen();
+        break;
+      case 'pengepul':
+        CollectorRepository.instance.registerCollector(
+          firstName: 'Ayu',
+          lastName: 'Prameswari',
+          phone: '812345678902',
+          email: 'pengepul.demo@example.com',
+        );
+        destination = const CollectorHomeScreen();
+        break;
+      case 'distributor':
+        destination = const TempDistributorHomeScreen();
+        break;
+      case 'umkm':
+        UmkmRepository.instance.updateProfile(
+          const UmkmProfile(
+            umkmId: 'umkm-demo-001',
+            name: 'UMKM Demo Jember',
+            ownerName: 'Sari Wulandari',
+            contact: '+62 812-3456-7893',
+            email: 'umkm.demo@example.com',
+            location: 'Kabupaten Jember, Jawa Timur',
+            about: 'Akun dummy untuk testing UI UMKM.',
+            imagePath: null,
+            imageBytes: null,
+          ),
+        );
+        destination = const UmkmHomeScreen();
+        break;
+      case 'konsumen':
+        ConsumerRepository.instance.registerConsumer(
+          firstName: 'Nadia',
+          lastName: 'Pratama',
+          phone: '812345678904',
+          email: 'konsumen.demo@example.com',
+        );
+        destination = const ConsumerHomeScreen();
+        break;
+      default:
+        _showTopNotification(
+          'Role $role belum memiliki halaman tujuan.',
+          isError: true,
+        );
+        return;
+    }
+
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (_, _, _) => destination,
+        transitionsBuilder: (_, animation, _, child) => FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOutCubic,
+          ),
+          child: child,
+        ),
+      ),
+      (route) => false,
     );
   }
 

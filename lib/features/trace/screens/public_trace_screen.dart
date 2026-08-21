@@ -4,6 +4,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/batch_photo.dart';
 import '../../farmer/data/farmer_repository.dart';
+import '../../farmer/models/batch_event.dart';
 import '../../farmer/models/harvest_batch.dart';
 
 // [FE - Component Rendering] Screen ini menjadi halaman trace publik yang
@@ -49,7 +50,10 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
             Expanded(
               child: batch == null
                   ? _TraceNotFound(batchCode: widget.batchCode)
-                  : _TraceContent(batch: batch),
+                  : _TraceContent(
+                      batch: batch,
+                      events: _repo.publicEventsFor(batch.code),
+                    ),
             ),
           ],
         ),
@@ -59,9 +63,10 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
 }
 
 class _TraceContent extends StatelessWidget {
-  const _TraceContent({required this.batch});
+  const _TraceContent({required this.batch, required this.events});
 
   final HarvestBatch batch;
+  final List<BatchEvent> events;
 
   String _formatDate(DateTime d) {
     const months = [
@@ -213,7 +218,7 @@ class _TraceContent extends StatelessWidget {
             ),
             const SizedBox(height: 16),
           ],
-          _TraceTimeline(status: batch.status),
+          _TraceTimeline(status: batch.status, events: events),
         ],
       ),
     );
@@ -371,12 +376,23 @@ class _TraceInfoRow extends StatelessWidget {
 // [FE - Component Rendering] Timeline ini menerjemahkan status batch menjadi
 // perjalanan rantai pasok yang mudah dibaca konsumen.
 class _TraceTimeline extends StatelessWidget {
-  const _TraceTimeline({required this.status});
+  const _TraceTimeline({required this.status, required this.events});
 
   final BatchStatus status;
+  final List<BatchEvent> events;
 
   @override
   Widget build(BuildContext context) {
+    if (events.isNotEmpty) {
+      return _TraceSection(
+        title: 'Perjalanan Batch',
+        children: [
+          for (var i = 0; i < events.length; i++)
+            _TraceEventItem(event: events[i], isLast: i == events.length - 1),
+        ],
+      );
+    }
+
     final steps = _stepsFor(status);
 
     return _TraceSection(
@@ -442,6 +458,110 @@ class _TraceTimeline extends StatelessWidget {
     if (index < currentIndex) return _TraceStepState.done;
     if (index == currentIndex) return _TraceStepState.current;
     return _TraceStepState.pending;
+  }
+}
+
+class _TraceEventItem extends StatelessWidget {
+  const _TraceEventItem({required this.event, required this.isLast});
+
+  final BatchEvent event;
+  final bool isLast;
+
+  String _formatDateTime(DateTime dt) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}, $h:$m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 24,
+            child: Column(
+              children: [
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: event.status.color.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    event.status == BatchStatus.rejected
+                        ? Icons.close_rounded
+                        : Icons.check_rounded,
+                    size: 13,
+                    color: event.status.color,
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: event.status.color.withValues(alpha: 0.24),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    event.title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    event.actorLabel,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      height: 1.35,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatDateTime(event.timestamp),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

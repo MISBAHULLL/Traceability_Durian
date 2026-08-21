@@ -83,9 +83,9 @@ class _BatchQrScreenState extends State<BatchQrScreen>
     }
   }
 
-  // [FE - Event Handler] Tombol ini mensimulasikan hasil scan QR oleh
-  // konsumen: membuka halaman trace publik read-only berdasarkan kode batch.
-  void _handleViewDetail() {
+  // [FE - Event Handler] Tombol ini membuka halaman trace publik read-only
+  // yang sama dengan tujuan scan QR konsumen.
+  void _handleViewTrace() {
     FarmerRoutes.push(context, PublicTraceScreen(batchCode: widget.batchCode));
   }
 
@@ -191,8 +191,8 @@ class _BatchQrScreenState extends State<BatchQrScreen>
 
                           // ── Tombol Lihat Detail ──────────────────────────
                           PrimaryPillButton(
-                            label: 'LIHAT DETAIL',
-                            onPressed: _handleViewDetail,
+                            label: 'LIHAT TRACE DURIAN',
+                            onPressed: _handleViewTrace,
                           ),
                         ],
                       ),

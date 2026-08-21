@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/storage/local_storage_service.dart';
 import '../../traceability/data/traceability_repository.dart';
+import '../../traceability/models/traceability_models.dart';
 import '../models/batch_event.dart';
 import '../models/farm.dart';
 import '../models/farmer_notification.dart';
@@ -27,6 +28,17 @@ import '../models/harvest_batch.dart';
 class FarmerRepository extends ChangeNotifier {
   FarmerRepository._seed() {
     _loadFromLocal();
+    TraceabilityRepository.instance.addListener(_onTraceabilityChanged);
+  }
+
+  void _onTraceabilityChanged() {
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    TraceabilityRepository.instance.removeListener(_onTraceabilityChanged);
+    super.dispose();
   }
 
   // [FE - State Management] Loader ini me-restore state mock dari
@@ -462,6 +474,18 @@ class FarmerRepository extends ChangeNotifier {
   ///
   /// Kode bersifat monotetik: counter bertambah setiap pemanggilan sehingga
   /// tidak ada duplikat selama sesi berlangsung.
+  TraceBatch? traceBatchFor(String code) {
+    return TraceabilityRepository.instance.findBatch(code);
+  }
+
+  List<TraceBatchEvent> traceEventsForBatch(String code) {
+    return TraceabilityRepository.instance.eventsForBatch(code);
+  }
+
+  List<TraceQuantityMovement> traceMovementsForBatch(String code) {
+    return TraceabilityRepository.instance.movementsForBatch(code);
+  }
+
   String generateBatchCode() {
     _batchCounter++;
     final year = DateTime.now().year;
@@ -1122,8 +1146,17 @@ class FarmerRepository extends ChangeNotifier {
   /// Integrasi event nyata dari backend adalah future work.
   List<BatchEvent> eventsFor(String code) {
     final batch = findBatch(code);
-    if (batch == null) return [];
+    return batch == null ? [] : _eventsForBatch(batch);
+  }
 
+  // [FE - State Management] Versi publik untuk QR/trace konsumen. Lookup-nya
+  // tidak memakai ownership petani aktif karena halaman trace dibaca lintas role.
+  List<BatchEvent> publicEventsFor(String code) {
+    final batch = findPublicBatch(code);
+    return batch == null ? [] : _eventsForBatch(batch);
+  }
+
+  List<BatchEvent> _eventsForBatch(HarvestBatch batch) {
     final events = <BatchEvent>[];
     final actorName = _profile.fullName;
     final createdAt = batch.createdAt ?? batch.harvestDate;

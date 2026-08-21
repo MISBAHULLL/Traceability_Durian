@@ -3,14 +3,17 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/batch_photo.dart';
+import '../../../shared/widgets/osm_map_preview.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
+import '../../trace/screens/public_trace_screen.dart';
+import '../data/cahyadsn_region_service.dart';
 import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
 import '../models/batch_event.dart';
+import '../models/farm.dart';
 import '../models/harvest_batch.dart';
 import 'add_batch_screen.dart';
 import 'batch_qr_screen.dart';
-import 'batch_trace_screen.dart';
 
 /// Memformat sisa durasi jendela koreksi menjadi teks ringkas berbahasa
 /// Indonesia, mis. "14 menit" atau "45 detik".
@@ -24,7 +27,7 @@ String _formatRemaining(Duration d) {
 // role (aksi ubah hanya DRAFT, aksi role lain disembunyikan).
 /// Layar detail satu batch panen milik petani.
 ///
-/// Menampilkan profil petani, placeholder peta, kode batch, informasi produk,
+/// Menampilkan profil petani, peta lokasi kebun, kode batch, informasi produk,
 /// badge status, timeline kejadian, dan aksi utama (QR). Aksi "Ubah Data"
 /// hanya muncul bila status batch adalah DRAFT (Req 3.8, 3.9, 7.3).
 ///
@@ -68,10 +71,9 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
     FarmerRoutes.push(context, BatchQrScreen(batchCode: widget.batchCode));
   }
 
-  // [FE - Event Handler] Membuka visual trace agar detail batch punya akses
-  // langsung ke perjalanan kepemilikan dan scan/konfirmasi QR.
+  // [FE - Event Handler] Membuka halaman trace publik yang sama dengan QR.
   void _openTrace() {
-    FarmerRoutes.push(context, BatchTraceScreen(batchCode: widget.batchCode));
+    FarmerRoutes.push(context, PublicTraceScreen(batchCode: widget.batchCode));
   }
 
   Future<void> _openEdit() async {
@@ -196,6 +198,7 @@ class _BatchDetailContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final profile = repo.profile;
     final events = repo.eventsFor(batch.code);
+    final farm = repo.findFarm(batch.farmId);
     final canEdit = repo.canEditBatch(batch.code);
 
     return SingleChildScrollView(
@@ -218,8 +221,8 @@ class _BatchDetailContent extends StatelessWidget {
           _FarmerProfileSection(profile: profile),
           const SizedBox(height: 16),
 
-          // ── Placeholder Peta (Req 3.3) ─────────────────────────────────────
-          const _MapPlaceholderCard(),
+          // ── Peta Lokasi Kebun (Req 3.3) ───────────────────────────────────
+          _FarmMapCard(farm: farm),
           const SizedBox(height: 16),
 
           // ── Kode Batch (Req 3.4) ───────────────────────────────────────────
@@ -229,7 +232,6 @@ class _BatchDetailContent extends StatelessWidget {
           // ── Informasi Produk (Req 3.4) ─────────────────────────────────────
           _ProductInfoCard(batch: batch),
           const SizedBox(height: 16),
-
           // ── Badge Status (Req 3.5) ─────────────────────────────────────────
           _StatusSection(status: batch.status),
           const SizedBox(height: 16),
@@ -249,7 +251,7 @@ class _BatchDetailContent extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: onOpenTrace,
             icon: const Icon(Icons.route_rounded, size: 18),
-            label: const Text('LIHAT TRACE PERJALANAN'),
+            label: const Text('LIHAT TRACE DURIAN'),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(50),
               foregroundColor: AppColors.primary,
@@ -405,99 +407,169 @@ class _FarmerProfileSection extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Placeholder Peta (Req 3.3)
+// Peta Lokasi Kebun (Req 3.3)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MapPlaceholderCard extends StatelessWidget {
-  const _MapPlaceholderCard();
+class _FarmMapCard extends StatefulWidget {
+  const _FarmMapCard({required this.farm});
+
+  final Farm? farm;
+
+  @override
+  State<_FarmMapCard> createState() => _FarmMapCardState();
+}
+
+class _FarmMapCardState extends State<_FarmMapCard> {
+  final _regionService = CahyadsnRegionService.instance;
+  CahyadsnRegionMap? _region;
+  CahyadsnRegionBoundary? _boundary;
+  int _regionLevel = 0;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMapTarget();
+  }
+
+  @override
+  void didUpdateWidget(covariant _FarmMapCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.farm != widget.farm) {
+      _loadMapTarget();
+    }
+  }
+
+  Future<void> _loadMapTarget() async {
+    setState(() => _loading = true);
+    await _regionService.load();
+    final code = _resolveRegionCode(widget.farm);
+    final region = _regionService.mapForClosest(code);
+    final boundary = await _regionService.loadBoundaryFor(code);
+    if (!mounted) return;
+    setState(() {
+      _region = region;
+      _boundary = boundary;
+      _regionLevel = code == null ? 0 : CahyadsnRegionService.levelOf(code);
+      _loading = false;
+    });
+  }
+
+  String? _resolveRegionCode(Farm? farm) {
+    if (farm == null) return null;
+
+    final province = _regionService.findExact(
+      _regionService.provinces,
+      farm.province,
+    );
+    if (province == null) return null;
+
+    final city = _regionService.findExact(
+      _regionService.childrenOf(province.code),
+      farm.city,
+    );
+    if (city == null) return province.code;
+
+    final district = _regionService.findExact(
+      _regionService.childrenOf(city.code),
+      farm.district,
+    );
+    if (district == null) return city.code;
+
+    final village = _regionService.findExact(
+      _regionService.childrenOf(district.code),
+      farm.village,
+    );
+    return village?.code ?? district.code;
+  }
+
+  bool get _hasCoordinate {
+    return widget.farm?.latitude != null && widget.farm?.longitude != null;
+  }
+
+  OsmMapPoint get _mapCenter {
+    final farm = widget.farm;
+    if (farm?.latitude != null && farm?.longitude != null) {
+      return OsmMapPoint(farm!.latitude!, farm.longitude!);
+    }
+    final boundary = _boundary;
+    if (boundary != null) {
+      return OsmMapPoint(boundary.latitude, boundary.longitude);
+    }
+    final region = _region;
+    if (region != null) return OsmMapPoint(region.latitude, region.longitude);
+    return const OsmMapPoint(-2.5, 118);
+  }
+
+  int get _zoom {
+    if (_hasCoordinate) return 14;
+    return switch (_regionLevel) {
+      0 => 5,
+      1 => 7,
+      2 => 10,
+      3 => 12,
+      _ => 14,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
+    final center = _mapCenter;
     return Container(
-      height: 140,
+      height: 190,
       decoration: BoxDecoration(
         color: const Color(0xFFEFF6EE),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFD1E8CC)),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          // Grid garis peta simulasi
-          CustomPaint(
-            size: const Size(double.infinity, 140),
-            painter: _MapGridPainter(),
+          Positioned.fill(
+            child: OsmMapPreview(
+              center: center,
+              initialZoom: _zoom,
+              markerPoint: center,
+              boundary: _boundary?.rings,
+            ),
           ),
-          // Label tengah
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.white.withValues(alpha: 0.9),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.15),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.place_rounded,
-                    size: 28,
-                    color: AppColors.primaryContainer,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.white.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'Peta Lokasi',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.subtitle,
+          if (_loading)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x55FFFFFF),
+                child: Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primaryContainer,
                     ),
                   ),
                 ),
-              ],
+              ),
+            ),
+          Positioned(
+            right: 6,
+            top: 5,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.88),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                child: Text(
+                  '(c) OpenStreetMap',
+                  style: TextStyle(fontSize: 9, color: AppColors.subtitle),
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
   }
-}
-
-/// Painter untuk grid garis peta simulasi pada placeholder.
-class _MapGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFB8D9B2)
-      ..strokeWidth = 0.8;
-
-    const step = 28.0;
-    for (double x = 0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

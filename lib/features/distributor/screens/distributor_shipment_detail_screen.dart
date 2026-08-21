@@ -375,15 +375,6 @@ class _ReceiptPanel extends StatelessWidget {
                   label: 'Lokasi Terima',
                   value: receipt.destinationLocation,
                 ),
-                if (receipt.temperatureCelsius != null) ...[
-                  const SizedBox(height: 8),
-                  _ReceiptMetaRow(
-                    icon: Icons.thermostat_outlined,
-                    label: 'Suhu Terima',
-                    value:
-                        '${_formatTemperature(receipt.temperatureCelsius!)} C',
-                  ),
-                ],
               ],
             ),
           ),
@@ -1381,10 +1372,6 @@ String _signedDouble(double value) {
 
 String _signedInt(int value) {
   return value > 0 ? '+$value' : '$value';
-}
-
-String _formatTemperature(double value) {
-  return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
 }
 
 String _valueOrDash(String? value) {

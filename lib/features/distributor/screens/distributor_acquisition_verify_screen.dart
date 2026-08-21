@@ -35,7 +35,6 @@ class _DistributorAcquisitionVerifyScreenState
   final _weightCtrl = TextEditingController();
   final _fruitCtrl = TextEditingController();
   final _destinationCtrl = TextEditingController();
-  final _temperatureCtrl = TextEditingController();
   final _discrepancyCtrl = TextEditingController();
   final _qualityCtrl = TextEditingController();
   final _gradeWeightCtrls = {
@@ -80,7 +79,6 @@ class _DistributorAcquisitionVerifyScreenState
     _weightCtrl.dispose();
     _fruitCtrl.dispose();
     _destinationCtrl.dispose();
-    _temperatureCtrl.dispose();
     _discrepancyCtrl.dispose();
     _qualityCtrl.dispose();
     for (final controller in _gradeWeightCtrls.values) {
@@ -101,12 +99,6 @@ class _DistributorAcquisitionVerifyScreenState
       double.tryParse(_weightCtrl.text.trim().replaceAll(',', '.'));
 
   int? get _receivedFruit => int.tryParse(_fruitCtrl.text.trim());
-
-  double? get _temperature {
-    final text = _temperatureCtrl.text.trim();
-    if (text.isEmpty) return null;
-    return double.tryParse(text.replaceAll(',', '.'));
-  }
 
   bool _hasDiscrepancy(DistributorAcquisitionTransaction transaction) {
     final weight = _receivedWeight;
@@ -149,15 +141,9 @@ class _DistributorAcquisitionVerifyScreenState
       );
       return;
     }
-    final temperatureText = _temperatureCtrl.text.trim();
-    final temperature = _temperature;
-    if (temperatureText.isNotEmpty &&
-        (temperature == null || temperature < -30 || temperature > 60)) {
-      _notification.show(
-        context,
-        'Suhu harus berupa angka antara -30 sampai 60 C.',
-        isError: true,
-      );
+    final condition = _condition;
+    if (condition == null) {
+      _notification.show(context, 'Pilih kondisi fisik.', isError: true);
       return;
     }
 
@@ -167,12 +153,6 @@ class _DistributorAcquisitionVerifyScreenState
 
     var success = false;
     if (transaction.source == DistributorAcquisitionSource.collector) {
-      final condition = _condition;
-      if (condition == null) {
-        setState(() => _isSubmitting = false);
-        _notification.show(context, 'Pilih kondisi fisik.', isError: true);
-        return;
-      }
       if (_hasDiscrepancy(transaction) &&
           _discrepancyCtrl.text.trim().isEmpty) {
         setState(() => _isSubmitting = false);
@@ -192,8 +172,7 @@ class _DistributorAcquisitionVerifyScreenState
             condition: condition,
             destinationLocation: _destinationCtrl.text,
             discrepancyNote: _discrepancyCtrl.text,
-            qualityNote: _qualityCtrl.text,
-            temperatureCelsius: temperature,
+            qualityNote: _qualityNoteWithCondition(condition),
           ) !=
           null;
     } else {
@@ -229,8 +208,7 @@ class _DistributorAcquisitionVerifyScreenState
         receivedFruitCount: fruit,
         gradeBreakdown: grades,
         destinationLocation: _destinationCtrl.text,
-        qualityNote: _qualityCtrl.text,
-        temperatureCelsius: temperature,
+        qualityNote: _qualityNoteWithCondition(condition),
       );
     }
 
@@ -238,13 +216,13 @@ class _DistributorAcquisitionVerifyScreenState
     if (!success) {
       _notification.show(
         context,
-        'T2 gagal disimpan. Periksa status sumber akuisisi.',
+        'Validasi gagal disimpan. Periksa status sumber stok.',
         isError: true,
       );
       return;
     }
 
-    _notification.show(context, '${transaction.id} selesai diverifikasi.');
+    _notification.show(context, '${transaction.itemCode} selesai divalidasi.');
     await Future.delayed(const Duration(milliseconds: 700));
     if (!mounted) return;
     Navigator.pop(context, true);
@@ -253,6 +231,12 @@ class _DistributorAcquisitionVerifyScreenState
   @override
   Widget build(BuildContext context) {
     final transaction = _repo.findAcquisitionTransaction(widget.transactionId);
+    final traceBatches = transaction == null
+        ? <HarvestBatch>[]
+        : _traceBatchesFor(transaction);
+    final traceCodes = transaction == null
+        ? <String>[]
+        : _traceCodesFor(transaction);
 
     return Scaffold(
       backgroundColor: _pageBackground,
@@ -261,7 +245,7 @@ class _DistributorAcquisitionVerifyScreenState
           children: [
             const ColoredBox(
               color: AppColors.white,
-              child: AppTopBar(title: 'Konfirmasi T2'),
+              child: AppTopBar(title: 'Validasi Penerimaan'),
             ),
             Expanded(
               child: transaction == null
@@ -276,6 +260,12 @@ class _DistributorAcquisitionVerifyScreenState
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
                       children: [
                         _TransactionSummary(transaction: transaction),
+                        const SizedBox(height: 16),
+                        _TracePanel(
+                          transaction: transaction,
+                          batches: traceBatches,
+                          sourceCodes: traceCodes,
+                        ),
                         const SizedBox(height: 16),
                         const _SectionTitle(title: 'Hasil Terima Aktual'),
                         const SizedBox(height: 8),
@@ -306,20 +296,13 @@ class _DistributorAcquisitionVerifyScreenState
                           receivedFruit: _receivedFruit,
                         ),
                         const SizedBox(height: 16),
-                        const _SectionTitle(title: 'Tujuan dan Cold Chain'),
+                        const _SectionTitle(title: 'Asal dan Gudang Tujuan'),
                         const SizedBox(height: 8),
                         _TextField(
                           controller: _destinationCtrl,
-                          label: 'Lokasi Tujuan Penerimaan',
+                          label: 'Gudang Tujuan Penerimaan',
                           hint: 'Contoh: Gudang Hub Surabaya',
                           required: true,
-                        ),
-                        const SizedBox(height: 10),
-                        _NumberField(
-                          controller: _temperatureCtrl,
-                          label: 'Suhu Saat Diterima',
-                          suffix: 'C',
-                          decimal: true,
                         ),
                         if (transaction.source ==
                             DistributorAcquisitionSource.collector) ...[
@@ -332,15 +315,6 @@ class _DistributorAcquisitionVerifyScreenState
                                   'Contoh: susut perjalanan atau timbang ulang',
                             ),
                           ],
-                          const SizedBox(height: 16),
-                          const _SectionTitle(title: 'Kondisi Fisik'),
-                          const SizedBox(height: 8),
-                          _ConditionSelector(
-                            selected: _condition,
-                            onChanged: (value) {
-                              setState(() => _condition = value);
-                            },
-                          ),
                         ] else ...[
                           const SizedBox(height: 16),
                           const _SectionTitle(title: 'Komposisi Grade'),
@@ -351,6 +325,15 @@ class _DistributorAcquisitionVerifyScreenState
                             fruitControllers: _gradeFruitCtrls,
                           ),
                         ],
+                        const SizedBox(height: 16),
+                        const _SectionTitle(title: 'Kondisi Fisik'),
+                        const SizedBox(height: 8),
+                        _ConditionSelector(
+                          selected: _condition,
+                          onChanged: (value) {
+                            setState(() => _condition = value);
+                          },
+                        ),
                         const SizedBox(height: 14),
                         _TextArea(
                           controller: _qualityCtrl,
@@ -359,7 +342,7 @@ class _DistributorAcquisitionVerifyScreenState
                         ),
                         const SizedBox(height: 20),
                         PrimaryPillButton(
-                          label: 'SIMPAN T2',
+                          label: 'SIMPAN VALIDASI',
                           onPressed: _isSubmitting
                               ? null
                               : () => _submit(transaction),
@@ -372,6 +355,33 @@ class _DistributorAcquisitionVerifyScreenState
         ),
       ),
     );
+  }
+
+  List<HarvestBatch> _traceBatchesFor(
+    DistributorAcquisitionTransaction transaction,
+  ) {
+    if (transaction.source == DistributorAcquisitionSource.collector) {
+      final shipment = _repo.findShipment(transaction.itemCode);
+      if (shipment == null) return const [];
+      return _repo.sourceBatchesForShipment(shipment);
+    }
+
+    final batch = _repo.findFarmerAcquisitionBatch(transaction.itemCode);
+    return batch == null ? const [] : [batch];
+  }
+
+  List<String> _traceCodesFor(DistributorAcquisitionTransaction transaction) {
+    if (transaction.source == DistributorAcquisitionSource.collector) {
+      final shipment = _repo.findShipment(transaction.itemCode);
+      return shipment?.sourceBatchCodes ?? const [];
+    }
+    return [transaction.itemCode];
+  }
+
+  String? _qualityNoteWithCondition(DistributorReceiptCondition condition) {
+    final note = _qualityCtrl.text.trim();
+    final conditionText = 'Kondisi fisik: ${condition.label}';
+    return note.isEmpty ? conditionText : '$conditionText. $note';
   }
 }
 
@@ -445,6 +455,232 @@ class _TransactionSummary extends StatelessWidget {
             label: 'Manifest',
             value:
                 '${_formatNumber(transaction.expectedWeightKg)} kg / ${transaction.expectedFruitCount} butir',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TracePanel extends StatelessWidget {
+  const _TracePanel({
+    required this.transaction,
+    required this.batches,
+    required this.sourceCodes,
+  });
+
+  final DistributorAcquisitionTransaction transaction;
+  final List<HarvestBatch> batches;
+  final List<String> sourceCodes;
+
+  @override
+  Widget build(BuildContext context) {
+    final routeLabel = transaction.source == DistributorAcquisitionSource.farmer
+        ? 'Petani -> Distributor'
+        : 'Petani -> Pengepul -> Distributor';
+    final foundCodes = batches.map((batch) => batch.code).toSet();
+    final missingCodes = sourceCodes
+        .where((code) => !foundCodes.contains(code))
+        .toList();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.account_tree_outlined,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Trace Sumber Durian',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.black,
+                  ),
+                ),
+              ),
+              _SourceBadge(label: transaction.source.label),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _InfoRow(label: 'Alur', value: routeLabel),
+          _InfoRow(label: 'Kode', value: transaction.itemCode),
+          const Divider(height: 18, color: _borderColor),
+          if (batches.isEmpty && sourceCodes.isEmpty)
+            const Text(
+              'Detail batch sumber belum tersedia di data lokal.',
+              style: TextStyle(fontSize: 11, color: AppColors.placeholder),
+            )
+          else ...[
+            ...batches.map(
+              (batch) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _TraceBatchRow(batch: batch),
+              ),
+            ),
+            ...missingCodes.map(
+              (code) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _TraceCodeRow(code: code),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceBadge extends StatelessWidget {
+  const _SourceBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.primaryContainer.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          color: AppColors.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _TraceBatchRow extends StatelessWidget {
+  const _TraceBatchRow({required this.batch});
+
+  final HarvestBatch batch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: _pageBackground,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  batch.code,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+              Text(
+                batch.status.label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: batch.status.color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            '${batch.farmName} / Petani ${batch.farmerId}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.subtitle,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Durian ${batch.variety} / Grade ${batch.grade} / '
+            '${_formatNumber(batch.quantity)} ${batch.unit} / '
+            '${batch.fruitCount ?? 0} butir / ${_formatDate(batch.harvestDate)}',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 10,
+              height: 1.35,
+              color: AppColors.placeholder,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TraceCodeRow extends StatelessWidget {
+  const _TraceCodeRow({required this.code});
+
+  final String code;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: _pageBackground,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.qr_code_2_rounded,
+            size: 17,
+            color: AppColors.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              code,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+          const Text(
+            'Kode sumber',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: AppColors.placeholder,
+            ),
           ),
         ],
       ),
@@ -868,6 +1104,24 @@ class _UnavailableState extends StatelessWidget {
 
 String _formatNumber(double value) {
   return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+}
+
+String _formatDate(DateTime date) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'Mei',
+    'Jun',
+    'Jul',
+    'Agu',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Des',
+  ];
+  return '${date.day} ${months[date.month - 1]} ${date.year}';
 }
 
 String _signedNumber(double value) {

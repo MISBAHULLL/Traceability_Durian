@@ -152,7 +152,7 @@ class _DistributorAcquisitionScreenState
                   if (pending.isNotEmpty) ...[
                     const SizedBox(height: 18),
                     _SectionHeader(
-                      title: 'T1 Menunggu T2',
+                      title: 'Validasi Belum Disimpan',
                       count: pending.length,
                     ),
                     const SizedBox(height: 8),
@@ -245,7 +245,7 @@ class _SummaryPanel extends StatelessWidget {
           ),
           Container(width: 1, height: 38, color: const Color(0xFF8BCB70)),
           Expanded(
-            child: _SummaryMetric(label: 'Pending T2', value: '$pendingCount'),
+            child: _SummaryMetric(label: 'Tertunda', value: '$pendingCount'),
           ),
         ],
       ),
@@ -495,7 +495,7 @@ class _PendingTransactionTile extends StatelessWidget {
       title: '${transaction.source.label} - ${transaction.itemCode}',
       subtitle:
           '${transaction.itemName} / ${_formatWeight(transaction.expectedWeightKg)}',
-      badge: transaction.status.label,
+      badge: 'Lanjut Validasi',
       onTap: onTap,
     );
   }

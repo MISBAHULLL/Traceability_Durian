@@ -5,15 +5,18 @@ import '../../../shared/widgets/app_top_bar.dart';
 import '../../collector/models/collector_shipment_batch.dart';
 import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
+import 'distributor_acquisition_verify_screen.dart';
 import 'distributor_receipt_screen.dart';
-import 'distributor_scan_qr_screen.dart';
+import 'distributor_stock_receipt_screen.dart';
 import 'distributor_shipment_detail_screen.dart';
 
 const _pageBackground = Color(0xFFF4F6F3);
 const _borderColor = Color(0xFFE1E6DF);
 
-// [FE - Component Rendering] Screen ini menjadi work queue distributor untuk
-// shipment yang menunggu scan dan shipment transit yang menunggu penerimaan.
+enum _ShipmentStatusFilter { all, ready, transit }
+
+// [FE - Component Rendering] Screen ini menjadi work queue stok masuk:
+// distributor scan PGL/DRN, melihat trace, lalu memvalidasi kondisi aktual.
 class DistributorActiveShipmentsScreen extends StatefulWidget {
   const DistributorActiveShipmentsScreen({super.key});
 
@@ -25,6 +28,7 @@ class DistributorActiveShipmentsScreen extends StatefulWidget {
 class _DistributorActiveShipmentsScreenState
     extends State<DistributorActiveShipmentsScreen> {
   final _repo = DistributorRepository.instance;
+  _ShipmentStatusFilter _statusFilter = _ShipmentStatusFilter.all;
 
   @override
   void initState() {
@@ -42,10 +46,13 @@ class _DistributorActiveShipmentsScreenState
     if (mounted) setState(() {});
   }
 
-  // [FE - Event Handler] Scanner menjadi satu-satunya aksi mengambil
-  // manifest ready agar handover pengepul ke distributor tetap eksplisit.
+  // [FE - Event Handler] Scanner mengidentifikasi stok PGL/DRN lalu membuka
+  // validasi penerimaan tanpa memaknai scan sebagai proses jemput barang.
   Future<void> _openScanner() async {
-    await DistributorRoutes.push(context, const DistributorScanQrScreen());
+    await DistributorRoutes.push(
+      context,
+      const DistributorStockReceiptScreen(),
+    );
   }
 
   Future<void> _openDetail(CollectorShipmentBatch shipment) async {
@@ -62,10 +69,31 @@ class _DistributorActiveShipmentsScreenState
     );
   }
 
+  Future<void> _openCollectorValidation(CollectorShipmentBatch shipment) async {
+    final transaction = _repo.initiateCollectorAcquisition(shipment.code);
+    if (transaction == null) {
+      await _openDetail(shipment);
+      return;
+    }
+
+    await DistributorRoutes.push<bool>(
+      context,
+      DistributorAcquisitionVerifyScreen(transactionId: transaction.id),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ready = _repo.readyToPickShipments;
     final transit = _repo.activeShipments;
+    final showReady =
+        _statusFilter == _ShipmentStatusFilter.all ||
+        _statusFilter == _ShipmentStatusFilter.ready;
+    final showTransit =
+        _statusFilter == _ShipmentStatusFilter.all ||
+        _statusFilter == _ShipmentStatusFilter.transit;
+    final hasVisibleShipments =
+        (showReady && ready.isNotEmpty) || (showTransit && transit.isNotEmpty);
 
     return Scaffold(
       backgroundColor: _pageBackground,
@@ -73,11 +101,11 @@ class _DistributorActiveShipmentsScreenState
         child: Column(
           children: [
             AppTopBar(
-              title: 'Pengiriman Aktif',
+              title: 'Stok Masuk Aktif',
               actions: [
                 IconButton(
                   onPressed: _openScanner,
-                  tooltip: 'Scan QR pengiriman',
+                  tooltip: 'Scan stok masuk',
                   icon: const Icon(
                     Icons.qr_code_scanner_rounded,
                     color: AppColors.primary,
@@ -96,10 +124,22 @@ class _DistributorActiveShipmentsScreenState
                           transitCount: transit.length,
                           onScan: _openScanner,
                         ),
-                        if (ready.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        _StatusFilterBar(
+                          selected: _statusFilter,
+                          readyCount: ready.length,
+                          transitCount: transit.length,
+                          onChanged: (filter) =>
+                              setState(() => _statusFilter = filter),
+                        ),
+                        if (!hasVisibleShipments) ...[
+                          const SizedBox(height: 18),
+                          _FilteredEmptyState(filter: _statusFilter),
+                        ],
+                        if (showReady && ready.isNotEmpty) ...[
                           const SizedBox(height: 20),
                           _SectionHeader(
-                            title: 'Menunggu Diambil',
+                            title: 'PGL Siap Divalidasi',
                             count: ready.length,
                           ),
                           const SizedBox(height: 9),
@@ -110,15 +150,16 @@ class _DistributorActiveShipmentsScreenState
                                 shipment: shipment,
                                 state: _ActiveShipmentState.ready,
                                 onDetail: () => _openDetail(shipment),
-                                onPrimaryAction: _openScanner,
+                                onPrimaryAction: () =>
+                                    _openCollectorValidation(shipment),
                               ),
                             ),
                           ),
                         ],
-                        if (transit.isNotEmpty) ...[
+                        if (showTransit && transit.isNotEmpty) ...[
                           const SizedBox(height: 20),
                           _SectionHeader(
-                            title: 'Dalam Perjalanan',
+                            title: 'PGL Perlu Receipt',
                             count: transit.length,
                           ),
                           const SizedBox(height: 9),
@@ -168,14 +209,11 @@ class _QueueSummary extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _QueueMetric(
-                  label: 'Menunggu scan',
-                  value: '$readyCount',
-                ),
+                child: _QueueMetric(label: 'PGL siap', value: '$readyCount'),
               ),
               Container(width: 1, height: 38, color: const Color(0xFF8BCB70)),
               Expanded(
-                child: _QueueMetric(label: 'Transit', value: '$transitCount'),
+                child: _QueueMetric(label: 'Receipt', value: '$transitCount'),
               ),
             ],
           ),
@@ -186,7 +224,7 @@ class _QueueSummary extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: onScan,
               icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
-              label: const Text('SCAN QR PENGIRIMAN'),
+              label: const Text('SCAN STOK MASUK'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.white,
                 side: const BorderSide(color: AppColors.white),
@@ -237,6 +275,98 @@ class _QueueMetric extends StatelessWidget {
   }
 }
 
+class _StatusFilterBar extends StatelessWidget {
+  const _StatusFilterBar({
+    required this.selected,
+    required this.readyCount,
+    required this.transitCount,
+    required this.onChanged,
+  });
+
+  final _ShipmentStatusFilter selected;
+  final int readyCount;
+  final int transitCount;
+  final ValueChanged<_ShipmentStatusFilter> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Row(
+        children: [
+          _StatusFilterButton(
+            label: 'Semua',
+            count: readyCount + transitCount,
+            selected: selected == _ShipmentStatusFilter.all,
+            onTap: () => onChanged(_ShipmentStatusFilter.all),
+          ),
+          _StatusFilterButton(
+            label: 'PGL Baru',
+            count: readyCount,
+            selected: selected == _ShipmentStatusFilter.ready,
+            onTap: () => onChanged(_ShipmentStatusFilter.ready),
+          ),
+          _StatusFilterButton(
+            label: 'Receipt',
+            count: transitCount,
+            selected: selected == _ShipmentStatusFilter.transit,
+            onTap: () => onChanged(_ShipmentStatusFilter.transit),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusFilterButton extends StatelessWidget {
+  const _StatusFilterButton({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFE9F5E4) : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            '$label ($count)',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: selected ? AppColors.primary : AppColors.placeholder,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title, required this.count});
 
@@ -258,7 +388,7 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
         Text(
-          '$count pengiriman',
+          '$count data',
           style: const TextStyle(fontSize: 11, color: AppColors.placeholder),
         ),
       ],
@@ -266,10 +396,55 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+class _FilteredEmptyState extends StatelessWidget {
+  const _FilteredEmptyState({required this.filter});
+
+  final _ShipmentStatusFilter filter;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = switch (filter) {
+      _ShipmentStatusFilter.ready => 'Tidak ada PGL yang perlu divalidasi.',
+      _ShipmentStatusFilter.transit => 'Tidak ada PGL yang perlu receipt.',
+      _ShipmentStatusFilter.all => 'Tidak ada stok masuk aktif.',
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.filter_alt_off_outlined,
+            size: 32,
+            color: AppColors.placeholder,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: AppColors.subtitle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 enum _ActiveShipmentState { ready, transit }
 
 // [FE - Component Rendering] Kartu aktif mempertahankan aksi sesuai state:
-// ready harus melalui scan, sedangkan transit masuk verifikasi penerimaan.
+// PGL baru masuk validasi T2, sedangkan data sent lama tetap bisa receipt.
 class _ActiveShipmentCard extends StatelessWidget {
   const _ActiveShipmentCard({
     required this.shipment,
@@ -335,9 +510,10 @@ class _ActiveShipmentCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${_formatWeight(shipment.totalWeightKg)} · '
-                        '${shipment.totalFruitCount} butir · '
-                        '${shipment.sourceBatchCodes.length} sumber',
+                        'Dari pengepul ${shipment.collectorId} / '
+                        '${_formatWeight(shipment.totalWeightKg)} / '
+                        '${shipment.totalFruitCount} butir / '
+                        '${shipment.sourceBatchCodes.length} batch sumber',
                         style: const TextStyle(
                           fontSize: 11,
                           color: AppColors.placeholder,
@@ -348,7 +524,7 @@ class _ActiveShipmentCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 _StateBadge(
-                  label: isReady ? 'Menunggu scan' : 'Transit',
+                  label: isReady ? 'Siap validasi' : 'Perlu receipt',
                   color: statusColor,
                 ),
               ],
@@ -390,7 +566,7 @@ class _ActiveShipmentCard extends StatelessWidget {
                       size: 15,
                     ),
                     label: Text(
-                      isReady ? 'Scan untuk Ambil' : 'Verifikasi Terima',
+                      isReady ? 'Validasi Terima' : 'Verifikasi Terima',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -465,7 +641,7 @@ class _EmptyActiveShipment extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             const Text(
-              'Tidak ada pengiriman aktif',
+              'Tidak ada stok masuk aktif',
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
@@ -476,7 +652,7 @@ class _EmptyActiveShipment extends StatelessWidget {
             ElevatedButton.icon(
               onPressed: onScan,
               icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
-              label: const Text('Scan QR Pengiriman'),
+              label: const Text('Scan Stok Masuk'),
               style: ElevatedButton.styleFrom(
                 elevation: 0,
                 backgroundColor: const Color.fromARGB(255, 88, 168, 53),

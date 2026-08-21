@@ -332,15 +332,8 @@ class _ReceiptHistoryCard extends StatelessWidget {
                   _InfoRow(
                     label: 'Lokasi',
                     value: actualReceipt?.destinationLocation ?? '-',
-                    isLast: actualReceipt?.temperatureCelsius == null,
+                    isLast: true,
                   ),
-                  if (actualReceipt?.temperatureCelsius != null)
-                    _InfoRow(
-                      label: 'Suhu',
-                      value:
-                          '${_formatTemperature(actualReceipt!.temperatureCelsius!)} C',
-                      isLast: true,
-                    ),
                 ],
               ),
             ),
@@ -513,10 +506,6 @@ String _formatWeight(double value) {
       ? value.toStringAsFixed(0)
       : value.toStringAsFixed(2);
   return '$text kg';
-}
-
-String _formatTemperature(double value) {
-  return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
 }
 
 String _formatDateTime(DateTime date) {

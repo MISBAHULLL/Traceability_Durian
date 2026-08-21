@@ -29,7 +29,6 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
   final _weightCtrl = TextEditingController();
   final _fruitCtrl = TextEditingController();
   final _destinationCtrl = TextEditingController();
-  final _temperatureCtrl = TextEditingController();
   final _discrepancyCtrl = TextEditingController();
   final _qualityCtrl = TextEditingController();
 
@@ -57,7 +56,6 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
     _weightCtrl.dispose();
     _fruitCtrl.dispose();
     _destinationCtrl.dispose();
-    _temperatureCtrl.dispose();
     _discrepancyCtrl.dispose();
     _qualityCtrl.dispose();
     _notification.dispose();
@@ -74,12 +72,6 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
       double.tryParse(_weightCtrl.text.trim().replaceAll(',', '.'));
 
   int? get _receivedFruit => int.tryParse(_fruitCtrl.text.trim());
-
-  double? get _temperature {
-    final text = _temperatureCtrl.text.trim();
-    if (text.isEmpty) return null;
-    return double.tryParse(text.replaceAll(',', '.'));
-  }
 
   bool _hasDiscrepancy(CollectorShipmentBatch shipment) {
     final weight = _receivedWeight;
@@ -127,17 +119,6 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
       );
       return;
     }
-    final temperatureText = _temperatureCtrl.text.trim();
-    final temperature = _temperature;
-    if (temperatureText.isNotEmpty &&
-        (temperature == null || temperature < -30 || temperature > 60)) {
-      _notification.show(
-        context,
-        'Suhu harus berupa angka antara -30 sampai 60 C.',
-        isError: true,
-      );
-      return;
-    }
     if (_hasDiscrepancy(shipment) && _discrepancyCtrl.text.trim().isEmpty) {
       _notification.show(
         context,
@@ -159,7 +140,6 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
       destinationLocation: _destinationCtrl.text,
       discrepancyNote: _discrepancyCtrl.text,
       qualityNote: _qualityCtrl.text,
-      temperatureCelsius: temperature,
     );
     setState(() => _isSubmitting = false);
 
@@ -254,20 +234,13 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
                           ),
                         ],
                         const SizedBox(height: 18),
-                        const _SectionTitle(title: 'Tujuan dan Cold Chain'),
+                        const _SectionTitle(title: 'Asal dan Gudang Tujuan'),
                         const SizedBox(height: 9),
                         _TextField(
                           controller: _destinationCtrl,
-                          label: 'Lokasi Tujuan Penerimaan',
+                          label: 'Gudang Tujuan Penerimaan',
                           hint: 'Contoh: Gudang Hub Surabaya',
                           required: true,
-                        ),
-                        const SizedBox(height: 10),
-                        _NumberField(
-                          controller: _temperatureCtrl,
-                          label: 'Suhu Saat Diterima',
-                          suffix: 'C',
-                          decimal: true,
                         ),
                         const SizedBox(height: 18),
                         const _SectionTitle(title: 'Kondisi Fisik'),

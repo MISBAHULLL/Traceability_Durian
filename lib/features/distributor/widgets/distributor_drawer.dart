@@ -7,9 +7,10 @@ import '../distributor_routes.dart';
 import '../models/distributor_profile.dart';
 import '../screens/distributor_acquisition_screen.dart';
 import '../screens/distributor_active_shipments_screen.dart';
+import '../screens/distributor_audit_trail_screen.dart';
 import '../screens/distributor_history_screen.dart';
+import '../screens/distributor_horizontal_sales_screen.dart';
 import '../screens/distributor_profile_screen.dart';
-import '../screens/distributor_scan_qr_screen.dart';
 import '../screens/distributor_stock_receipt_screen.dart';
 import '../screens/distributor_warehouses_screen.dart';
 import 'distributor_avatar.dart';
@@ -58,8 +59,9 @@ class DistributorDrawer extends StatelessWidget {
                 ),
                 _DrawerItem(
                   icon: Icons.qr_code_scanner_rounded,
-                  label: 'Scan QR Pengiriman',
-                  onTap: () => _go(context, const DistributorScanQrScreen()),
+                  label: 'Scan Stok Masuk',
+                  onTap: () =>
+                      _go(context, const DistributorStockReceiptScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.warehouse_outlined,
@@ -68,8 +70,14 @@ class DistributorDrawer extends StatelessWidget {
                       _go(context, const DistributorWarehousesScreen()),
                 ),
                 _DrawerItem(
+                  icon: Icons.swap_horiz_rounded,
+                  label: 'Jual ke Distributor Lain',
+                  onTap: () =>
+                      _go(context, const DistributorHorizontalSalesScreen()),
+                ),
+                _DrawerItem(
                   icon: Icons.local_shipping_outlined,
-                  label: 'Pengiriman Aktif',
+                  label: 'Stok Masuk Aktif',
                   onTap: () =>
                       _go(context, const DistributorActiveShipmentsScreen()),
                 ),
@@ -77,6 +85,12 @@ class DistributorDrawer extends StatelessWidget {
                   icon: Icons.history_rounded,
                   label: 'Riwayat Aktivitas',
                   onTap: () => _go(context, const DistributorHistoryScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.manage_search_outlined,
+                  label: 'Audit Trail',
+                  onTap: () =>
+                      _go(context, const DistributorAuditTrailScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.person_outline_rounded,

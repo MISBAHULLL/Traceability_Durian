@@ -30,7 +30,6 @@ class DistributorReceipt {
     required this.destinationLocation,
     this.discrepancyNote,
     this.qualityNote,
-    this.temperatureCelsius,
   });
 
   final String shipmentCode;
@@ -44,7 +43,6 @@ class DistributorReceipt {
   final String destinationLocation;
   final String? discrepancyNote;
   final String? qualityNote;
-  final double? temperatureCelsius;
 
   double get weightDifferenceKg => receivedWeightKg - expectedWeightKg;
   int get fruitDifference => receivedFruitCount - expectedFruitCount;
@@ -63,7 +61,6 @@ class DistributorReceipt {
     'destinationLocation': destinationLocation,
     'discrepancyNote': discrepancyNote,
     'qualityNote': qualityNote,
-    'temperatureCelsius': temperatureCelsius,
   };
 
   factory DistributorReceipt.fromJson(Map<String, dynamic> json) {
@@ -83,7 +80,6 @@ class DistributorReceipt {
           json['destinationLocation'] as String? ?? 'Gudang Distributor',
       discrepancyNote: json['discrepancyNote'] as String?,
       qualityNote: json['qualityNote'] as String?,
-      temperatureCelsius: (json['temperatureCelsius'] as num?)?.toDouble(),
     );
   }
 }

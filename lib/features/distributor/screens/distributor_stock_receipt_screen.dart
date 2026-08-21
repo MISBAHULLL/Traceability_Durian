@@ -159,7 +159,6 @@ class _DistributorStockReceiptScreenState
 
   @override
   Widget build(BuildContext context) {
-    final pending = _repo.pendingAcquisitionTransactions;
     final readyShipments = _repo.availableCollectorAcquisitionShipments;
     final farmerBatches = _repo.availableFarmerAcquisitionBatches;
 
@@ -176,7 +175,6 @@ class _DistributorStockReceiptScreenState
                   _ReceiptSummary(
                     collectorCount: readyShipments.length,
                     farmerCount: farmerBatches.length,
-                    pendingCount: pending.length,
                   ),
                   const SizedBox(height: 14),
                   _ScanModeToggle(
@@ -232,28 +230,6 @@ class _DistributorStockReceiptScreenState
                     PrimaryPillButton(
                       label: 'CEK STOK',
                       onPressed: _handleManualSubmit,
-                    ),
-                  ],
-                  if (pending.isNotEmpty) ...[
-                    const SizedBox(height: 22),
-                    _SectionHeader(
-                      title: 'T1 Menunggu T2',
-                      count: pending.length,
-                    ),
-                    const SizedBox(height: 9),
-                    ...pending.map(
-                      (transaction) => Padding(
-                        padding: const EdgeInsets.only(bottom: 9),
-                        child: _PendingTile(
-                          transaction: transaction,
-                          onTap: () => _processCode(
-                            _ReceiptCode(
-                              source: transaction.source,
-                              value: transaction.itemCode,
-                            ),
-                          ),
-                        ),
-                      ),
                     ),
                   ],
                   const SizedBox(height: 22),
@@ -327,12 +303,10 @@ class _ReceiptSummary extends StatelessWidget {
   const _ReceiptSummary({
     required this.collectorCount,
     required this.farmerCount,
-    required this.pendingCount,
   });
 
   final int collectorCount;
   final int farmerCount;
-  final int pendingCount;
 
   @override
   Widget build(BuildContext context) {
@@ -350,10 +324,6 @@ class _ReceiptSummary extends StatelessWidget {
           Container(width: 1, height: 38, color: const Color(0xFF8BCB70)),
           Expanded(
             child: _Metric(label: 'DRN', value: '$farmerCount'),
-          ),
-          Container(width: 1, height: 38, color: const Color(0xFF8BCB70)),
-          Expanded(
-            child: _Metric(label: 'Pending T2', value: '$pendingCount'),
           ),
         ],
       ),
@@ -536,7 +506,7 @@ class _CameraScanner extends StatelessWidget {
             child: Center(
               child: _ScannerCaption(
                 text: isHandlingScan
-                    ? 'QR terbaca, menyiapkan T2...'
+                    ? 'QR terbaca, menyiapkan validasi...'
                     : 'Arahkan kamera ke QR PGL atau DRN.',
               ),
             ),
@@ -599,26 +569,6 @@ class _SectionHeader extends StatelessWidget {
           style: const TextStyle(fontSize: 11, color: AppColors.placeholder),
         ),
       ],
-    );
-  }
-}
-
-class _PendingTile extends StatelessWidget {
-  const _PendingTile({required this.transaction, required this.onTap});
-
-  final DistributorAcquisitionTransaction transaction;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return _BaseTile(
-      icon: Icons.pending_actions_outlined,
-      code: transaction.id,
-      title: '${transaction.source.label} - ${transaction.itemCode}',
-      subtitle:
-          '${transaction.itemName} / ${_formatWeight(transaction.expectedWeightKg)} / ${transaction.expectedFruitCount} butir',
-      badge: 'Lanjut T2',
-      onTap: onTap,
     );
   }
 }

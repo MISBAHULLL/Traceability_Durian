@@ -5,6 +5,8 @@ import '../../collector/models/collector_shipment_batch.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../models/distributor_acquisition_transaction.dart';
+import '../models/distributor_audit_event.dart';
+import '../models/distributor_horizontal_sale.dart';
 import '../models/distributor_profile.dart';
 import '../models/distributor_receipt.dart';
 import '../models/distributor_warehouse.dart';
@@ -42,9 +44,13 @@ class DistributorRepository extends ChangeNotifier {
   late List<DistributorAcquisitionTransaction> _acquisitionTransactions;
   late List<DistributorWarehouse> _warehouses;
   late List<DistributorWarehouseTransfer> _warehouseTransfers;
+  late List<DistributorHorizontalSale> _horizontalSales;
+  late List<DistributorAuditEvent> _auditEvents;
   late int _acquisitionTransactionCounter;
   late int _warehouseCounter;
   late int _warehouseTransferCounter;
+  late int _horizontalSaleCounter;
+  late int _auditEventCounter;
   String _currentDistributorId = _kSeedDistributorId;
 
   DistributorProfile get profile => _profile;
@@ -118,7 +124,29 @@ class DistributorRepository extends ChangeNotifier {
         LocalStorageService.loadInt('distributor_warehouse_transfer_counter') ??
         _warehouseTransfers.length;
 
-    if (warehouseJsonList == null) {
+    final horizontalSaleJsonList = LocalStorageService.loadJsonList(
+      'distributor_horizontal_sales',
+    );
+    _horizontalSales =
+        horizontalSaleJsonList
+            ?.map(DistributorHorizontalSale.fromJson)
+            .toList() ??
+        [];
+    _horizontalSaleCounter =
+        LocalStorageService.loadInt('distributor_horizontal_sale_counter') ??
+        _horizontalSales.length;
+
+    final auditJsonList = LocalStorageService.loadJsonList(
+      'distributor_audit_events',
+    );
+    _auditEvents =
+        auditJsonList?.map(DistributorAuditEvent.fromJson).toList() ??
+        _buildSeedAuditEvents();
+    _auditEventCounter =
+        LocalStorageService.loadInt('distributor_audit_event_counter') ??
+        _auditEvents.length;
+
+    if (warehouseJsonList == null || auditJsonList == null) {
       _saveToLocal();
     }
   }
@@ -157,6 +185,22 @@ class DistributorRepository extends ChangeNotifier {
       'distributor_warehouse_transfer_counter',
       _warehouseTransferCounter,
     );
+    LocalStorageService.saveJsonList(
+      'distributor_horizontal_sales',
+      _horizontalSales.map((sale) => sale.toJson()).toList(),
+    );
+    LocalStorageService.saveInt(
+      'distributor_horizontal_sale_counter',
+      _horizontalSaleCounter,
+    );
+    LocalStorageService.saveJsonList(
+      'distributor_audit_events',
+      _auditEvents.map((event) => event.toJson()).toList(),
+    );
+    LocalStorageService.saveInt(
+      'distributor_audit_event_counter',
+      _auditEventCounter,
+    );
   }
 
   /// Registrasi data distributor baru setelah mendaftar via form registrasi.
@@ -173,6 +217,12 @@ class DistributorRepository extends ChangeNotifier {
       contact: phone,
       email: email,
       location: 'Hub Baru, Indonesia',
+    );
+    _recordAudit(
+      type: DistributorAuditEventType.profile,
+      action: 'Registrasi distributor',
+      objectCode: _profile.distributorId,
+      description: 'Profil distributor ${_profile.fullName} dibuat.',
     );
     _saveToLocal();
     notifyListeners();
@@ -201,6 +251,16 @@ class DistributorRepository extends ChangeNotifier {
       address: address.trim(),
       location: location,
     );
+    _recordAudit(
+      type: DistributorAuditEventType.profile,
+      action: 'Ubah profil',
+      objectCode: _profile.distributorId,
+      description: 'Profil distributor diperbarui.',
+      metadata: {
+        'Nama': _profile.fullName,
+        'Kota': _profile.city.isEmpty ? '-' : _profile.city,
+      },
+    );
     _saveToLocal();
     notifyListeners();
     return _profile;
@@ -209,11 +269,25 @@ class DistributorRepository extends ChangeNotifier {
   /// Memperbarui foto avatar distributor.
   void updateAvatar(String? path) {
     _profile = _profile.copyWith(avatarPath: path);
+    _recordAudit(
+      type: DistributorAuditEventType.profile,
+      action: 'Ubah foto profil',
+      objectCode: _profile.distributorId,
+      description: path == null
+          ? 'Foto profil distributor dihapus.'
+          : 'Foto profil distributor diperbarui.',
+    );
     _saveToLocal();
     notifyListeners();
   }
 
   void logout() {
+    _recordAudit(
+      type: DistributorAuditEventType.session,
+      action: 'Logout',
+      objectCode: _profile.distributorId,
+      description: '${_profile.fullName} keluar dari sesi distributor.',
+    );
     _saveToLocal();
     notifyListeners();
   }
@@ -261,6 +335,73 @@ class DistributorRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
+  List<DistributorAuditEvent> get auditEvents {
+    final items = _auditEvents
+        .where((event) => event.distributorId == _currentDistributorId)
+        .toList();
+    items.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+    return List.unmodifiable(items);
+  }
+
+  List<String> get auditActors {
+    final actors = auditEvents.map((event) => event.actorName).toSet().toList();
+    actors.sort();
+    return List.unmodifiable(actors);
+  }
+
+  List<DistributorPartner> get distributorPartners => const [
+    DistributorPartner(
+      id: 'distributor-002',
+      name: 'CV Nusantara Durian',
+      city: 'Bandung',
+      address: 'Jl. Soekarno Hatta No. 88, Bandung',
+    ),
+    DistributorPartner(
+      id: 'distributor-003',
+      name: 'Makassar Fruit Hub',
+      city: 'Makassar',
+      address: 'Pergudangan Parangloe Blok B2, Makassar',
+    ),
+    DistributorPartner(
+      id: 'distributor-004',
+      name: 'Medan Durian Sentra',
+      city: 'Medan',
+      address: 'Jl. Gatot Subroto No. 41, Medan',
+    ),
+  ];
+
+  List<DistributorHorizontalSale> get horizontalSales {
+    final items = _horizontalSales
+        .where((sale) => sale.sellerDistributorId == _currentDistributorId)
+        .toList();
+    items.sort((a, b) => b.initiatedAt.compareTo(a.initiatedAt));
+    return List.unmodifiable(items);
+  }
+
+  List<DistributorHorizontalSale> get pendingHorizontalSales {
+    return List.unmodifiable(
+      horizontalSales.where(
+        (sale) => sale.status == DistributorHorizontalSaleStatus.initiated,
+      ),
+    );
+  }
+
+  DistributorHorizontalSale? findHorizontalSale(String id) {
+    try {
+      return horizontalSales.firstWhere((sale) => sale.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  DistributorPartner? _findDistributorPartner(String id) {
+    try {
+      return distributorPartners.firstWhere((partner) => partner.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
   DistributorWarehouse createWarehouse({
     required String name,
     required String location,
@@ -281,6 +422,16 @@ class DistributorRepository extends ChangeNotifier {
           .toList();
     }
     _warehouses.add(warehouse);
+    _recordAudit(
+      type: DistributorAuditEventType.warehouse,
+      action: 'Tambah gudang',
+      objectCode: warehouse.id,
+      description: 'Gudang ${warehouse.name} ditambahkan.',
+      metadata: {
+        'Lokasi': warehouse.location,
+        'Default': warehouse.isDefault ? 'Ya' : 'Tidak',
+      },
+    );
     _saveToLocal();
     notifyListeners();
     return warehouse;
@@ -310,6 +461,16 @@ class DistributorRepository extends ChangeNotifier {
       isDefault: setAsDefault ? true : existing.isDefault,
       createdAt: existing.createdAt,
     );
+    _recordAudit(
+      type: DistributorAuditEventType.warehouse,
+      action: 'Ubah gudang',
+      objectCode: existing.id,
+      description: 'Gudang ${_warehouses[index].name} diperbarui.',
+      metadata: {
+        'Lokasi': _warehouses[index].location,
+        'Default': _warehouses[index].isDefault ? 'Ya' : 'Tidak',
+      },
+    );
     _saveToLocal();
     notifyListeners();
     return true;
@@ -329,6 +490,13 @@ class DistributorRepository extends ChangeNotifier {
     if (removed.isDefault && _warehouses.isNotEmpty) {
       _warehouses[0] = _warehouses[0].copyWith(isDefault: true);
     }
+    _recordAudit(
+      type: DistributorAuditEventType.warehouse,
+      action: 'Hapus gudang',
+      objectCode: removed.id,
+      description: 'Gudang ${removed.name} dihapus.',
+      metadata: {'Lokasi': removed.location},
+    );
     _saveToLocal();
     notifyListeners();
     return true;
@@ -363,15 +531,175 @@ class DistributorRepository extends ChangeNotifier {
       note: note?.trim().isEmpty == true ? null : note?.trim(),
     );
     _warehouseTransfers.add(transfer);
+    _recordAudit(
+      type: DistributorAuditEventType.transfer,
+      action: 'Transfer gudang',
+      objectCode: transfer.id,
+      description:
+          'Transfer internal ${transfer.itemCode} dari ${warehouseLabel(transfer.fromWarehouseId)} ke ${warehouseLabel(transfer.toWarehouseId)}.',
+      metadata: {
+        'Berat': '${transfer.weightKg} kg',
+        'Jumlah': '${transfer.fruitCount} butir',
+      },
+    );
     _saveToLocal();
     notifyListeners();
     return transfer;
+  }
+
+  DistributorHorizontalSale? initiateHorizontalSale({
+    required String buyerDistributorId,
+    required String sourceWarehouseId,
+    required String itemCode,
+    required double expectedWeightKg,
+    required int expectedFruitCount,
+    required String destinationLocation,
+    String? qualityNote,
+  }) {
+    final buyer = _findDistributorPartner(buyerDistributorId);
+    final warehouse = findWarehouse(sourceWarehouseId);
+    final cleanCode = itemCode.trim().toUpperCase();
+    final cleanDestination = destinationLocation.trim();
+    if (buyer == null ||
+        warehouse == null ||
+        cleanCode.isEmpty ||
+        cleanDestination.isEmpty ||
+        expectedWeightKg <= 0 ||
+        expectedFruitCount <= 0) {
+      return null;
+    }
+
+    final sale = DistributorHorizontalSale(
+      id: _generateHorizontalSaleId(),
+      sellerDistributorId: _currentDistributorId,
+      sellerName: _profile.businessName.isEmpty
+          ? _profile.fullName
+          : _profile.businessName,
+      buyerDistributorId: buyer.id,
+      buyerName: buyer.name,
+      sourceWarehouseId: warehouse.id,
+      sourceWarehouseName: warehouse.name,
+      destinationLocation: cleanDestination,
+      itemCode: cleanCode,
+      expectedWeightKg: expectedWeightKg,
+      expectedFruitCount: expectedFruitCount,
+      initiatedAt: DateTime.now(),
+      status: DistributorHorizontalSaleStatus.initiated,
+      qualityNote: qualityNote?.trim().isEmpty == true
+          ? null
+          : qualityNote?.trim(),
+    );
+    _horizontalSales.add(sale);
+    _recordAudit(
+      type: DistributorAuditEventType.sale,
+      action: 'Buat T1 jual distributor',
+      objectCode: sale.id,
+      description:
+          '${sale.itemCode} dijual dari ${sale.sourceWarehouseName} ke ${sale.buyerName}.',
+      metadata: {
+        'Tujuan': sale.destinationLocation,
+        'Berat': '${sale.expectedWeightKg} kg',
+        'Jumlah': '${sale.expectedFruitCount} butir',
+      },
+    );
+    _saveToLocal();
+    notifyListeners();
+    return sale;
+  }
+
+  bool verifyHorizontalSale({
+    required String saleId,
+    required double receivedWeightKg,
+    required int receivedFruitCount,
+    required DistributorReceiptCondition condition,
+    String? discrepancyNote,
+    String? qualityNote,
+  }) {
+    final index = _horizontalSales.indexWhere(
+      (sale) =>
+          sale.id == saleId &&
+          sale.sellerDistributorId == _currentDistributorId &&
+          sale.status == DistributorHorizontalSaleStatus.initiated,
+    );
+    if (index == -1 || receivedWeightKg <= 0 || receivedFruitCount <= 0) {
+      return false;
+    }
+
+    final sale = _horizontalSales[index];
+    final hasDiscrepancy =
+        (receivedWeightKg - sale.expectedWeightKg).abs() > 0.01 ||
+        receivedFruitCount != sale.expectedFruitCount;
+    final cleanDiscrepancy = discrepancyNote?.trim();
+    if (hasDiscrepancy &&
+        (cleanDiscrepancy == null || cleanDiscrepancy.isEmpty)) {
+      return false;
+    }
+
+    final cleanQuality = qualityNote?.trim();
+    _horizontalSales[index] = sale.copyWith(
+      status: DistributorHorizontalSaleStatus.verified,
+      verifiedAt: DateTime.now(),
+      receivedWeightKg: receivedWeightKg,
+      receivedFruitCount: receivedFruitCount,
+      condition: condition,
+      discrepancyNote: cleanDiscrepancy?.isEmpty == true
+          ? null
+          : cleanDiscrepancy,
+      qualityNote: cleanQuality?.isEmpty == true ? null : cleanQuality,
+    );
+    _recordAudit(
+      type: DistributorAuditEventType.sale,
+      action: 'Validasi T2 jual distributor',
+      objectCode: sale.id,
+      description:
+          '${sale.itemCode} diterima ${sale.buyerName} di ${sale.destinationLocation}.',
+      metadata: {
+        'Kondisi': condition.label,
+        'Berat diterima': '$receivedWeightKg kg',
+        'Jumlah diterima': '$receivedFruitCount butir',
+      },
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  bool rejectHorizontalSale({required String saleId, required String note}) {
+    final cleanNote = note.trim();
+    final index = _horizontalSales.indexWhere(
+      (sale) =>
+          sale.id == saleId &&
+          sale.sellerDistributorId == _currentDistributorId &&
+          sale.status == DistributorHorizontalSaleStatus.initiated,
+    );
+    if (index == -1 || cleanNote.isEmpty) return false;
+
+    final sale = _horizontalSales[index];
+    _horizontalSales[index] = sale.copyWith(
+      status: DistributorHorizontalSaleStatus.rejected,
+      verifiedAt: DateTime.now(),
+      rejectionNote: cleanNote,
+    );
+    _recordAudit(
+      type: DistributorAuditEventType.sale,
+      action: 'Tolak jual distributor',
+      objectCode: sale.id,
+      description: '${sale.itemCode} ke ${sale.buyerName} ditolak.',
+      metadata: {'Alasan': cleanNote},
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
   }
 
   // [FE - State Management] Batch DRN yang masih CREATED menjadi kandidat
   // pembelian langsung distributor dari petani, mengikuti pintu T1 pengepul.
   List<HarvestBatch> get availableFarmerAcquisitionBatches =>
       FarmerRepository.instance.batchesForCollectorVerification;
+
+  HarvestBatch? findFarmerAcquisitionBatch(String code) {
+    return FarmerRepository.instance.findPublicBatch(code);
+  }
 
   // [FE - State Management] Manifest PGL siap diambil menjadi kandidat
   // pembelian distributor dari pengepul.
@@ -433,6 +761,18 @@ class DistributorRepository extends ChangeNotifier {
       status: DistributorAcquisitionStatus.initiated,
     );
     _acquisitionTransactions.add(transaction);
+    _recordAudit(
+      type: DistributorAuditEventType.acquisition,
+      action: 'Mulai akuisisi PGL',
+      objectCode: transaction.itemCode,
+      description:
+          'Scan/validasi awal manifest ${transaction.itemCode} dari pengepul ${transaction.supplierLabel}.',
+      metadata: {
+        'Transaksi': transaction.id,
+        'Berat': '${transaction.expectedWeightKg} kg',
+        'Jumlah': '${transaction.expectedFruitCount} butir',
+      },
+    );
     _saveToLocal();
     notifyListeners();
     return transaction;
@@ -466,6 +806,18 @@ class DistributorRepository extends ChangeNotifier {
       status: DistributorAcquisitionStatus.initiated,
     );
     _acquisitionTransactions.add(transaction);
+    _recordAudit(
+      type: DistributorAuditEventType.acquisition,
+      action: 'Mulai akuisisi DRN',
+      objectCode: transaction.itemCode,
+      description:
+          'Scan/validasi awal batch ${transaction.itemCode} dari ${transaction.supplierLabel}.',
+      metadata: {
+        'Transaksi': transaction.id,
+        'Kebun': transaction.originLabel,
+        'Berat': '${transaction.expectedWeightKg} kg',
+      },
+    );
     _saveToLocal();
     notifyListeners();
     return transaction;
@@ -545,7 +897,7 @@ class DistributorRepository extends ChangeNotifier {
       .where((e) => e.status == CollectorShipmentStatus.completed)
       .length;
 
-  /// Daftar pengiriman aktif (Status = Transit / Sent)
+  /// Daftar PGL yang sudah berstatus sent dan masih perlu receipt.
   List<CollectorShipmentBatch> get activeShipments =>
       allShipments
           .where((e) => e.status == CollectorShipmentStatus.sent)
@@ -574,6 +926,14 @@ class DistributorRepository extends ChangeNotifier {
     try {
       final success = CollectorRepository.instance.markShipmentSent(code);
       if (success) {
+        _recordAudit(
+          type: DistributorAuditEventType.acquisition,
+          action: 'Tandai PGL perlu receipt',
+          objectCode: code,
+          description:
+              'Manifest $code ditandai siap masuk receipt penerimaan distributor.',
+        );
+        _saveToLocal();
         notifyListeners();
         return true;
       }
@@ -591,13 +951,11 @@ class DistributorRepository extends ChangeNotifier {
     required String destinationLocation,
     String? discrepancyNote,
     String? qualityNote,
-    double? temperatureCelsius,
   }) {
     final transaction = findAcquisitionTransaction(transactionId);
     if (transaction == null ||
         transaction.status != DistributorAcquisitionStatus.initiated ||
-        transaction.source != DistributorAcquisitionSource.collector ||
-        !_isValidReceiptTemperature(temperatureCelsius)) {
+        transaction.source != DistributorAcquisitionSource.collector) {
       return null;
     }
 
@@ -620,7 +978,6 @@ class DistributorRepository extends ChangeNotifier {
       destinationLocation: destinationLocation,
       discrepancyNote: discrepancyNote,
       qualityNote: qualityNote,
-      temperatureCelsius: temperatureCelsius,
     );
     if (receipt == null) return null;
 
@@ -629,7 +986,19 @@ class DistributorRepository extends ChangeNotifier {
       status: DistributorAcquisitionStatus.verified,
       note: qualityNote,
       destinationLocation: destinationLocation,
-      temperatureCelsius: temperatureCelsius,
+    );
+    _recordAudit(
+      type: DistributorAuditEventType.acquisition,
+      action: 'Validasi penerimaan PGL',
+      objectCode: transaction.itemCode,
+      description:
+          'Manifest ${transaction.itemCode} selesai divalidasi ke ${receipt.destinationLocation}.',
+      metadata: {
+        'Transaksi': transaction.id,
+        'Kondisi': receipt.condition.label,
+        'Berat diterima': '${receipt.receivedWeightKg} kg',
+        'Jumlah diterima': '${receipt.receivedFruitCount} butir',
+      },
     );
     _saveToLocal();
     notifyListeners();
@@ -645,7 +1014,6 @@ class DistributorRepository extends ChangeNotifier {
     required List<BatchGradeBreakdown> gradeBreakdown,
     required String destinationLocation,
     String? qualityNote,
-    double? temperatureCelsius,
   }) {
     final cleanDestination = destinationLocation.trim();
     final transaction = findAcquisitionTransaction(transactionId);
@@ -653,7 +1021,6 @@ class DistributorRepository extends ChangeNotifier {
         transaction.status != DistributorAcquisitionStatus.initiated ||
         transaction.source != DistributorAcquisitionSource.farmer ||
         cleanDestination.isEmpty ||
-        !_isValidReceiptTemperature(temperatureCelsius) ||
         receivedWeightKg <= 0 ||
         receivedFruitCount <= 0) {
       return false;
@@ -697,7 +1064,18 @@ class DistributorRepository extends ChangeNotifier {
       status: DistributorAcquisitionStatus.verified,
       note: qualityNote,
       destinationLocation: cleanDestination,
-      temperatureCelsius: temperatureCelsius,
+    );
+    _recordAudit(
+      type: DistributorAuditEventType.acquisition,
+      action: 'Validasi penerimaan DRN',
+      objectCode: transaction.itemCode,
+      description:
+          'Batch ${transaction.itemCode} selesai divalidasi ke $cleanDestination.',
+      metadata: {
+        'Transaksi': transaction.id,
+        'Berat diterima': '$receivedWeightKg kg',
+        'Jumlah diterima': '$receivedFruitCount butir',
+      },
     );
     _saveToLocal();
     notifyListeners();
@@ -731,6 +1109,13 @@ class DistributorRepository extends ChangeNotifier {
       status: DistributorAcquisitionStatus.rejected,
       note: cleanNote,
     );
+    _recordAudit(
+      type: DistributorAuditEventType.acquisition,
+      action: 'Tolak akuisisi',
+      objectCode: transaction.itemCode,
+      description: 'Akuisisi ${transaction.itemCode} ditolak.',
+      metadata: {'Transaksi': transaction.id, 'Alasan': cleanNote},
+    );
     _saveToLocal();
     notifyListeners();
     return true;
@@ -746,14 +1131,12 @@ class DistributorRepository extends ChangeNotifier {
     required String destinationLocation,
     String? discrepancyNote,
     String? qualityNote,
-    double? temperatureCelsius,
   }) {
     final cleanDestination = destinationLocation.trim();
     final shipment = findShipment(code);
     if (shipment == null ||
         shipment.status != CollectorShipmentStatus.sent ||
         cleanDestination.isEmpty ||
-        !_isValidReceiptTemperature(temperatureCelsius) ||
         receivedWeightKg <= 0 ||
         receivedFruitCount <= 0 ||
         receiptForShipment(code) != null) {
@@ -793,9 +1176,20 @@ class DistributorRepository extends ChangeNotifier {
           ? null
           : cleanDiscrepancyNote,
       qualityNote: cleanQualityNote?.isEmpty == true ? null : cleanQualityNote,
-      temperatureCelsius: temperatureCelsius,
     );
     _receipts.add(receipt);
+    _recordAudit(
+      type: DistributorAuditEventType.receipt,
+      action: 'Buat receipt',
+      objectCode: receipt.shipmentCode,
+      description:
+          'Receipt ${receipt.shipmentCode} dibuat di ${receipt.destinationLocation}.',
+      metadata: {
+        'Kondisi': receipt.condition.label,
+        'Berat diterima': '${receipt.receivedWeightKg} kg',
+        'Jumlah diterima': '${receipt.receivedFruitCount} butir',
+      },
+    );
     _saveToLocal();
     notifyListeners();
     return receipt;
@@ -823,8 +1217,33 @@ class DistributorRepository extends ChangeNotifier {
     return 'WH-DST-$_currentDistributorId-$seq';
   }
 
-  bool _isValidReceiptTemperature(double? value) {
-    return value == null || (value >= -30 && value <= 60);
+  void _recordAudit({
+    required DistributorAuditEventType type,
+    required String action,
+    required String objectCode,
+    required String description,
+    Map<String, String> metadata = const {},
+    DateTime? occurredAt,
+  }) {
+    _auditEventCounter++;
+    final seq = _auditEventCounter.toString().padLeft(6, '0');
+    final event = DistributorAuditEvent(
+      id: 'AUD-DST-$seq',
+      distributorId: _currentDistributorId,
+      actorId: _profile.distributorId,
+      actorName: _profile.fullName,
+      actorRole: _profile.roleLabel,
+      type: type,
+      action: action,
+      objectCode: objectCode,
+      description: description,
+      occurredAt: occurredAt ?? DateTime.now(),
+      metadata: metadata,
+    );
+    _auditEvents.add(event);
+    if (_auditEvents.length > 300) {
+      _auditEvents = _auditEvents.skip(_auditEvents.length - 300).toList();
+    }
   }
 
   String _generateWarehouseTransferId() {
@@ -832,6 +1251,13 @@ class DistributorRepository extends ChangeNotifier {
     final year = DateTime.now().year;
     final seq = _warehouseTransferCounter.toString().padLeft(6, '0');
     return 'TRF-DST-$year-$seq';
+  }
+
+  String _generateHorizontalSaleId() {
+    _horizontalSaleCounter++;
+    final year = DateTime.now().year;
+    final seq = _horizontalSaleCounter.toString().padLeft(6, '0');
+    return 'JDL-DST-$year-$seq';
   }
 
   static List<DistributorWarehouse> _buildSeedWarehouses() {
@@ -854,6 +1280,125 @@ class DistributorRepository extends ChangeNotifier {
     ];
   }
 
+  List<DistributorAuditEvent> _buildSeedAuditEvents() {
+    final events = <DistributorAuditEvent>[];
+    var counter = 0;
+
+    DistributorAuditEvent event({
+      required DistributorAuditEventType type,
+      required String action,
+      required String objectCode,
+      required String description,
+      required DateTime occurredAt,
+      Map<String, String> metadata = const {},
+    }) {
+      counter++;
+      return DistributorAuditEvent(
+        id: 'AUD-DST-${counter.toString().padLeft(6, '0')}',
+        distributorId: _currentDistributorId,
+        actorId: _profile.distributorId,
+        actorName: _profile.fullName,
+        actorRole: _profile.roleLabel,
+        type: type,
+        action: action,
+        objectCode: objectCode,
+        description: description,
+        occurredAt: occurredAt,
+        metadata: metadata,
+      );
+    }
+
+    for (final warehouse in _warehouses) {
+      events.add(
+        event(
+          type: DistributorAuditEventType.warehouse,
+          action: 'Seed gudang',
+          objectCode: warehouse.id,
+          description: 'Gudang ${warehouse.name} tersedia di data awal.',
+          occurredAt: warehouse.createdAt ?? DateTime(2026, 1, 1),
+          metadata: {'Lokasi': warehouse.location},
+        ),
+      );
+    }
+
+    for (final transfer in _warehouseTransfers) {
+      events.add(
+        event(
+          type: DistributorAuditEventType.transfer,
+          action: 'Transfer gudang',
+          objectCode: transfer.id,
+          description:
+              'Transfer internal ${transfer.itemCode} dari ${warehouseLabel(transfer.fromWarehouseId)} ke ${warehouseLabel(transfer.toWarehouseId)}.',
+          occurredAt: transfer.transferredAt,
+          metadata: {
+            'Berat': '${transfer.weightKg} kg',
+            'Jumlah': '${transfer.fruitCount} butir',
+          },
+        ),
+      );
+    }
+
+    for (final transaction in _acquisitionTransactions) {
+      events.add(
+        event(
+          type: DistributorAuditEventType.acquisition,
+          action: transaction.status == DistributorAcquisitionStatus.initiated
+              ? 'Validasi belum disimpan'
+              : 'Akuisisi ${transaction.status.label}',
+          objectCode: transaction.itemCode,
+          description:
+              '${transaction.source.label} ${transaction.itemCode} tercatat sebagai ${transaction.status.label}.',
+          occurredAt: transaction.closedAt ?? transaction.initiatedAt,
+          metadata: {
+            'Transaksi': transaction.id,
+            'Supplier': transaction.supplierLabel,
+          },
+        ),
+      );
+    }
+
+    for (final sale in _horizontalSales) {
+      events.add(
+        event(
+          type: DistributorAuditEventType.sale,
+          action: sale.status == DistributorHorizontalSaleStatus.initiated
+              ? 'T1 jual distributor'
+              : 'Jual distributor ${sale.status.label}',
+          objectCode: sale.id,
+          description:
+              '${sale.itemCode} dari ${sale.sourceWarehouseName} ke ${sale.buyerName}.',
+          occurredAt: sale.verifiedAt ?? sale.initiatedAt,
+          metadata: {
+            'Tujuan': sale.destinationLocation,
+            'Berat': '${sale.expectedWeightKg} kg',
+            'Jumlah': '${sale.expectedFruitCount} butir',
+          },
+        ),
+      );
+    }
+
+    for (final receipt in _receipts) {
+      events.add(
+        event(
+          type: DistributorAuditEventType.receipt,
+          action: 'Buat receipt',
+          objectCode: receipt.shipmentCode,
+          description:
+              'Receipt ${receipt.shipmentCode} dibuat di ${receipt.destinationLocation}.',
+          occurredAt: receipt.receivedAt,
+          metadata: {
+            'Kondisi': receipt.condition.label,
+            'Berat diterima': '${receipt.receivedWeightKg} kg',
+            'Jumlah diterima': '${receipt.receivedFruitCount} butir',
+          },
+        ),
+      );
+    }
+
+    events.sort((a, b) => a.occurredAt.compareTo(b.occurredAt));
+    return events;
+  }
+
   String _generateAcquisitionTransactionId() {
     _acquisitionTransactionCounter++;
     final year = DateTime.now().year;
@@ -866,7 +1411,6 @@ class DistributorRepository extends ChangeNotifier {
     required DistributorAcquisitionStatus status,
     String? note,
     String? destinationLocation,
-    double? temperatureCelsius,
   }) {
     final index = _acquisitionTransactions.indexWhere(
       (item) =>
@@ -882,7 +1426,6 @@ class DistributorRepository extends ChangeNotifier {
       destinationLocation: destinationLocation?.trim().isEmpty == true
           ? null
           : destinationLocation?.trim(),
-      temperatureCelsius: temperatureCelsius,
     );
   }
 }

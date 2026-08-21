@@ -466,6 +466,16 @@ class FarmerRepository extends ChangeNotifier {
     }
   }
 
+  // [FE - State Management] Lookup kebun publik untuk halaman trace QR.
+  // Tidak membuka aksi edit; hanya dipakai membaca asal geografis batch.
+  Farm? findPublicFarm(String id) {
+    try {
+      return _farms.firstWhere((f) => f.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── Pembuatan kode batch (Req 2.7) ─────────────────────────────────────────
 
   // [UTIL - Helper Function] generateBatchCode menghasilkan kode unik

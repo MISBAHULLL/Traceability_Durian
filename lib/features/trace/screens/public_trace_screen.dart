@@ -3,8 +3,13 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/batch_photo.dart';
+import '../../../shared/widgets/osm_map_preview.dart';
+import '../../collector/data/collector_repository.dart';
+import '../../collector/models/collector_shipment_batch.dart';
+import '../../farmer/data/cahyadsn_region_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/batch_event.dart';
+import '../../farmer/models/farm.dart';
 import '../../farmer/models/harvest_batch.dart';
 
 // [FE - Component Rendering] Screen ini menjadi halaman trace publik yang
@@ -20,21 +25,239 @@ class PublicTraceScreen extends StatefulWidget {
 
 class _PublicTraceScreenState extends State<PublicTraceScreen> {
   final _repo = FarmerRepository.instance;
+  final _collectorRepo = CollectorRepository.instance;
+  final _regionService = CahyadsnRegionService.instance;
+  var _routeLoadSerial = 0;
+  var _routeLoading = true;
+  List<_TraceStop> _routeStops = const [];
 
   @override
   void initState() {
     super.initState();
     _repo.addListener(_onRepoChanged);
+    _collectorRepo.addListener(_onRepoChanged);
+    _loadRouteStops();
   }
 
   @override
   void dispose() {
     _repo.removeListener(_onRepoChanged);
+    _collectorRepo.removeListener(_onRepoChanged);
     super.dispose();
   }
 
   void _onRepoChanged() {
     if (mounted) setState(() {});
+    _loadRouteStops();
+  }
+
+  Future<void> _loadRouteStops() async {
+    final serial = ++_routeLoadSerial;
+    if (mounted) setState(() => _routeLoading = true);
+
+    final batch = _repo.findPublicBatch(widget.batchCode);
+    if (batch == null) {
+      if (!mounted || serial != _routeLoadSerial) return;
+      setState(() {
+        _routeStops = const [];
+        _routeLoading = false;
+      });
+      return;
+    }
+
+    await _regionService.load();
+    final events = _repo.publicEventsFor(batch.code);
+    final stops = <_TraceStop>[];
+    final createdEvent = _eventForStatus(events, BatchStatus.created);
+    final farm = _repo.findPublicFarm(batch.farmId);
+
+    stops.add(
+      _TraceStop(
+        title: 'Petani',
+        actorLabel: createdEvent?.actorLabel ?? 'Petani',
+        locationName: batch.farmName,
+        address: _farmAddress(farm),
+        timestamp:
+            createdEvent?.timestamp ?? batch.createdAt ?? batch.harvestDate,
+        description: 'Batch dibuat dan QR trace diterbitkan.',
+        point: await _pointForFarm(farm),
+      ),
+    );
+
+    final verifiedEvent =
+        _eventForStatus(events, BatchStatus.verifiedByCollector) ??
+        _eventByTitle(events, 'Terverifikasi Pengepul');
+    final shouldShowCollector =
+        verifiedEvent != null ||
+        batch.verifiedAt != null ||
+        batch.warehouseId?.trim().isNotEmpty == true;
+    if (shouldShowCollector) {
+      final warehouse = _collectorRepo.findWarehouse(batch.warehouseId);
+      final collectorAddress = warehouse?.location.trim().isNotEmpty == true
+          ? warehouse!.location.trim()
+          : _collectorAddress;
+      final collectorName = batch.verifiedBy?.trim().isNotEmpty == true
+          ? batch.verifiedBy!.trim()
+          : _collectorRepo.profile.businessName;
+      stops.add(
+        _TraceStop(
+          title: 'Pengepul',
+          actorLabel: 'Pengepul - $collectorName',
+          locationName: warehouse?.name ?? _collectorRepo.profile.businessName,
+          address: collectorAddress,
+          timestamp:
+              verifiedEvent?.timestamp ??
+              batch.verifiedAt ??
+              (batch.createdAt ?? batch.harvestDate).add(
+                const Duration(days: 1),
+              ),
+          description:
+              'Stok diterima, ditimbang, dan kondisi durian diperiksa.',
+          point: await _pointForAddress(collectorAddress),
+        ),
+      );
+    }
+
+    final shipment = _shipmentForBatch(batch.code);
+    if (shipment != null) {
+      final destinationAddress = shipment.destinationLocation?.trim() ?? '';
+      final destinationName =
+          shipment.destinationName?.trim().isNotEmpty == true
+          ? shipment.destinationName!.trim()
+          : shipment.destinationType.label;
+      stops.add(
+        _TraceStop(
+          title: shipment.destinationType.label,
+          actorLabel: '${shipment.destinationType.label} - $destinationName',
+          locationName: destinationName,
+          address: destinationAddress.isEmpty
+              ? 'Alamat tujuan belum dicatat'
+              : destinationAddress,
+          timestamp:
+              shipment.completedAt ?? shipment.sentAt ?? shipment.packagedAt,
+          description: _shipmentDescription(shipment),
+          point: await _pointForAddress(destinationAddress),
+        ),
+      );
+    }
+
+    if (!mounted || serial != _routeLoadSerial) return;
+    setState(() {
+      _routeStops = List.unmodifiable(stops);
+      _routeLoading = false;
+    });
+  }
+
+  BatchEvent? _eventForStatus(List<BatchEvent> events, BatchStatus status) {
+    for (final event in events) {
+      if (event.status == status) return event;
+    }
+    return null;
+  }
+
+  BatchEvent? _eventByTitle(List<BatchEvent> events, String title) {
+    for (final event in events) {
+      if (event.title == title) return event;
+    }
+    return null;
+  }
+
+  CollectorShipmentBatch? _shipmentForBatch(String batchCode) {
+    try {
+      return _collectorRepo.allShipmentBatches.firstWhere(
+        (shipment) => shipment.sourceBatchCodes.contains(batchCode),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String get _collectorAddress {
+    final profile = _collectorRepo.profile;
+    final parts = [
+      profile.address,
+      profile.village,
+      profile.district,
+      profile.city,
+      profile.location,
+    ].where((value) => value.trim().isNotEmpty).toList();
+    return parts.isEmpty ? 'Alamat pengepul belum dicatat' : parts.join(', ');
+  }
+
+  String _farmAddress(Farm? farm) {
+    if (farm == null) return 'Alamat kebun belum ditemukan';
+    final parts = [
+      farm.address,
+      farm.village,
+      farm.district,
+      farm.city,
+      farm.province,
+    ].where((value) => value.trim().isNotEmpty).toList();
+    return parts.isEmpty ? 'Alamat kebun belum dilengkapi' : parts.join(', ');
+  }
+
+  String _shipmentDescription(CollectorShipmentBatch shipment) {
+    return switch (shipment.status) {
+      CollectorShipmentStatus.readyToShip =>
+        'Batch sudah dikemas dan menunggu pengiriman.',
+      CollectorShipmentStatus.sent =>
+        'Batch sedang dikirim ke tujuan berikutnya.',
+      CollectorShipmentStatus.completed =>
+        'Batch sudah diterima di tujuan berikutnya.',
+    };
+  }
+
+  Future<OsmMapPoint?> _pointForFarm(Farm? farm) async {
+    if (farm == null) return null;
+    if (farm.latitude != null && farm.longitude != null) {
+      return OsmMapPoint(farm.latitude!, farm.longitude!);
+    }
+
+    final query = _farmAddress(farm);
+    final exact = await _regionService.findAddress(query);
+    if (exact != null) return OsmMapPoint(exact.latitude, exact.longitude);
+
+    final regionCode = _resolveRegionCode(farm);
+    final boundary = await _regionService.loadBoundaryFor(regionCode);
+    if (boundary != null) {
+      return OsmMapPoint(boundary.latitude, boundary.longitude);
+    }
+    final region = _regionService.mapForClosest(regionCode);
+    if (region != null) return OsmMapPoint(region.latitude, region.longitude);
+    return null;
+  }
+
+  Future<OsmMapPoint?> _pointForAddress(String address) async {
+    if (address.trim().isEmpty) return null;
+    final result = await _regionService.findAddress(address);
+    if (result == null) return null;
+    return OsmMapPoint(result.latitude, result.longitude);
+  }
+
+  String? _resolveRegionCode(Farm farm) {
+    final province = _regionService.findExact(
+      _regionService.provinces,
+      farm.province,
+    );
+    if (province == null) return null;
+
+    final city = _regionService.findExact(
+      _regionService.childrenOf(province.code),
+      farm.city,
+    );
+    if (city == null) return province.code;
+
+    final district = _regionService.findExact(
+      _regionService.childrenOf(city.code),
+      farm.district,
+    );
+    if (district == null) return city.code;
+
+    final village = _regionService.findExact(
+      _regionService.childrenOf(district.code),
+      farm.village,
+    );
+    return village?.code ?? district.code;
   }
 
   @override
@@ -52,7 +275,8 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
                   ? _TraceNotFound(batchCode: widget.batchCode)
                   : _TraceContent(
                       batch: batch,
-                      events: _repo.publicEventsFor(batch.code),
+                      routeStops: _routeStops,
+                      routeLoading: _routeLoading,
                     ),
             ),
           ],
@@ -63,10 +287,15 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
 }
 
 class _TraceContent extends StatelessWidget {
-  const _TraceContent({required this.batch, required this.events});
+  const _TraceContent({
+    required this.batch,
+    required this.routeStops,
+    required this.routeLoading,
+  });
 
   final HarvestBatch batch;
-  final List<BatchEvent> events;
+  final List<_TraceStop> routeStops;
+  final bool routeLoading;
 
   String _formatDate(DateTime d) {
     const months = [
@@ -102,6 +331,8 @@ class _TraceContent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _TraceStatusHeader(batch: batch),
+          const SizedBox(height: 16),
+          _TraceRouteMap(stops: routeStops, loading: routeLoading),
           const SizedBox(height: 16),
           if (hasPhoto) ...[
             BatchPhoto(
@@ -218,7 +449,6 @@ class _TraceContent extends StatelessWidget {
             ),
             const SizedBox(height: 16),
           ],
-          _TraceTimeline(status: batch.status, events: events),
         ],
       ),
     );
@@ -229,6 +459,319 @@ class _TraceContent extends StatelessWidget {
             batch.storageSuggestion!.isNotEmpty) ||
         (batch.notes != null && batch.notes!.isNotEmpty) ||
         (batch.qualityNotes != null && batch.qualityNotes!.isNotEmpty);
+  }
+}
+
+class _TraceStop {
+  const _TraceStop({
+    required this.title,
+    required this.actorLabel,
+    required this.locationName,
+    required this.address,
+    required this.timestamp,
+    required this.description,
+    this.point,
+  });
+
+  final String title;
+  final String actorLabel;
+  final String locationName;
+  final String address;
+  final DateTime timestamp;
+  final String description;
+  final OsmMapPoint? point;
+}
+
+class _TraceRouteMap extends StatelessWidget {
+  const _TraceRouteMap({required this.stops, required this.loading});
+
+  final List<_TraceStop> stops;
+  final bool loading;
+
+  List<_TraceStop> get _mappedStops =>
+      stops.where((stop) => stop.point != null).toList();
+
+  OsmMapPoint get _center {
+    final mapped = _mappedStops;
+    if (mapped.isEmpty) return const OsmMapPoint(-2.5, 118);
+    final totalLatitude = mapped.fold<double>(
+      0,
+      (total, stop) => total + stop.point!.latitude,
+    );
+    final totalLongitude = mapped.fold<double>(
+      0,
+      (total, stop) => total + stop.point!.longitude,
+    );
+    return OsmMapPoint(
+      totalLatitude / mapped.length,
+      totalLongitude / mapped.length,
+    );
+  }
+
+  int get _zoom {
+    final mapped = _mappedStops;
+    if (mapped.length <= 1) return 11;
+    final latitudes = mapped.map((stop) => stop.point!.latitude).toList();
+    final longitudes = mapped.map((stop) => stop.point!.longitude).toList();
+    final latRange =
+        latitudes.reduce((a, b) => a > b ? a : b) -
+        latitudes.reduce((a, b) => a < b ? a : b);
+    final lonRange =
+        longitudes.reduce((a, b) => a > b ? a : b) -
+        longitudes.reduce((a, b) => a < b ? a : b);
+    final range = latRange > lonRange ? latRange : lonRange;
+    if (range <= 0.05) return 13;
+    if (range <= 0.2) return 11;
+    if (range <= 1) return 9;
+    if (range <= 3) return 8;
+    if (range <= 8) return 6;
+    return 5;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mapped = _mappedStops;
+    final route = mapped.map((stop) => stop.point!).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Peta Perjalanan',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: AppColors.black,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          height: 220,
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6EE),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFD1E8CC)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: OsmMapPreview(
+                  center: _center,
+                  initialZoom: _zoom,
+                  markers: [
+                    for (var i = 0; i < mapped.length; i++)
+                      OsmMapMarker(
+                        point: mapped[i].point!,
+                        label: '${stops.indexOf(mapped[i]) + 1}',
+                        color: i == 0
+                            ? AppColors.primaryContainer
+                            : const Color(0xFFE85D32),
+                      ),
+                  ],
+                  route: route,
+                ),
+              ),
+              if (loading)
+                const Positioned.fill(
+                  child: ColoredBox(
+                    color: Color(0x55FFFFFF),
+                    child: Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primaryContainer,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                right: 6,
+                bottom: 5,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.88),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    child: Text(
+                      '(c) OpenStreetMap',
+                      style: TextStyle(fontSize: 9, color: AppColors.subtitle),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (stops.isEmpty && !loading)
+          const Text(
+            'Tracking perjalanan belum tersedia.',
+            style: TextStyle(fontSize: 12, color: AppColors.placeholder),
+          )
+        else
+          for (var i = 0; i < stops.length; i++)
+            _TrackingStopCard(
+              index: i + 1,
+              stop: stops[i],
+              isLast: i == stops.length - 1,
+            ),
+      ],
+    );
+  }
+}
+
+class _TrackingStopCard extends StatelessWidget {
+  const _TrackingStopCard({
+    required this.index,
+    required this.stop,
+    required this.isLast,
+  });
+
+  final int index;
+  final _TraceStop stop;
+  final bool isLast;
+
+  String _formatDateTime(DateTime dt) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}, $h:$m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '$index',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              if (!isLast)
+                Container(
+                  width: 2,
+                  height: 52,
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  color: const Color(0xFFD1E8CC),
+                ),
+            ],
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAF7),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    stop.title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    stop.actorLabel,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.subtitle,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  _StopMeta(
+                    icon: Icons.schedule_rounded,
+                    text: _formatDateTime(stop.timestamp),
+                  ),
+                  const SizedBox(height: 5),
+                  _StopMeta(icon: Icons.place_outlined, text: stop.address),
+                  const SizedBox(height: 7),
+                  Text(
+                    stop.description,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StopMeta extends StatelessWidget {
+  const _StopMeta({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 14, color: AppColors.primary),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 11,
+              height: 1.35,
+              color: AppColors.subtitle,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -369,302 +912,6 @@ class _TraceInfoRow extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// [FE - Component Rendering] Timeline ini menerjemahkan status batch menjadi
-// perjalanan rantai pasok yang mudah dibaca konsumen.
-class _TraceTimeline extends StatelessWidget {
-  const _TraceTimeline({required this.status, required this.events});
-
-  final BatchStatus status;
-  final List<BatchEvent> events;
-
-  @override
-  Widget build(BuildContext context) {
-    if (events.isNotEmpty) {
-      return _TraceSection(
-        title: 'Perjalanan Batch',
-        children: [
-          for (var i = 0; i < events.length; i++)
-            _TraceEventItem(event: events[i], isLast: i == events.length - 1),
-        ],
-      );
-    }
-
-    final steps = _stepsFor(status);
-
-    return _TraceSection(
-      title: 'Perjalanan Batch',
-      children: [
-        for (var i = 0; i < steps.length; i++)
-          _TimelineItem(step: steps[i], isLast: i == steps.length - 1),
-      ],
-    );
-  }
-
-  List<_TraceStep> _stepsFor(BatchStatus status) {
-    final order = [
-      BatchStatus.created,
-      BatchStatus.verifiedByCollector,
-      BatchStatus.inDistribution,
-      BatchStatus.receivedByUmkm,
-      BatchStatus.processed,
-      BatchStatus.sold,
-    ];
-    final statusIndex = order.indexOf(status);
-    final currentIndex = status == BatchStatus.rejected
-        ? 0
-        : statusIndex < 0
-        ? 0
-        : statusIndex.clamp(0, order.length - 1).toInt();
-
-    return [
-      _TraceStep(
-        title: 'Batch Dicatat Petani',
-        description: 'Data panen dan QR batch dibuat.',
-        state: _stateFor(0, currentIndex, status),
-      ),
-      _TraceStep(
-        title: 'Diverifikasi Pengepul',
-        description: 'Pengepul mengecek jumlah dan mutu durian.',
-        state: _stateFor(1, currentIndex, status),
-      ),
-      _TraceStep(
-        title: 'Distribusi',
-        description: 'Batch dikirim ke tujuan berikutnya.',
-        state: _stateFor(2, currentIndex, status),
-      ),
-      _TraceStep(
-        title: 'Diterima UMKM/Retailer',
-        description: 'Batch diterima untuk proses lanjutan atau penjualan.',
-        state: _stateFor(3, currentIndex, status),
-      ),
-      _TraceStep(
-        title: 'Siap Konsumsi/Jual',
-        description: 'Produk berada di tahap akhir rantai pasok.',
-        state: _stateFor(4, currentIndex, status),
-      ),
-    ];
-  }
-
-  _TraceStepState _stateFor(int index, int currentIndex, BatchStatus status) {
-    if (status == BatchStatus.rejected) {
-      if (index == 0) return _TraceStepState.done;
-      if (index == 1) return _TraceStepState.rejected;
-      return _TraceStepState.pending;
-    }
-    if (index < currentIndex) return _TraceStepState.done;
-    if (index == currentIndex) return _TraceStepState.current;
-    return _TraceStepState.pending;
-  }
-}
-
-class _TraceEventItem extends StatelessWidget {
-  const _TraceEventItem({required this.event, required this.isLast});
-
-  final BatchEvent event;
-  final bool isLast;
-
-  String _formatDateTime(DateTime dt) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'Mei',
-      'Jun',
-      'Jul',
-      'Agu',
-      'Sep',
-      'Okt',
-      'Nov',
-      'Des',
-    ];
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '${dt.day} ${months[dt.month - 1]} ${dt.year}, $h:$m';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 24,
-            child: Column(
-              children: [
-                Container(
-                  width: 20,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: event.status.color.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    event.status == BatchStatus.rejected
-                        ? Icons.close_rounded
-                        : Icons.check_rounded,
-                    size: 13,
-                    color: event.status.color,
-                  ),
-                ),
-                if (!isLast)
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      color: event.status.color.withValues(alpha: 0.24),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    event.title,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    event.actorLabel,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      height: 1.35,
-                      color: AppColors.placeholder,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _formatDateTime(event.timestamp),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.placeholder,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-enum _TraceStepState { done, current, pending, rejected }
-
-class _TraceStep {
-  const _TraceStep({
-    required this.title,
-    required this.description,
-    required this.state,
-  });
-
-  final String title;
-  final String description;
-  final _TraceStepState state;
-}
-
-class _TimelineItem extends StatelessWidget {
-  const _TimelineItem({required this.step, required this.isLast});
-
-  final _TraceStep step;
-  final bool isLast;
-
-  Color get _color {
-    switch (step.state) {
-      case _TraceStepState.done:
-      case _TraceStepState.current:
-        return AppColors.primaryContainer;
-      case _TraceStepState.rejected:
-        return const Color(0xFFD64545);
-      case _TraceStepState.pending:
-        return const Color(0xFFCBD5E1);
-    }
-  }
-
-  IconData get _icon {
-    switch (step.state) {
-      case _TraceStepState.done:
-        return Icons.check_rounded;
-      case _TraceStepState.current:
-        return Icons.radio_button_checked_rounded;
-      case _TraceStepState.rejected:
-        return Icons.close_rounded;
-      case _TraceStepState.pending:
-        return Icons.circle_outlined;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: _color.withValues(alpha: 0.14),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(_icon, size: 15, color: _color),
-            ),
-            if (!isLast)
-              Container(
-                width: 2,
-                height: 34,
-                color: _color.withValues(alpha: 0.26),
-              ),
-          ],
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  step.title,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: step.state == _TraceStepState.pending
-                        ? AppColors.placeholder
-                        : AppColors.black,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  step.description,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    height: 1.35,
-                    color: AppColors.placeholder,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

@@ -13,12 +13,28 @@ class OsmMapPoint {
   final double longitude;
 }
 
+class OsmMapMarker {
+  const OsmMapMarker({
+    required this.point,
+    this.label,
+    this.color = AppColors.primaryContainer,
+    this.icon = Icons.location_on_rounded,
+  });
+
+  final OsmMapPoint point;
+  final String? label;
+  final Color color;
+  final IconData icon;
+}
+
 class OsmMapPreview extends StatefulWidget {
   const OsmMapPreview({
     super.key,
     required this.center,
     required this.initialZoom,
     this.markerPoint,
+    this.markers = const [],
+    this.route = const [],
     this.boundary,
     this.interactive = true,
     this.onTap,
@@ -27,6 +43,8 @@ class OsmMapPreview extends StatefulWidget {
   final OsmMapPoint center;
   final int initialZoom;
   final OsmMapPoint? markerPoint;
+  final List<OsmMapMarker> markers;
+  final List<OsmMapPoint> route;
   final List<List<CahyadsnBoundaryPoint>>? boundary;
   final bool interactive;
   final ValueChanged<OsmMapPoint>? onTap;
@@ -156,6 +174,11 @@ class _OsmMapPreviewState extends State<OsmMapPreview> {
         final firstY = (viewportOrigin.dy / _tileSize).floor();
         final lastY = ((viewportOrigin.dy + size.height) / _tileSize).floor();
         final tileCount = math.pow(2, _zoom).toInt();
+        final markers = [
+          if (widget.markerPoint != null && widget.markers.isEmpty)
+            OsmMapMarker(point: widget.markerPoint!),
+          ...widget.markers,
+        ];
 
         return Listener(
           onPointerSignal: widget.interactive
@@ -213,30 +236,29 @@ class _OsmMapPreviewState extends State<OsmMapPreview> {
                         ),
                       ),
                     ),
-                  if (widget.markerPoint != null)
+                  if (widget.route.length >= 2)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _RoutePainter(
+                            points: widget.route,
+                            viewportOrigin: viewportOrigin,
+                            zoom: _zoom,
+                          ),
+                        ),
+                      ),
+                    ),
+                  for (final marker in markers)
                     Positioned(
                       left:
-                          _worldPointAt(widget.markerPoint!, _zoom).dx -
+                          _worldPointAt(marker.point, _zoom).dx -
                           viewportOrigin.dx -
                           21,
                       top:
-                          _worldPointAt(widget.markerPoint!, _zoom).dy -
+                          _worldPointAt(marker.point, _zoom).dy -
                           viewportOrigin.dy -
                           42,
-                      child: const IgnorePointer(
-                        child: Icon(
-                          Icons.location_on_rounded,
-                          size: 42,
-                          color: AppColors.primaryContainer,
-                          shadows: [
-                            Shadow(
-                              color: Color(0x55000000),
-                              blurRadius: 5,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: IgnorePointer(child: _MapMarker(marker: marker)),
                     ),
                   if (widget.interactive)
                     Positioned(
@@ -343,6 +365,146 @@ class _BoundaryPainter extends CustomPainter {
       oldDelegate.rings != rings ||
       oldDelegate.viewportOrigin != viewportOrigin ||
       oldDelegate.zoom != zoom;
+}
+
+class _RoutePainter extends CustomPainter {
+  const _RoutePainter({
+    required this.points,
+    required this.viewportOrigin,
+    required this.zoom,
+  });
+
+  final List<OsmMapPoint> points;
+  final Offset viewportOrigin;
+  final int zoom;
+
+  static const _tileSize = 256.0;
+
+  Offset _toScreen(OsmMapPoint point) {
+    final scale = math.pow(2, zoom).toDouble() * _tileSize;
+    final latitude = point.latitude.clamp(-85.05112878, 85.05112878);
+    final radians = latitude * math.pi / 180;
+    final x = (point.longitude + 180) / 360 * scale;
+    final y =
+        (1 - math.log(math.tan(radians) + 1 / math.cos(radians)) / math.pi) /
+        2 *
+        scale;
+    return Offset(x - viewportOrigin.dx, y - viewportOrigin.dy);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2) return;
+    canvas.clipRect(Offset.zero & size);
+
+    final path = Path()
+      ..moveTo(_toScreen(points.first).dx, _toScreen(points.first).dy);
+    for (final point in points.skip(1)) {
+      final screenPoint = _toScreen(point);
+      path.lineTo(screenPoint.dx, screenPoint.dy);
+    }
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFFFFFFFF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 7
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFFE85D32)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RoutePainter oldDelegate) =>
+      oldDelegate.points != points ||
+      oldDelegate.viewportOrigin != viewportOrigin ||
+      oldDelegate.zoom != zoom;
+}
+
+class _MapMarker extends StatelessWidget {
+  const _MapMarker({required this.marker});
+
+  final OsmMapMarker marker;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = marker.label;
+    if (label == null || label.isEmpty) {
+      return Icon(
+        marker.icon,
+        size: 42,
+        color: marker.color,
+        shadows: const [
+          Shadow(color: Color(0x55000000), blurRadius: 5, offset: Offset(0, 2)),
+        ],
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: marker.color,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x55000000),
+                blurRadius: 5,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        CustomPaint(
+          size: const Size(14, 10),
+          painter: _MarkerTipPainter(color: marker.color),
+        ),
+      ],
+    );
+  }
+}
+
+class _MarkerTipPainter extends CustomPainter {
+  const _MarkerTipPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(size.width / 2, size.height)
+      ..lineTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_MarkerTipPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 class _MapIconButton extends StatelessWidget {

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/storage/local_storage_service.dart';
+import '../../traceability/data/traceability_repository.dart';
 import '../models/batch_event.dart';
 import '../models/farm.dart';
 import '../models/farmer_notification.dart';
@@ -59,6 +60,7 @@ class FarmerRepository extends ChangeNotifier {
         LocalStorageService.loadInt('farmer_batch_counter') ?? _batches.length;
     _ensureSeedRejectedBatch();
     _ensureSeedShipmentSourceBatches();
+    _syncCoreTraceabilityBatches();
   }
 
   // [FE - State Management] Migrasi seed ini menjaga data demo tetap lengkap
@@ -127,6 +129,34 @@ class FarmerRepository extends ChangeNotifier {
       _batches.map((e) => e.toJson()).toList(),
     );
     LocalStorageService.saveInt('farmer_batch_counter', _batchCounter);
+  }
+
+  // [FE - State Management] Adapter sementara menuju core traceability.
+  // Setiap batch panen petani punya representasi generik TraceBatch agar
+  // flow role berikutnya nanti bisa memakai event, balance, dan lineage sama.
+  void _syncCoreTraceabilityBatches() {
+    final traceRepo = TraceabilityRepository.instance;
+    for (final batch in _batches) {
+      traceRepo.recordHarvestBatch(
+        batchCode: batch.code,
+        farmerId: batch.farmerId,
+        farmerName: _profile.fullName,
+        variety: batch.variety,
+        quantity: batch.quantity,
+        unit: batch.unit,
+        fruitCount: batch.fruitCount,
+        harvestDate: batch.createdAt ?? batch.harvestDate,
+        farmName: batch.farmName,
+        publicLocationLabel: batch.farmName,
+        metadata: {
+          'Grade awal': batch.grade,
+          if (batch.maturityLevel?.isNotEmpty == true)
+            'Kematangan': batch.maturityLevel!,
+          if (batch.harvestMethod?.isNotEmpty == true)
+            'Metode panen': batch.harvestMethod!,
+        },
+      );
+    }
   }
 
   // [FE - State Management] Seed data dipindahkan dari FarmerMockData ke sini
@@ -496,6 +526,23 @@ class FarmerRepository extends ChangeNotifier {
       notes: notes,
     );
     _batches.add(batch);
+    TraceabilityRepository.instance.recordHarvestBatch(
+      batchCode: batch.code,
+      farmerId: batch.farmerId,
+      farmerName: _profile.fullName,
+      variety: batch.variety,
+      quantity: batch.quantity,
+      unit: batch.unit,
+      fruitCount: batch.fruitCount,
+      harvestDate: batch.createdAt ?? batch.harvestDate,
+      farmName: batch.farmName,
+      publicLocationLabel: batch.farmName,
+      metadata: {
+        'Grade awal': batch.grade,
+        'Kematangan': batch.maturityLevel ?? '',
+        'Metode panen': batch.harvestMethod ?? '',
+      },
+    );
     _saveToLocal();
     notifyListeners();
     return batch;

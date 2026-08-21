@@ -615,29 +615,49 @@ class _TraceRouteMap extends StatelessWidget {
             style: TextStyle(fontSize: 12, color: AppColors.placeholder),
           )
         else
-          for (var i = 0; i < stops.length; i++)
-            _TrackingStopCard(
-              index: i + 1,
-              stop: stops[i],
-              isLast: i == stops.length - 1,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 2),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
+            child: Column(
+              children: [
+                for (var i = 0; i < stops.length; i++)
+                  _TrackingTimelineItem(
+                    stop: stops[i],
+                    isFirst: i == 0,
+                    isLast: i == stops.length - 1,
+                  ),
+              ],
+            ),
+          ),
       ],
     );
   }
 }
 
-class _TrackingStopCard extends StatelessWidget {
-  const _TrackingStopCard({
-    required this.index,
+class _TrackingTimelineItem extends StatelessWidget {
+  const _TrackingTimelineItem({
     required this.stop,
+    required this.isFirst,
     required this.isLast,
   });
 
-  final int index;
   final _TraceStop stop;
+  final bool isFirst;
   final bool isLast;
 
-  String _formatDateTime(DateTime dt) {
+  String _formatDate(DateTime dt) {
     const months = [
       'Jan',
       'Feb',
@@ -652,88 +672,110 @@ class _TrackingStopCard extends StatelessWidget {
       'Nov',
       'Des',
     ];
+    return '${dt.day} ${months[dt.month - 1]}';
+  }
+
+  String _formatTime(DateTime dt) {
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
-    return '${dt.day} ${months[dt.month - 1]} ${dt.year}, $h:$m';
+    return '$h:$m';
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
+    final accentColor = isFirst
+        ? AppColors.primaryContainer
+        : const Color(0xFF94A3B8);
+
+    return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            children: [
-              Container(
-                width: 26,
-                height: 26,
-                decoration: const BoxDecoration(
-                  color: AppColors.primaryContainer,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '$index',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
+          SizedBox(
+            width: 48,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _formatDate(stop.timestamp),
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.1,
+                    fontWeight: isFirst ? FontWeight.w800 : FontWeight.w600,
+                    color: isFirst ? AppColors.black : AppColors.placeholder,
                   ),
                 ),
-              ),
-              if (!isLast)
-                Container(
-                  width: 2,
-                  height: 52,
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  color: const Color(0xFFD1E8CC),
+                const SizedBox(height: 3),
+                Text(
+                  _formatTime(stop.timestamp),
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.1,
+                    fontWeight: isFirst ? FontWeight.w800 : FontWeight.w500,
+                    color: isFirst ? AppColors.black : AppColors.placeholder,
+                  ),
                 ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 18,
+            child: Column(
+              children: [
+                Container(
+                  width: isFirst ? 12 : 8,
+                  height: isFirst ? 12 : 8,
+                  margin: const EdgeInsets.only(top: 2),
+                  decoration: BoxDecoration(
+                    color: isFirst ? accentColor : AppColors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: accentColor, width: 2),
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 1.5,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: const Color(0xFFD9DEE8),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAF7),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    stop.title,
-                    style: const TextStyle(
+                    stop.description,
+                    style: TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.black,
+                      height: 1.35,
+                      fontWeight: isFirst ? FontWeight.w800 : FontWeight.w700,
+                      color: isFirst ? AppColors.black : AppColors.subtitle,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 5),
                   Text(
                     stop.actorLabel,
                     style: const TextStyle(
                       fontSize: 12,
+                      height: 1.3,
                       fontWeight: FontWeight.w700,
                       color: AppColors.subtitle,
                     ),
                   ),
-                  const SizedBox(height: 7),
-                  _StopMeta(
-                    icon: Icons.schedule_rounded,
-                    text: _formatDateTime(stop.timestamp),
-                  ),
-                  const SizedBox(height: 5),
-                  _StopMeta(icon: Icons.place_outlined, text: stop.address),
-                  const SizedBox(height: 7),
+                  const SizedBox(height: 3),
                   Text(
-                    stop.description,
+                    stop.address,
                     style: const TextStyle(
                       fontSize: 12,
-                      height: 1.4,
+                      height: 1.35,
                       color: AppColors.placeholder,
                     ),
                   ),
@@ -743,34 +785,6 @@ class _TrackingStopCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _StopMeta extends StatelessWidget {
-  const _StopMeta({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 14, color: AppColors.primary),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 11,
-              height: 1.35,
-              color: AppColors.subtitle,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

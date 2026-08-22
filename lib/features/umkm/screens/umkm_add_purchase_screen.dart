@@ -137,6 +137,7 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
       return;
     }
 
+    _repo.recordFarmerBatchScan(code);
     final success = await Navigator.push<bool>(
       context,
       MaterialPageRoute(

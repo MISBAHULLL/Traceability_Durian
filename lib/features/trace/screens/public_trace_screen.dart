@@ -92,6 +92,24 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
       ),
     );
 
+    for (final event in events.where(
+      (event) => event.type == BatchEventType.qrScanned,
+    )) {
+      final location = event.locationLabel?.trim() ?? '';
+      stops.add(
+        _TraceStop(
+          title: event.title.replaceFirst('QR discan ', ''),
+          actorLabel: event.actorLabel,
+          locationName: location.isEmpty ? event.actorLabel : location,
+          address: location.isEmpty ? 'Lokasi scan belum dicatat' : location,
+          timestamp: event.timestamp,
+          description:
+              event.description ?? 'QR batch discan untuk validasi penerimaan.',
+          point: await _pointForAddress(location),
+        ),
+      );
+    }
+
     final verifiedEvent =
         _eventForStatus(events, BatchStatus.verifiedByCollector) ??
         _eventForStatus(events, BatchStatus.receivedByUmkm) ??

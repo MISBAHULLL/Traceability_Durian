@@ -131,6 +131,15 @@ class UmkmRepository extends ChangeNotifier {
     return FarmerRepository.instance.findPublicBatch(code);
   }
 
+  void recordFarmerBatchScan(String code) {
+    FarmerRepository.instance.recordBatchQrScan(
+      code: code,
+      receiverRole: BatchReceiverRole.umkm,
+      actorName: profile.name,
+      locationLabel: profile.location,
+    );
+  }
+
   bool receiveFarmerBatch({
     required String code,
     required double receivedWeightKg,

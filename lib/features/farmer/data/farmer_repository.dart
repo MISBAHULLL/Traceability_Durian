@@ -68,10 +68,20 @@ class FarmerRepository extends ChangeNotifier {
       _batches = _buildSeedBatches();
     }
 
+    final eventsJsonList = LocalStorageService.loadJsonList(
+      'farmer_batch_events',
+    );
+    if (eventsJsonList != null) {
+      _batchEvents = eventsJsonList.map((e) => BatchEvent.fromJson(e)).toList();
+    } else {
+      _batchEvents = <BatchEvent>[];
+    }
+
     _batchCounter =
         LocalStorageService.loadInt('farmer_batch_counter') ?? _batches.length;
     _ensureSeedRejectedBatch();
     _ensureSeedShipmentSourceBatches();
+    _ensureEventStoreBackfilled();
     _syncCoreTraceabilityBatches();
   }
 
@@ -140,6 +150,10 @@ class FarmerRepository extends ChangeNotifier {
       'farmer_batches',
       _batches.map((e) => e.toJson()).toList(),
     );
+    LocalStorageService.saveJsonList(
+      'farmer_batch_events',
+      _batchEvents.map((e) => e.toJson()).toList(),
+    );
     LocalStorageService.saveInt('farmer_batch_counter', _batchCounter);
   }
 
@@ -171,6 +185,124 @@ class FarmerRepository extends ChangeNotifier {
     }
   }
 
+  String _nextEventId(String batchCode, BatchEventType type) {
+    final index = (_batchEvents.length + 1).toString().padLeft(6, '0');
+    return 'EVT-$batchCode-${type.name}-$index';
+  }
+
+  void _appendBatchEvent({
+    required String batchCode,
+    required BatchEventType type,
+    required String title,
+    required String actorLabel,
+    required DateTime timestamp,
+    required BatchStatus status,
+    String? description,
+    String? locationLabel,
+    Map<String, String> metadata = const {},
+  }) {
+    _batchEvents.add(
+      BatchEvent(
+        id: _nextEventId(batchCode, type),
+        batchCode: batchCode,
+        type: type,
+        title: title,
+        actorLabel: actorLabel,
+        timestamp: timestamp,
+        status: status,
+        description: description,
+        locationLabel: locationLabel,
+        metadata: metadata,
+      ),
+    );
+  }
+
+  List<BatchEvent> _storedEventsForBatch(String code) {
+    final events = _batchEvents
+        .where((event) => event.batchCode == code)
+        .toList();
+    events.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return List.unmodifiable(events);
+  }
+
+  void _ensureEventStoreBackfilled() {
+    var changed = false;
+    final existingCodes = _batchEvents
+        .map((event) => event.batchCode)
+        .whereType<String>()
+        .toSet();
+    for (final batch in _batches) {
+      if (existingCodes.contains(batch.code)) continue;
+      for (final event in _eventsForBatch(batch)) {
+        _appendBatchEvent(
+          batchCode: batch.code,
+          type: _eventTypeForGenerated(event),
+          title: event.title,
+          actorLabel: event.actorLabel,
+          timestamp: event.timestamp,
+          status: event.status,
+          description: event.description,
+          locationLabel: event.locationLabel,
+          metadata: event.metadata,
+        );
+      }
+      changed = true;
+    }
+    if (changed) _saveToLocal();
+  }
+
+  BatchEventType _eventTypeForGenerated(BatchEvent event) {
+    if (event.title.contains('QR')) return BatchEventType.qrCreated;
+    if (event.title.startsWith('Ditolak')) return BatchEventType.batchRejected;
+    if (event.title.startsWith('Dalam Distribusi')) {
+      return BatchEventType.batchSent;
+    }
+    if (event.title.startsWith('Diterima')) return BatchEventType.batchReceived;
+    if (event.title.startsWith('Sedang Diolah')) {
+      return BatchEventType.batchProcessed;
+    }
+    if (event.title.startsWith('Terjual')) return BatchEventType.batchSold;
+    if (event.title.startsWith('Terverifikasi')) {
+      return BatchEventType.batchVerified;
+    }
+    return BatchEventType.batchCreated;
+  }
+
+  void recordBatchQrScan({
+    required String code,
+    required BatchReceiverRole receiverRole,
+    required String actorName,
+    String? locationLabel,
+  }) {
+    final batch = findPublicBatch(code);
+    if (batch == null || batch.status != BatchStatus.created) return;
+
+    final now = DateTime.now();
+    final recentDuplicate = _batchEvents.any((event) {
+      if (event.batchCode != code || event.type != BatchEventType.qrScanned) {
+        return false;
+      }
+      if (event.actorLabel != actorName.trim()) return false;
+      return now.difference(event.timestamp).inSeconds.abs() < 5;
+    });
+    if (recentDuplicate) return;
+
+    _appendBatchEvent(
+      batchCode: code,
+      type: BatchEventType.qrScanned,
+      title: 'QR discan ${receiverRole.label}',
+      actorLabel: actorName.trim().isEmpty
+          ? receiverRole.label
+          : actorName.trim(),
+      timestamp: now,
+      status: batch.status,
+      description:
+          '${receiverRole.label} memindai QR batch untuk validasi penerimaan.',
+      locationLabel: locationLabel?.trim(),
+    );
+    _saveToLocal();
+    notifyListeners();
+  }
   // [FE - State Management] Seed data dipindahkan dari FarmerMockData ke sini
   // (task 13.3) agar repository menjadi satu-satunya sumber data mock.
   // ── Konstanta seed (dipindahkan dari FarmerMockData — task 13.3) ───────────
@@ -399,6 +531,7 @@ class FarmerRepository extends ChangeNotifier {
   late FarmerProfile _profile;
   late List<Farm> _farms;
   late List<HarvestBatch> _batches;
+  late List<BatchEvent> _batchEvents;
   late int _batchCounter;
 
   // ── Identitas sesi ──────────────────────────────────────────────────────────
@@ -560,6 +693,31 @@ class FarmerRepository extends ChangeNotifier {
       notes: notes,
     );
     _batches.add(batch);
+    _appendBatchEvent(
+      batchCode: batch.code,
+      type: BatchEventType.batchCreated,
+      title: 'Batch Dibuat',
+      actorLabel: 'Petani - ${_profile.fullName}',
+      timestamp: now,
+      status: BatchStatus.created,
+      description: 'Data panen dicatat oleh petani.',
+      locationLabel: batch.farmName,
+      metadata: {
+        'Varietas': batch.variety,
+        'Berat': '${batch.quantity} ${batch.unit}',
+        'Jumlah buah': '$fruitCount',
+      },
+    );
+    _appendBatchEvent(
+      batchCode: batch.code,
+      type: BatchEventType.qrCreated,
+      title: 'QR Batch Dibuat',
+      actorLabel: 'Petani - ${_profile.fullName}',
+      timestamp: now.add(const Duration(seconds: 1)),
+      status: BatchStatus.created,
+      description: 'QR trace siap discan penerima.',
+      locationLabel: batch.farmName,
+    );
     TraceabilityRepository.instance.recordHarvestBatch(
       batchCode: batch.code,
       farmerId: batch.farmerId,
@@ -1034,11 +1192,16 @@ class FarmerRepository extends ChangeNotifier {
       (a, b) => b.weightKg > a.weightKg ? b : a,
     );
     final dominantGrade = dominantBreakdown.grade.trim();
+    final verifiedAt = DateTime.now();
+    final newStatus = receiverRole == BatchReceiverRole.umkm
+        ? BatchStatus.receivedByUmkm
+        : BatchStatus.verifiedByCollector;
+    final cleanReceiverName = receiverName.trim().isEmpty
+        ? receiverRole.label
+        : receiverName.trim();
 
     _batches[index] = existing.copyWith(
-      status: receiverRole == BatchReceiverRole.umkm
-          ? BatchStatus.receivedByUmkm
-          : BatchStatus.verifiedByCollector,
+      status: newStatus,
       receivedQuantity: receivedQuantity,
       receivedFruitCount: receivedFruitCount,
       warehouseId: warehouseId?.trim(),
@@ -1046,11 +1209,30 @@ class FarmerRepository extends ChangeNotifier {
       gradeBreakdown: cleanBreakdown,
       verificationPhotoPath: verificationPhotoPath?.trim(),
       qualityNotes: qualityNotes?.trim(),
-      verifiedBy: receiverName.trim().isEmpty
-          ? receiverRole.label
-          : receiverName.trim(),
+      verifiedBy: cleanReceiverName,
       verifiedByRole: receiverRole,
-      verifiedAt: DateTime.now(),
+      verifiedAt: verifiedAt,
+    );
+    _appendBatchEvent(
+      batchCode: code,
+      type: receiverRole == BatchReceiverRole.umkm
+          ? BatchEventType.batchReceived
+          : BatchEventType.batchVerified,
+      title: receiverRole == BatchReceiverRole.umkm
+          ? 'Diterima UMKM'
+          : 'Terverifikasi ${receiverRole.label}',
+      actorLabel: cleanReceiverName,
+      timestamp: verifiedAt,
+      status: newStatus,
+      description: qualityNotes?.trim().isEmpty == false
+          ? qualityNotes!.trim()
+          : '${receiverRole.label} menerima dan memverifikasi batch.',
+      locationLabel: warehouseId?.trim(),
+      metadata: {
+        'Berat diterima': '$receivedQuantity kg',
+        'Jumlah diterima': '$receivedFruitCount butir',
+        'Grade dominan': dominantGrade,
+      },
     );
     _saveToLocal();
     notifyListeners();
@@ -1132,14 +1314,26 @@ class FarmerRepository extends ChangeNotifier {
     final existing = _batches[index];
     if (existing.status != BatchStatus.created) return false;
 
+    final rejectedAt = DateTime.now();
+    final cleanRejectedBy = rejectedBy.trim().isEmpty
+        ? receiverRole.label
+        : rejectedBy.trim();
+
     _batches[index] = existing.copyWith(
       status: BatchStatus.rejected,
       rejectionReason: cleanReason,
-      rejectedBy: rejectedBy.trim().isEmpty
-          ? receiverRole.label
-          : rejectedBy.trim(),
+      rejectedBy: cleanRejectedBy,
       verifiedByRole: receiverRole,
-      rejectedAt: DateTime.now(),
+      rejectedAt: rejectedAt,
+    );
+    _appendBatchEvent(
+      batchCode: code,
+      type: BatchEventType.batchRejected,
+      title: 'Ditolak ${receiverRole.label}',
+      actorLabel: cleanRejectedBy,
+      timestamp: rejectedAt,
+      status: BatchStatus.rejected,
+      description: cleanReason,
     );
     _saveToLocal();
     notifyListeners();
@@ -1162,7 +1356,17 @@ class FarmerRepository extends ChangeNotifier {
       if (!cleanCodes.contains(batch.code)) continue;
       if (batch.status != BatchStatus.verifiedByCollector) continue;
 
+      final sentAt = DateTime.now();
       _batches[i] = batch.copyWith(status: BatchStatus.inDistribution);
+      _appendBatchEvent(
+        batchCode: batch.code,
+        type: BatchEventType.batchSent,
+        title: 'Dalam Distribusi',
+        actorLabel: batch.verifiedByRole?.label ?? 'Penerima',
+        timestamp: sentAt,
+        status: BatchStatus.inDistribution,
+        description: 'Batch dikirim ke tujuan berikutnya.',
+      );
       changed = true;
     }
 
@@ -1188,7 +1392,17 @@ class FarmerRepository extends ChangeNotifier {
       if (!cleanCodes.contains(batch.code)) continue;
       if (batch.status != BatchStatus.inDistribution) continue;
 
+      final receivedAt = DateTime.now();
       _batches[i] = batch.copyWith(status: BatchStatus.receivedByUmkm);
+      _appendBatchEvent(
+        batchCode: batch.code,
+        type: BatchEventType.batchReceived,
+        title: 'Diterima UMKM',
+        actorLabel: 'UMKM',
+        timestamp: receivedAt,
+        status: BatchStatus.receivedByUmkm,
+        description: 'Batch diterima UMKM dari pengiriman sebelumnya.',
+      );
       changed = true;
     }
 
@@ -1209,14 +1423,18 @@ class FarmerRepository extends ChangeNotifier {
   /// Integrasi event nyata dari backend adalah future work.
   List<BatchEvent> eventsFor(String code) {
     final batch = findBatch(code);
-    return batch == null ? [] : _eventsForBatch(batch);
+    if (batch == null) return const [];
+    final stored = _storedEventsForBatch(code);
+    return stored.isNotEmpty ? stored : _eventsForBatch(batch);
   }
 
   // [FE - State Management] Versi publik untuk QR/trace konsumen. Lookup-nya
   // tidak memakai ownership petani aktif karena halaman trace dibaca lintas role.
   List<BatchEvent> publicEventsFor(String code) {
     final batch = findPublicBatch(code);
-    return batch == null ? [] : _eventsForBatch(batch);
+    if (batch == null) return const [];
+    final stored = _storedEventsForBatch(code);
+    return stored.isNotEmpty ? stored : _eventsForBatch(batch);
   }
 
   List<BatchEvent> _eventsForBatch(HarvestBatch batch) {
@@ -1232,13 +1450,25 @@ class FarmerRepository extends ChangeNotifier {
     final verifiedAt =
         batch.verifiedAt ?? createdAt.add(const Duration(days: 1));
 
-    // Event "Batch Dibuat" selalu ada
+    // Event "Batch Dibuat" dan QR awal selalu ada.
     events.add(
       BatchEvent(
         title: 'Batch Dibuat',
-        actorLabel: 'Petani — $actorName',
+        actorLabel: 'Petani - $actorName',
         timestamp: createdAt,
         status: BatchStatus.created,
+        description: 'Data panen dicatat oleh petani.',
+        locationLabel: batch.farmName,
+      ),
+    );
+    events.add(
+      BatchEvent(
+        title: 'QR Batch Dibuat',
+        actorLabel: 'Petani - $actorName',
+        timestamp: createdAt.add(const Duration(seconds: 1)),
+        status: BatchStatus.created,
+        description: 'QR trace siap discan penerima.',
+        locationLabel: batch.farmName,
       ),
     );
 

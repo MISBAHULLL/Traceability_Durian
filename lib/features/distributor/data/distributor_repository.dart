@@ -806,6 +806,14 @@ class DistributorRepository extends ChangeNotifier {
       status: DistributorAcquisitionStatus.initiated,
     );
     _acquisitionTransactions.add(transaction);
+    FarmerRepository.instance.recordBatchQrScan(
+      code: batch.code,
+      receiverRole: BatchReceiverRole.distributor,
+      actorName: _profile.businessName.trim().isEmpty
+          ? _profile.fullName
+          : _profile.businessName,
+      locationLabel: defaultWarehouse?.location ?? _profile.location,
+    );
     _recordAudit(
       type: DistributorAuditEventType.acquisition,
       action: 'Mulai akuisisi DRN',

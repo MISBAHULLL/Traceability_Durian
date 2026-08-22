@@ -582,6 +582,14 @@ class CollectorRepository extends ChangeNotifier {
     );
 
     _purchaseTransactions.add(transaction);
+    _farmerRepo.recordBatchQrScan(
+      code: product.code,
+      receiverRole: BatchReceiverRole.collector,
+      actorName: _profile.businessName.isEmpty
+          ? _profile.fullName
+          : _profile.businessName,
+      locationLabel: _profile.location,
+    );
     _saveToLocal();
     notifyListeners();
     return transaction;

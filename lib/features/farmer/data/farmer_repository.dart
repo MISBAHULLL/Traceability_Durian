@@ -253,6 +253,7 @@ class FarmerRepository extends ChangeNotifier {
 
   BatchEventType _eventTypeForGenerated(BatchEvent event) {
     if (event.title.contains('QR')) return BatchEventType.qrCreated;
+    if (event.title.startsWith('Grading')) return BatchEventType.batchGraded;
     if (event.title.startsWith('Ditolak')) return BatchEventType.batchRejected;
     if (event.title.startsWith('Dalam Distribusi')) {
       return BatchEventType.batchSent;
@@ -1245,6 +1246,7 @@ class FarmerRepository extends ChangeNotifier {
   bool updateCollectorAdvancedGrading({
     required String code,
     required List<BatchGradeBreakdown> gradeBreakdown,
+    String gradedBy = 'Pengepul',
   }) {
     final cleanBreakdown = gradeBreakdown.where((e) => e.hasValue).toList();
     if (cleanBreakdown.isEmpty) return false;
@@ -1278,6 +1280,29 @@ class FarmerRepository extends ChangeNotifier {
     _batches[index] = existing.copyWith(
       verifiedGrade: dominantBreakdown.grade.trim(),
       gradeBreakdown: cleanBreakdown,
+    );
+    final cleanGradedBy = gradedBy.trim().isEmpty
+        ? 'Pengepul'
+        : gradedBy.trim();
+    _appendBatchEvent(
+      batchCode: code,
+      type: BatchEventType.batchGraded,
+      title: 'Grading Lanjutan',
+      actorLabel: cleanGradedBy,
+      timestamp: DateTime.now(),
+      status: existing.status,
+      description: 'Stok disortir ulang berdasarkan kondisi dan mutu durian.',
+      locationLabel: existing.warehouseId,
+      metadata: {
+        'Total grading': '$totalWeight kg / $totalFruit butir',
+        'Grade dominan': dominantBreakdown.grade.trim(),
+        'Rincian grade': cleanBreakdown
+            .map(
+              (item) =>
+                  '${item.grade}: ${item.weightKg} kg / ${item.fruitCount} butir',
+            )
+            .join(', '),
+      },
     );
     _saveToLocal();
     notifyListeners();

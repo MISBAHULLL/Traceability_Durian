@@ -76,6 +76,37 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     await _regionService.load();
     final events = _repo.publicEventsFor(batch.code);
     final stops = <_TraceStop>[];
+    const timelineOnlyTypes = {
+      BatchEventType.batchGraded,
+      BatchEventType.batchRejected,
+      BatchEventType.batchSent,
+      BatchEventType.batchProcessed,
+      BatchEventType.batchSold,
+    };
+
+    Future<void> addEventStop(BatchEvent event) async {
+      final duplicate = stops.any(
+        (stop) =>
+            stop.timestamp.isAtSameMomentAs(event.timestamp) &&
+            stop.title == event.title &&
+            stop.actorLabel == event.actorLabel,
+      );
+      if (duplicate) return;
+
+      final location = event.locationLabel?.trim() ?? '';
+      stops.add(
+        _TraceStop(
+          title: event.title,
+          actorLabel: event.actorLabel,
+          locationName: location.isEmpty ? event.actorLabel : location,
+          address: location.isEmpty ? 'Lokasi belum dicatat' : location,
+          timestamp: event.timestamp,
+          description: event.description ?? event.title,
+          point: await _pointForAddress(location),
+        ),
+      );
+    }
+
     final createdEvent = _eventForStatus(events, BatchStatus.created);
     final farm = _repo.findPublicFarm(batch.farmId);
 
@@ -163,6 +194,12 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
       );
     }
 
+    for (final event in events.where(
+      (event) => timelineOnlyTypes.contains(event.type),
+    )) {
+      await addEventStop(event);
+    }
+    stops.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     if (!mounted || serial != _routeLoadSerial) return;
     setState(() {
       _routeStops = List.unmodifiable(stops);

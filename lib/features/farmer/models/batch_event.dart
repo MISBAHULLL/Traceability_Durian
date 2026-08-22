@@ -5,6 +5,7 @@ enum BatchEventType {
   qrCreated,
   qrScanned,
   batchVerified,
+  batchGraded,
   batchRejected,
   batchSent,
   batchReceived,

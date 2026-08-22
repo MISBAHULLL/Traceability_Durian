@@ -921,6 +921,9 @@ class CollectorRepository extends ChangeNotifier {
     final ok = _farmerRepo.updateCollectorAdvancedGrading(
       code: code,
       gradeBreakdown: gradeBreakdown,
+      gradedBy: _profile.businessName.isEmpty
+          ? _profile.fullName
+          : _profile.businessName,
     );
     if (!ok) return false;
 

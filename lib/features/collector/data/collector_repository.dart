@@ -1,10 +1,11 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../../traceability/data/traceability_repository.dart';
 import '../../traceability/models/traceability_models.dart';
+import '../models/collector_incoming_receipt.dart';
 import '../models/collector_purchase_transaction.dart';
 import '../models/collector_product.dart';
 import '../models/collector_shipment_batch.dart';
@@ -94,6 +95,17 @@ class CollectorRepository extends ChangeNotifier {
         LocalStorageService.loadInt('collector_warehouse_counter') ??
         _warehouses.length;
 
+    final incomingReceiptsJsonList = LocalStorageService.loadJsonList(
+      'collector_incoming_receipts',
+    );
+    if (incomingReceiptsJsonList != null) {
+      _incomingReceipts = incomingReceiptsJsonList
+          .map((e) => CollectorIncomingReceipt.fromJson(e))
+          .toList();
+    } else {
+      _incomingReceipts = [];
+    }
+
     final warehouseTransfersJsonList = LocalStorageService.loadJsonList(
       'collector_warehouse_transfers',
     );
@@ -146,6 +158,10 @@ class CollectorRepository extends ChangeNotifier {
     LocalStorageService.saveInt(
       'collector_warehouse_counter',
       _warehouseCounter,
+    );
+    LocalStorageService.saveJsonList(
+      'collector_incoming_receipts',
+      _incomingReceipts.map((e) => e.toJson()).toList(),
     );
     LocalStorageService.saveJsonList(
       'collector_warehouse_transfers',
@@ -394,6 +410,7 @@ class CollectorRepository extends ChangeNotifier {
   late List<CollectorProduct> _products;
   late List<CollectorShipmentBatch> _shipmentBatches;
   late List<CollectorPurchaseTransaction> _purchaseTransactions;
+  late List<CollectorIncomingReceipt> _incomingReceipts;
   late List<CollectorWarehouse> _warehouses;
   late List<CollectorWarehouseTransfer> _warehouseTransfers;
   late int _shipmentCounter;
@@ -675,6 +692,46 @@ class CollectorRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
+  // [FE - State Management] Daftar ini adalah PGL dari pengepul lain yang
+  // memang ditujukan ke pengepul, sehingga bisa discan dan divalidasi T2 oleh
+  // role pengepul penerima.
+  List<CollectorShipmentBatch> get incomingCollectorShipments {
+    final items = _shipmentBatches
+        .where(
+          (shipment) =>
+              shipment.destinationType == ShipmentDestinationType.collector &&
+              shipment.collectorId != _currentCollectorId,
+        )
+        .toList();
+    items.sort((a, b) => b.packagedAt.compareTo(a.packagedAt));
+    return List.unmodifiable(items);
+  }
+
+  CollectorShipmentBatch? findIncomingCollectorShipment(String code) {
+    final cleanCode = code.trim().toUpperCase();
+    if (cleanCode.isEmpty) return null;
+    try {
+      return incomingCollectorShipments.firstWhere(
+        (shipment) => shipment.code.toUpperCase() == cleanCode,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  CollectorIncomingReceipt? incomingReceiptForShipment(String shipmentCode) {
+    final cleanCode = shipmentCode.trim().toUpperCase();
+    try {
+      return _incomingReceipts.firstWhere(
+        (receipt) =>
+            receipt.shipmentCode.toUpperCase() == cleanCode &&
+            receipt.receiverCollectorId == _currentCollectorId,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   // [FE - State Management] Lookup ini dipakai layar QR pengiriman untuk
   // membaca batch PGL yang dipilih pengepul.
   CollectorShipmentBatch? findShipmentBatch(String code) {
@@ -865,6 +922,99 @@ class CollectorRepository extends ChangeNotifier {
     _saveToLocal();
     notifyListeners();
     return shipment;
+  }
+
+  CollectorIncomingReceipt? receiveIncomingCollectorShipment({
+    required String code,
+    required double receivedWeightKg,
+    required int receivedFruitCount,
+    required CollectorIncomingReceiptCondition condition,
+    required String destinationWarehouseId,
+    String? discrepancyNote,
+    String? qualityNote,
+  }) {
+    final cleanCode = code.trim().toUpperCase();
+    final warehouse = findWarehouse(destinationWarehouseId);
+    final shipment = findIncomingCollectorShipment(cleanCode);
+    if (shipment == null ||
+        shipment.status != CollectorShipmentStatus.sent ||
+        warehouse == null ||
+        receivedWeightKg <= 0 ||
+        receivedFruitCount <= 0 ||
+        incomingReceiptForShipment(cleanCode) != null) {
+      return null;
+    }
+
+    final weightDifference = receivedWeightKg - shipment.totalWeightKg;
+    final fruitDifference = receivedFruitCount - shipment.totalFruitCount;
+    final hasDiscrepancy =
+        weightDifference.abs() > 0.01 || fruitDifference != 0;
+    final cleanDiscrepancyNote = discrepancyNote?.trim();
+    if (hasDiscrepancy &&
+        (cleanDiscrepancyNote == null || cleanDiscrepancyNote.isEmpty)) {
+      return null;
+    }
+
+    final cleanQualityNote = qualityNote?.trim();
+    final completed = completeShipment(
+      cleanCode,
+      warehouseNote: cleanQualityNote?.isNotEmpty == true
+          ? cleanQualityNote
+          : 'Diterima dan diverifikasi oleh pengepul lain.',
+    );
+    if (!completed) return null;
+
+    final actorName = _profile.businessName.trim().isEmpty
+        ? _profile.fullName
+        : _profile.businessName;
+    _farmerRepo.markBatchesReceivedByCollector(
+      sourceBatchCodes: shipment.sourceBatchCodes,
+      warehouseId: warehouse.id,
+      warehouseLabel: warehouse.name,
+      receiverName: actorName,
+      qualityNote: cleanQualityNote,
+    );
+
+    final receipt = CollectorIncomingReceipt(
+      shipmentCode: cleanCode,
+      receiverCollectorId: _currentCollectorId,
+      senderCollectorId: shipment.collectorId,
+      expectedWeightKg: shipment.totalWeightKg,
+      expectedFruitCount: shipment.totalFruitCount,
+      receivedWeightKg: receivedWeightKg,
+      receivedFruitCount: receivedFruitCount,
+      condition: condition,
+      receivedAt: DateTime.now(),
+      destinationWarehouseId: warehouse.id,
+      destinationWarehouseName: warehouse.name,
+      destinationLocation: warehouse.location,
+      discrepancyNote: cleanDiscrepancyNote?.isEmpty == true
+          ? null
+          : cleanDiscrepancyNote,
+      qualityNote: cleanQualityNote?.isEmpty == true ? null : cleanQualityNote,
+    );
+    _incomingReceipts.add(receipt);
+
+    TraceabilityRepository.instance.recordReceiptVariance(
+      batchCode: shipment.code,
+      actorId: _currentCollectorId,
+      actorRole: TraceActorRole.collector,
+      actorName: actorName,
+      expectedQuantity: shipment.totalWeightKg,
+      receivedQuantity: receivedWeightKg,
+      unit: 'kg',
+      expectedFruitCount: shipment.totalFruitCount,
+      receivedFruitCount: receivedFruitCount,
+      conditionLabel: condition.label,
+      locationLabel: _warehouseTraceLabel(warehouse),
+      relatedObjectId: 'COLLECTOR-RECEIPT-${receipt.shipmentCode}',
+      note: cleanDiscrepancyNote?.isNotEmpty == true
+          ? cleanDiscrepancyNote
+          : cleanQualityNote,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return receipt;
   }
 
   // [FE - Event Handler] Mutasi ini mensimulasikan distributor men-scan QR
@@ -1512,6 +1662,51 @@ class CollectorRepository extends ChangeNotifier {
         status: CollectorShipmentStatus.readyToShip,
         destinationType: ShipmentDestinationType.distributor,
         warehouseNote: 'Simulasi muatan besar dari Pengepul Banyuwangi.',
+      ),
+      CollectorShipmentBatch(
+        code: 'PGL-2026-000904',
+        collectorId: 'collector-demo-malang',
+        sourceBatchCodes: const ['DRN-DEMO-MLG-001', 'DRN-DEMO-MLG-002'],
+        totalWeightKg: 360,
+        totalFruitCount: 94,
+        gradeBreakdown: const [
+          CollectorStockBreakdown(
+            key: 'A',
+            label: 'Grade A',
+            totalWeightKg: 210,
+            totalFruitCount: 55,
+            batchCount: 2,
+          ),
+          CollectorStockBreakdown(
+            key: 'B',
+            label: 'Grade B',
+            totalWeightKg: 150,
+            totalFruitCount: 39,
+            batchCount: 2,
+          ),
+        ],
+        varietyBreakdown: const [
+          CollectorStockBreakdown(
+            key: 'bawor',
+            label: 'Durian Bawor',
+            totalWeightKg: 220,
+            totalFruitCount: 58,
+            batchCount: 1,
+          ),
+          CollectorStockBreakdown(
+            key: 'montong',
+            label: 'Durian Montong',
+            totalWeightKg: 140,
+            totalFruitCount: 36,
+            batchCount: 1,
+          ),
+        ],
+        packagedAt: now.subtract(const Duration(hours: 3)),
+        status: CollectorShipmentStatus.readyToShip,
+        destinationType: ShipmentDestinationType.collector,
+        destinationName: 'Lapak Durian Jember',
+        destinationLocation: 'Desa Pakis, Kabupaten Jember',
+        warehouseNote: 'Simulasi PGL horizontal dari Pengepul Malang.',
       ),
     ];
   }

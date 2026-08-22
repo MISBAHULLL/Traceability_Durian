@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/storage/local_storage_service.dart';
 import '../../traceability/data/traceability_repository.dart';
@@ -1457,6 +1457,74 @@ class FarmerRepository extends ChangeNotifier {
         timestamp: sentAt,
         status: BatchStatus.inDistribution,
         description: 'Batch dikirim ke tujuan berikutnya.',
+      );
+      changed = true;
+    }
+
+    if (!changed) return false;
+
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  // [FE - State Management] Transisi ini dipakai saat pengepul menerima PGL
+  // dari pengepul lain. Source DRN kembali menjadi stok pengepul penerima agar
+  // bisa dibuat pengiriman lanjutan tanpa memutus provenance asal petani.
+  bool markBatchesReceivedByCollector({
+    required Iterable<String> sourceBatchCodes,
+    required String warehouseId,
+    required String warehouseLabel,
+    required String receiverName,
+    String? qualityNote,
+  }) {
+    final cleanCodes = sourceBatchCodes
+        .map((code) => code.trim())
+        .where((code) => code.isNotEmpty)
+        .toSet();
+    final cleanWarehouseId = warehouseId.trim();
+    if (cleanCodes.isEmpty || cleanWarehouseId.isEmpty) return false;
+
+    final cleanReceiverName = receiverName.trim().isEmpty
+        ? 'Pengepul'
+        : receiverName.trim();
+    final cleanWarehouseLabel = warehouseLabel.trim().isEmpty
+        ? cleanWarehouseId
+        : warehouseLabel.trim();
+    final note = qualityNote?.trim();
+
+    var changed = false;
+    for (var i = 0; i < _batches.length; i++) {
+      final batch = _batches[i];
+      if (!cleanCodes.contains(batch.code)) continue;
+      if (batch.status != BatchStatus.inDistribution) continue;
+
+      final receivedAt = DateTime.now();
+      _batches[i] = batch.copyWith(
+        status: BatchStatus.verifiedByCollector,
+        warehouseId: cleanWarehouseId,
+        verifiedByRole: BatchReceiverRole.collector,
+        verifiedBy: cleanReceiverName,
+        verifiedAt: receivedAt,
+      );
+      _appendBatchEvent(
+        batchCode: batch.code,
+        type: BatchEventType.batchReceived,
+        title: 'Diterima Pengepul Lain',
+        actorLabel: cleanReceiverName,
+        timestamp: receivedAt,
+        status: BatchStatus.verifiedByCollector,
+        description: note?.isNotEmpty == true
+            ? note!
+            : 'Batch diterima pengepul lain dari PGL sebelumnya.',
+        locationLabel: cleanWarehouseLabel,
+        metadata: {
+          'Gudang tujuan': cleanWarehouseLabel,
+          'Berat stok':
+              '${batch.receivedQuantity ?? batch.quantity} ${batch.unit}',
+          'Jumlah buah':
+              '${batch.receivedFruitCount ?? batch.fruitCount ?? 0} butir',
+        },
       );
       changed = true;
     }

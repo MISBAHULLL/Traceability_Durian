@@ -4,6 +4,8 @@ import '../../collector/data/collector_repository.dart';
 import '../../collector/models/collector_shipment_batch.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../../traceability/data/traceability_repository.dart';
+import '../../traceability/models/traceability_models.dart';
 import '../models/distributor_acquisition_transaction.dart';
 import '../models/distributor_audit_event.dart';
 import '../models/distributor_horizontal_sale.dart';
@@ -647,6 +649,23 @@ class DistributorRepository extends ChangeNotifier {
           : cleanDiscrepancy,
       qualityNote: cleanQuality?.isEmpty == true ? null : cleanQuality,
     );
+    TraceabilityRepository.instance.recordReceiptVariance(
+      batchCode: sale.itemCode,
+      actorId: sale.buyerDistributorId,
+      actorRole: TraceActorRole.distributor,
+      actorName: sale.buyerName,
+      expectedQuantity: sale.expectedWeightKg,
+      receivedQuantity: receivedWeightKg,
+      unit: 'kg',
+      expectedFruitCount: sale.expectedFruitCount,
+      receivedFruitCount: receivedFruitCount,
+      conditionLabel: condition.label,
+      locationLabel: sale.destinationLocation,
+      relatedObjectId: sale.id,
+      note: cleanDiscrepancy?.isNotEmpty == true
+          ? cleanDiscrepancy
+          : cleanQuality,
+    );
     _recordAudit(
       type: DistributorAuditEventType.sale,
       action: 'Validasi T2 jual distributor',
@@ -1077,6 +1096,23 @@ class DistributorRepository extends ChangeNotifier {
       note: qualityNote,
       destinationLocation: cleanDestination,
     );
+    TraceabilityRepository.instance.recordReceiptVariance(
+      batchCode: transaction.itemCode,
+      actorId: _currentDistributorId,
+      actorRole: TraceActorRole.distributor,
+      actorName: _profile.businessName.trim().isEmpty
+          ? _profile.fullName
+          : _profile.businessName,
+      expectedQuantity: transaction.expectedWeightKg,
+      receivedQuantity: receivedWeightKg,
+      unit: 'kg',
+      expectedFruitCount: transaction.expectedFruitCount,
+      receivedFruitCount: receivedFruitCount,
+      conditionLabel: 'Divalidasi distributor',
+      locationLabel: cleanDestination,
+      relatedObjectId: transaction.id,
+      note: qualityNote,
+    );
     _recordAudit(
       type: DistributorAuditEventType.acquisition,
       action: 'Validasi penerimaan DRN',
@@ -1191,6 +1227,25 @@ class DistributorRepository extends ChangeNotifier {
       qualityNote: cleanQualityNote?.isEmpty == true ? null : cleanQualityNote,
     );
     _receipts.add(receipt);
+    TraceabilityRepository.instance.recordReceiptVariance(
+      batchCode: shipment.code,
+      actorId: _currentDistributorId,
+      actorRole: TraceActorRole.distributor,
+      actorName: _profile.businessName.trim().isEmpty
+          ? _profile.fullName
+          : _profile.businessName,
+      expectedQuantity: shipment.totalWeightKg,
+      receivedQuantity: receivedWeightKg,
+      unit: 'kg',
+      expectedFruitCount: shipment.totalFruitCount,
+      receivedFruitCount: receivedFruitCount,
+      conditionLabel: condition.label,
+      locationLabel: cleanDestination,
+      relatedObjectId: receipt.shipmentCode,
+      note: cleanDiscrepancyNote?.isNotEmpty == true
+          ? cleanDiscrepancyNote
+          : cleanQualityNote,
+    );
     _recordAudit(
       type: DistributorAuditEventType.receipt,
       action: 'Buat receipt',

@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../../traceability/data/traceability_repository.dart';
+import '../../traceability/models/traceability_models.dart';
 import '../models/collector_purchase_transaction.dart';
 import '../models/collector_product.dart';
 import '../models/collector_shipment_batch.dart';
@@ -30,6 +32,7 @@ class CollectorRepository extends ChangeNotifier {
     _loadFromLocal();
     _products = _buildSeedProducts();
     _syncDistributedSourceBatches();
+    _ensureShipmentLineageBackfilled();
     _farmerRepo.addListener(_onFarmerRepoChanged);
   }
 
@@ -161,6 +164,54 @@ class CollectorRepository extends ChangeNotifier {
     _farmerRepo.markBatchesReceivedByUmkm(
       sourceBatchCodes: receivedByUmkmCodes,
     );
+  }
+
+  void _ensureShipmentLineageBackfilled() {
+    for (final shipment in _shipmentBatches) {
+      if (TraceabilityRepository.instance.parentsOf(shipment.code).isNotEmpty) {
+        continue;
+      }
+      final sourceBatches = shipment.sourceBatchCodes
+          .map(_farmerRepo.findPublicBatch)
+          .whereType<HarvestBatch>()
+          .toList();
+      if (sourceBatches.length != shipment.sourceBatchCodes.length) continue;
+
+      TraceabilityRepository.instance.recordConsolidatedBatch(
+        targetBatchCode: shipment.code,
+        holderId: _currentCollectorId,
+        holderRole: TraceActorRole.collector,
+        holderName: _profile.businessName.isEmpty
+            ? _profile.fullName
+            : _profile.businessName,
+        contributions: sourceBatches
+            .map(
+              (batch) => TraceLineageContribution(
+                sourceBatchCode: batch.code,
+                quantity: batch.receivedQuantity ?? batch.quantity,
+                unit: batch.unit,
+                fruitCount: batch.receivedFruitCount ?? batch.fruitCount,
+                note: batch.verifiedGrade == null
+                    ? null
+                    : 'Grade ${batch.verifiedGrade}',
+              ),
+            )
+            .toList(),
+        productName:
+            'Durian ${shipment.sourceBatchCodes.length > 1 ? 'Campuran' : sourceBatches.first.variety}',
+        createdAt: shipment.packagedAt,
+        locationLabel: _profile.location,
+        relationType: shipment.sourceBatchCodes.length > 1
+            ? TraceBatchRelationType.consolidatedFrom
+            : TraceBatchRelationType.splitFrom,
+        metadata: {
+          'Kode pengiriman': shipment.code,
+          'Tujuan': shipment.destinationName ?? shipment.destinationType.label,
+          'Lokasi tujuan': shipment.destinationLocation ?? '-',
+          'Migrasi': 'Backfill lineage shipment lama',
+        },
+      );
+    }
   }
 
   // [FE - State Management] Migrasi ini memperbaiki PGL demo lama agar hanya
@@ -644,6 +695,39 @@ class CollectorRepository extends ChangeNotifier {
     );
 
     _shipmentBatches.add(shipment);
+    TraceabilityRepository.instance.recordConsolidatedBatch(
+      targetBatchCode: shipment.code,
+      holderId: _currentCollectorId,
+      holderRole: TraceActorRole.collector,
+      holderName: _profile.businessName.isEmpty
+          ? _profile.fullName
+          : _profile.businessName,
+      contributions: selectedBatches
+          .map(
+            (batch) => TraceLineageContribution(
+              sourceBatchCode: batch.code,
+              quantity: batch.receivedQuantity ?? batch.quantity,
+              unit: batch.unit,
+              fruitCount: batch.receivedFruitCount ?? batch.fruitCount,
+              note: batch.verifiedGrade == null
+                  ? null
+                  : 'Grade ${batch.verifiedGrade}',
+            ),
+          )
+          .toList(),
+      productName:
+          'Durian ${shipment.sourceBatchCodes.length > 1 ? 'Campuran' : selectedBatches.first.variety}',
+      createdAt: shipment.packagedAt,
+      locationLabel: _profile.location,
+      relationType: shipment.sourceBatchCodes.length > 1
+          ? TraceBatchRelationType.consolidatedFrom
+          : TraceBatchRelationType.splitFrom,
+      metadata: {
+        'Kode pengiriman': shipment.code,
+        'Tujuan': shipment.destinationName ?? shipment.destinationType.label,
+        'Lokasi tujuan': shipment.destinationLocation ?? '-',
+      },
+    );
     _saveToLocal();
     notifyListeners();
     return shipment;

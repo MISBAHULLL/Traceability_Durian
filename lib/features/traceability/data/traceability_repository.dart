@@ -19,6 +19,22 @@ class TraceHandoverDraftItem {
   final String? note;
 }
 
+class TraceLineageContribution {
+  const TraceLineageContribution({
+    required this.sourceBatchCode,
+    required this.quantity,
+    required this.unit,
+    this.fruitCount,
+    this.note,
+  });
+
+  final String sourceBatchCode;
+  final double quantity;
+  final String unit;
+  final int? fruitCount;
+  final String? note;
+}
+
 class TraceabilityRepository extends ChangeNotifier {
   TraceabilityRepository._() {
     _loadFromLocal();
@@ -307,6 +323,312 @@ class TraceabilityRepository extends ChangeNotifier {
           eventId: event.id,
           occurredAt: createdAt,
           reason: 'Saldo awal panen',
+        ),
+      );
+    }
+
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  bool recordConsolidatedBatch({
+    required String targetBatchCode,
+    required String holderId,
+    required TraceActorRole holderRole,
+    required String holderName,
+    required List<TraceLineageContribution> contributions,
+    required String productName,
+    required DateTime createdAt,
+    String productForm = 'whole_fruit',
+    String? locationLabel,
+    TraceBatchRelationType relationType =
+        TraceBatchRelationType.consolidatedFrom,
+    Map<String, String> metadata = const {},
+  }) {
+    final cleanTargetCode = targetBatchCode.trim().toUpperCase();
+    final cleanContributions = contributions
+        .where(
+          (item) => item.sourceBatchCode.trim().isNotEmpty && item.quantity > 0,
+        )
+        .toList();
+    if (cleanTargetCode.isEmpty || cleanContributions.isEmpty) return false;
+    if (cleanContributions.any(
+      (item) => item.sourceBatchCode.trim().toUpperCase() == cleanTargetCode,
+    )) {
+      return false;
+    }
+
+    final hasSameRelations = _relations.any(
+      (relation) => relation.targetBatchCode == cleanTargetCode,
+    );
+    if (hasSameRelations) return true;
+
+    final sources = <TraceBatch>[];
+    for (final contribution in cleanContributions) {
+      final source = findBatch(
+        contribution.sourceBatchCode.trim().toUpperCase(),
+      );
+      if (source == null || contribution.quantity > source.quantityCurrent) {
+        return false;
+      }
+      sources.add(source);
+    }
+
+    final totalQuantity = cleanContributions.fold<double>(
+      0,
+      (total, item) => total + item.quantity,
+    );
+    final totalFruitCount = cleanContributions.fold<int>(
+      0,
+      (total, item) => total + (item.fruitCount ?? 0),
+    );
+    final firstSource = sources.first;
+    final mixedOrigin = sources.length > 1;
+    final originName = mixedOrigin
+        ? 'Campuran ${sources.length} batch sumber'
+        : firstSource.originActorName;
+    final eventType = switch (relationType) {
+      TraceBatchRelationType.splitFrom => TraceEventType.splitCreated,
+      TraceBatchRelationType.gradedFrom => TraceEventType.gradingRecorded,
+      TraceBatchRelationType.processedFrom => TraceEventType.processed,
+      TraceBatchRelationType.consolidatedFrom => TraceEventType.consolidated,
+      TraceBatchRelationType.receivedFrom => TraceEventType.handoverReceived,
+    };
+
+    final event = _createEvent(
+      batchCode: cleanTargetCode,
+      type: eventType,
+      actorId: holderId,
+      actorRole: holderRole,
+      actorName: holderName,
+      title: mixedOrigin ? 'Batch campuran dibuat' : 'Sub-batch dibuat',
+      description:
+          '$cleanTargetCode dibuat dari ${sources.length} batch sumber.',
+      occurredAt: createdAt,
+      locationLabel: locationLabel,
+      metadata: {
+        'Total': '$totalQuantity ${cleanContributions.first.unit}',
+        if (totalFruitCount > 0) 'Jumlah': '$totalFruitCount butir',
+        'Sumber': cleanContributions
+            .map((item) => item.sourceBatchCode.trim().toUpperCase())
+            .join(', '),
+        ...metadata,
+      },
+    );
+    _events.add(event);
+
+    if (!_batches.any((batch) => batch.code == cleanTargetCode)) {
+      _batches.add(
+        TraceBatch(
+          code: cleanTargetCode,
+          productName: productName,
+          productForm: productForm,
+          currentHolderId: holderId,
+          currentHolderRole: holderRole,
+          currentHolderName: holderName,
+          originActorId: mixedOrigin ? 'mixed' : firstSource.originActorId,
+          originActorRole: mixedOrigin
+              ? TraceActorRole.system
+              : firstSource.originActorRole,
+          originActorName: originName,
+          quantityInitial: totalQuantity,
+          quantityCurrent: totalQuantity,
+          reservedQuantity: 0,
+          unit: cleanContributions.first.unit,
+          fruitCountInitial: totalFruitCount == 0 ? null : totalFruitCount,
+          fruitCountCurrent: totalFruitCount == 0 ? null : totalFruitCount,
+          locationLabel: locationLabel,
+          publicLocationLabel: locationLabel,
+          sourceReference: cleanContributions
+              .map((item) => item.sourceBatchCode.trim().toUpperCase())
+              .join(','),
+          createdAt: createdAt,
+          status: TraceBatchStatus.active,
+          metadata: {
+            'Lineage': mixedOrigin ? 'Campuran' : 'Sub-batch',
+            ...metadata,
+          },
+        ),
+      );
+    }
+
+    for (var i = 0; i < cleanContributions.length; i++) {
+      final contribution = cleanContributions[i];
+      final source = sources[i];
+      _relations.add(
+        TraceBatchRelation(
+          id: _generateRelationId(),
+          sourceBatchCode: source.code,
+          targetBatchCode: cleanTargetCode,
+          type: relationType,
+          quantity: contribution.quantity,
+          unit: contribution.unit,
+          fruitCount: contribution.fruitCount,
+          eventId: event.id,
+          note: contribution.note,
+          createdAt: createdAt,
+        ),
+      );
+      _movements.add(
+        _createMovement(
+          batchCode: source.code,
+          type: TraceQuantityMovementType.acceptedOut,
+          quantity: contribution.quantity,
+          unit: contribution.unit,
+          fruitCount: contribution.fruitCount,
+          eventId: event.id,
+          occurredAt: createdAt,
+          reason: 'Kontribusi ke $cleanTargetCode',
+        ),
+      );
+    }
+    _movements.add(
+      _createMovement(
+        batchCode: cleanTargetCode,
+        type: TraceQuantityMovementType.acceptedIn,
+        quantity: totalQuantity,
+        unit: cleanContributions.first.unit,
+        fruitCount: totalFruitCount == 0 ? null : totalFruitCount,
+        eventId: event.id,
+        occurredAt: createdAt,
+        reason: 'Batch hasil konsolidasi',
+      ),
+    );
+
+    for (var i = 0; i < sources.length; i++) {
+      final source = sources[i];
+      final sourceIndex = _batches.indexWhere(
+        (batch) => batch.code == source.code,
+      );
+      if (sourceIndex == -1) continue;
+      final remaining = source.quantityCurrent - cleanContributions[i].quantity;
+      final remainingFruit = source.fruitCountCurrent == null
+          ? null
+          : source.fruitCountCurrent! - (cleanContributions[i].fruitCount ?? 0);
+      _batches[sourceIndex] = source.copyWith(
+        quantityCurrent: remaining < 0 ? 0 : remaining,
+        fruitCountCurrent: remainingFruit == null
+            ? null
+            : (remainingFruit < 0 ? 0 : remainingFruit),
+        status: remaining <= 0
+            ? TraceBatchStatus.transformed
+            : TraceBatchStatus.active,
+      );
+    }
+
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  bool recordReceiptVariance({
+    required String batchCode,
+    required String actorId,
+    required TraceActorRole actorRole,
+    required String actorName,
+    required double expectedQuantity,
+    required double receivedQuantity,
+    required String unit,
+    required String conditionLabel,
+    int? expectedFruitCount,
+    int? receivedFruitCount,
+    String? locationLabel,
+    String? relatedObjectId,
+    String? note,
+  }) {
+    final cleanBatchCode = batchCode.trim().toUpperCase();
+    if (cleanBatchCode.isEmpty ||
+        expectedQuantity < 0 ||
+        receivedQuantity < 0) {
+      return false;
+    }
+    if (relatedObjectId != null &&
+        _events.any(
+          (event) =>
+              event.relatedObjectId == relatedObjectId &&
+              (event.type == TraceEventType.receiptDisputed ||
+                  event.type == TraceEventType.handoverReceived),
+        )) {
+      return true;
+    }
+
+    final weightDiff = receivedQuantity - expectedQuantity;
+    final fruitDiff = receivedFruitCount == null || expectedFruitCount == null
+        ? 0
+        : receivedFruitCount - expectedFruitCount;
+    final hasDiscrepancy = weightDiff.abs() > 0.01 || fruitDiff != 0;
+    final now = DateTime.now();
+    final event = _createEvent(
+      batchCode: cleanBatchCode,
+      type: hasDiscrepancy
+          ? TraceEventType.receiptDisputed
+          : TraceEventType.handoverReceived,
+      actorId: actorId,
+      actorRole: actorRole,
+      actorName: actorName,
+      title: hasDiscrepancy ? 'Audit selisih penerimaan' : 'Penerimaan sesuai',
+      description: hasDiscrepancy
+          ? 'Penerimaan $cleanBatchCode memiliki selisih berat/jumlah.'
+          : 'Penerimaan $cleanBatchCode sesuai dengan catatan pengirim.',
+      occurredAt: now,
+      locationLabel: locationLabel,
+      relatedObjectId: relatedObjectId,
+      metadata: {
+        'Kondisi': conditionLabel,
+        'Berat dikirim': '$expectedQuantity $unit',
+        'Berat diterima': '$receivedQuantity $unit',
+        'Selisih berat': '$weightDiff $unit',
+        if (expectedFruitCount != null) 'Jumlah dikirim': '$expectedFruitCount',
+        if (receivedFruitCount != null)
+          'Jumlah diterima': '$receivedFruitCount',
+        if (expectedFruitCount != null && receivedFruitCount != null)
+          'Selisih jumlah': '$fruitDiff',
+        if (note != null && note.trim().isNotEmpty) 'Catatan': note.trim(),
+      },
+    );
+    _events.add(event);
+
+    final batchIndex = _batches.indexWhere(
+      (batch) => batch.code == cleanBatchCode,
+    );
+    if (weightDiff < -0.01) {
+      _movements.add(
+        _createMovement(
+          batchCode: cleanBatchCode,
+          type: TraceQuantityMovementType.loss,
+          quantity: weightDiff.abs(),
+          unit: unit,
+          fruitCount: fruitDiff < 0 ? fruitDiff.abs() : null,
+          eventId: event.id,
+          occurredAt: now,
+          reason: note,
+        ),
+      );
+      if (batchIndex != -1) {
+        final batch = _batches[batchIndex];
+        final remaining = batch.quantityCurrent - weightDiff.abs();
+        _batches[batchIndex] = batch.copyWith(
+          quantityCurrent: remaining < 0 ? 0 : remaining,
+          fruitCountCurrent: batch.fruitCountCurrent == null || fruitDiff >= 0
+              ? batch.fruitCountCurrent
+              : (batch.fruitCountCurrent! - fruitDiff.abs()).clamp(0, 1 << 31),
+          status: remaining <= 0
+              ? TraceBatchStatus.depleted
+              : TraceBatchStatus.active,
+        );
+      }
+    } else if (weightDiff > 0.01 || fruitDiff > 0) {
+      _movements.add(
+        _createMovement(
+          batchCode: cleanBatchCode,
+          type: TraceQuantityMovementType.disputed,
+          quantity: weightDiff > 0 ? weightDiff : 0,
+          unit: unit,
+          fruitCount: fruitDiff > 0 ? fruitDiff : null,
+          eventId: event.id,
+          occurredAt: now,
+          reason: note,
         ),
       );
     }

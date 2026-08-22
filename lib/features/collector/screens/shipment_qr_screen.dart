@@ -5,6 +5,7 @@ import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/qr_preview.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
+import '../../traceability/data/traceability_repository.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_shipment_batch.dart';
 
@@ -212,6 +213,22 @@ class _ShipmentInfoCard extends StatelessWidget {
     return '$text kg';
   }
 
+  String _formatLineage() {
+    final relations = TraceabilityRepository.instance.parentsOf(shipment.code);
+    if (relations.isEmpty) return shipment.sourceBatchCodes.join(', ');
+    return relations
+        .map((relation) {
+          final weight = relation.quantity % 1 == 0
+              ? relation.quantity.toStringAsFixed(0)
+              : relation.quantity.toStringAsFixed(2);
+          final fruit = relation.fruitCount == null
+              ? ''
+              : ' / ${relation.fruitCount} butir';
+          return '${relation.sourceBatchCode}: $weight ${relation.unit}$fruit';
+        })
+        .join('\n');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -242,10 +259,7 @@ class _ShipmentInfoCard extends StatelessWidget {
             value: _formatWeight(shipment.totalWeightKg),
           ),
           _InfoRow(label: 'Total Butir', value: '${shipment.totalFruitCount}'),
-          _InfoRow(
-            label: 'Source Batch',
-            value: shipment.sourceBatchCodes.join(', '),
-          ),
+          _InfoRow(label: 'Komposisi Sumber', value: _formatLineage()),
         ],
       ),
     );

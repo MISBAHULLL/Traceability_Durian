@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../../traceability/data/traceability_repository.dart';
+import '../../traceability/models/traceability_models.dart';
 import '../models/umkm_order.dart';
 import '../models/umkm_product.dart';
 import '../models/umkm_profile.dart';
@@ -165,6 +167,22 @@ class UmkmRepository extends ChangeNotifier {
       receiverName: profile.name,
     );
     if (!ok) return false;
+
+    TraceabilityRepository.instance.recordReceiptVariance(
+      batchCode: code,
+      actorId: profile.umkmId,
+      actorRole: TraceActorRole.umkm,
+      actorName: profile.name,
+      expectedQuantity: batch.quantity,
+      receivedQuantity: receivedWeightKg,
+      unit: batch.unit,
+      expectedFruitCount: batch.fruitCount,
+      receivedFruitCount: receivedFruitCount,
+      conditionLabel: conditionNote,
+      locationLabel: profile.location,
+      relatedObjectId: 'UMKM-DRN-$code',
+      note: conditionNote,
+    );
 
     addPurchase(
       UmkmPurchase(

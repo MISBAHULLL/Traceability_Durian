@@ -6,10 +6,12 @@ import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/mobile_scanner_feedback.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
+import '../../collector/models/collector_shipment_batch.dart';
 import '../consumer_routes.dart';
 import '../data/consumer_repository.dart';
 import '../models/consumer_product.dart';
 import 'consumer_product_detail_screen.dart';
+import 'consumer_shipment_receive_screen.dart';
 
 /// Screen scan QR untuk konsumen.
 ///
@@ -45,20 +47,50 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
     return (match?.group(0) ?? text).toUpperCase();
   }
 
+  String? _extractPglCode(String raw) {
+    final text = raw.trim();
+    final match = RegExp(
+      r'PGL-\d{4}-\d{6}',
+      caseSensitive: false,
+    ).firstMatch(text);
+    return match?.group(0)?.toUpperCase();
+  }
+
   Future<void> _handleScanSubmit() async {
     FocusScope.of(context).unfocus();
 
-    final code = _extractProductCode(_codeCtrl.text);
-    if (code.isEmpty) {
+    final raw = _codeCtrl.text;
+    final pglCode = _extractPglCode(raw);
+    final productCode = _extractProductCode(raw);
+    if ((pglCode == null || pglCode.isEmpty) && productCode.isEmpty) {
       _notification.show(
         context,
-        'Masukkan kode produk terlebih dahulu.',
+        'Masukkan kode QR terlebih dahulu.',
         isError: true,
       );
       return;
     }
 
-    final product = _repo.findProduct(code);
+    if (pglCode != null) {
+      final shipment = _repo.scanCollectorShipment(pglCode);
+      if (shipment == null) {
+        _notification.show(
+          context,
+          'PGL tidak tersedia atau bukan tujuan konsumen ini.',
+          isError: true,
+        );
+        return;
+      }
+      if (shipment.status == CollectorShipmentStatus.completed ||
+          shipment.status == CollectorShipmentStatus.rejected) {
+        _notification.show(context, 'PGL ini sudah ${shipment.status.label}.');
+        return;
+      }
+      await _openShipmentReceipt(pglCode);
+      return;
+    }
+
+    final product = _repo.findProduct(productCode);
     if (product == null) {
       _notification.show(
         context,
@@ -83,6 +115,36 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
 
     setState(() => _isHandlingScan = true);
     await _scannerController.stop();
+
+    final pglCode = _extractPglCode(rawValue);
+    if (pglCode != null) {
+      final shipment = _repo.scanCollectorShipment(pglCode);
+      if (shipment == null) {
+        if (!mounted) return;
+        _notification.show(
+          context,
+          'PGL tidak tersedia atau bukan tujuan konsumen ini.',
+          isError: true,
+        );
+        await Future.delayed(const Duration(milliseconds: 900));
+        if (!mounted) return;
+        setState(() => _isHandlingScan = false);
+        await _scannerController.start();
+        return;
+      }
+      if (shipment.status == CollectorShipmentStatus.completed ||
+          shipment.status == CollectorShipmentStatus.rejected) {
+        if (!mounted) return;
+        _notification.show(context, 'PGL ini sudah ${shipment.status.label}.');
+        await Future.delayed(const Duration(milliseconds: 900));
+        if (!mounted) return;
+        setState(() => _isHandlingScan = false);
+        await _scannerController.start();
+        return;
+      }
+      await _openShipmentReceipt(pglCode);
+      return;
+    }
 
     final code = _extractProductCode(rawValue);
     final product = _repo.findProduct(code);
@@ -116,6 +178,19 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
     }
   }
 
+  Future<void> _openShipmentReceipt(String shipmentCode) async {
+    await ConsumerRoutes.push(
+      context,
+      ConsumerShipmentReceiveScreen(shipmentCode: shipmentCode),
+    );
+
+    if (!mounted) return;
+    setState(() => _isHandlingScan = false);
+    if (_isCameraMode) {
+      await _scannerController.start();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -123,7 +198,7 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const AppTopBar(title: 'Scan QR Produk'),
+            const AppTopBar(title: 'Scan QR Produk / PGL'),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
@@ -147,7 +222,7 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
                           ),
                           SizedBox(height: 14),
                           Text(
-                            'Scan QR Produk',
+                            'Scan QR Produk / PGL',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
@@ -156,7 +231,7 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            'Gunakan kamera atau input kode produk secara manual.',
+                            'Gunakan kamera atau input kode produk maupun PGL.',
                             style: TextStyle(
                               fontSize: 12,
                               height: 1.35,
@@ -189,13 +264,13 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
                         onDetect: _handleCameraDetect,
                       ),
                     ] else ...[
-                      const _FieldLabel(label: 'Kode / URL QR Produk'),
+                      const _FieldLabel(label: 'Kode / URL QR'),
                       const SizedBox(height: 8),
                       TextField(
                         controller: _codeCtrl,
                         textCapitalization: TextCapitalization.characters,
                         decoration: InputDecoration(
-                          hintText: 'Contoh: UMKM-001',
+                          hintText: 'Contoh: UMKM-001 atau PGL-2026-000906',
                           hintStyle: const TextStyle(
                             color: Color(0xFFB8B8B8),
                             fontSize: 14,

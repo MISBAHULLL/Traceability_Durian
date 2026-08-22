@@ -638,6 +638,72 @@ class TraceabilityRepository extends ChangeNotifier {
     return true;
   }
 
+  bool recordReceiptRejection({
+    required String batchCode,
+    required String actorId,
+    required TraceActorRole actorRole,
+    required String actorName,
+    required double expectedQuantity,
+    required String unit,
+    required String reason,
+    int? expectedFruitCount,
+    String? locationLabel,
+    String? relatedObjectId,
+  }) {
+    final cleanBatchCode = batchCode.trim().toUpperCase();
+    final cleanReason = reason.trim();
+    if (cleanBatchCode.isEmpty ||
+        expectedQuantity <= 0 ||
+        cleanReason.isEmpty) {
+      return false;
+    }
+    if (relatedObjectId != null &&
+        _events.any(
+          (event) =>
+              event.relatedObjectId == relatedObjectId &&
+              event.type == TraceEventType.handoverCancelled,
+        )) {
+      return true;
+    }
+
+    final now = DateTime.now();
+    final event = _createEvent(
+      batchCode: cleanBatchCode,
+      type: TraceEventType.handoverCancelled,
+      actorId: actorId,
+      actorRole: actorRole,
+      actorName: actorName,
+      title: 'Penerimaan ditolak',
+      description:
+          '$actorName menolak penerimaan $cleanBatchCode setelah pemeriksaan.',
+      occurredAt: now,
+      locationLabel: locationLabel,
+      relatedObjectId: relatedObjectId,
+      metadata: {
+        'Berat dikirim': '$expectedQuantity $unit',
+        if (expectedFruitCount != null) 'Jumlah dikirim': '$expectedFruitCount',
+        'Alasan': cleanReason,
+      },
+    );
+    _events.add(event);
+    _movements.add(
+      _createMovement(
+        batchCode: cleanBatchCode,
+        type: TraceQuantityMovementType.rejected,
+        quantity: expectedQuantity,
+        unit: unit,
+        fruitCount: expectedFruitCount,
+        eventId: event.id,
+        occurredAt: now,
+        reason: cleanReason,
+      ),
+    );
+
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
   bool recordWarehouseTransfer({
     required String batchCode,
     required String actorId,

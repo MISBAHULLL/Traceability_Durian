@@ -1131,6 +1131,31 @@ class CollectorRepository extends ChangeNotifier {
     return true;
   }
 
+  bool rejectShipment(String code, {String? reason}) {
+    final index = _shipmentBatches.indexWhere(
+      (shipment) => shipment.code == code,
+    );
+    if (index == -1) return false;
+
+    final existing = _shipmentBatches[index];
+    if (existing.status != CollectorShipmentStatus.sent &&
+        existing.status != CollectorShipmentStatus.readyToShip) {
+      return false;
+    }
+
+    _shipmentBatches[index] = existing.copyWith(
+      status: CollectorShipmentStatus.rejected,
+      rejectedAt: DateTime.now(),
+      warehouseNote: reason?.trim().isEmpty == true ? null : reason?.trim(),
+    );
+    _farmerRepo.markBatchesInDistribution(
+      sourceBatchCodes: existing.sourceBatchCodes,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
   String get _collectorActorName => _profile.businessName.trim().isEmpty
       ? _profile.fullName
       : _profile.businessName;
@@ -2040,6 +2065,68 @@ class CollectorRepository extends ChangeNotifier {
         destinationName: 'Lapak Durian Jember',
         destinationLocation: 'Desa Pakis, Kabupaten Jember',
         warehouseNote: 'Simulasi PGL horizontal dari Pengepul Malang.',
+      ),
+      CollectorShipmentBatch(
+        code: 'PGL-2026-000905',
+        collectorId: 'collector-demo-pakis',
+        sourceBatchCodes: const ['DRN-DEMO-PAKIS-001'],
+        totalWeightKg: 80,
+        totalFruitCount: 21,
+        gradeBreakdown: const [
+          CollectorStockBreakdown(
+            key: 'A',
+            label: 'Grade A',
+            totalWeightKg: 80,
+            totalFruitCount: 21,
+            batchCount: 1,
+          ),
+        ],
+        varietyBreakdown: const [
+          CollectorStockBreakdown(
+            key: 'bawor',
+            label: 'Durian Bawor',
+            totalWeightKg: 80,
+            totalFruitCount: 21,
+            batchCount: 1,
+          ),
+        ],
+        packagedAt: now.subtract(const Duration(hours: 1)),
+        status: CollectorShipmentStatus.readyToShip,
+        destinationType: ShipmentDestinationType.umkm,
+        destinationName: 'UMKM Sari Durian Jember',
+        destinationLocation: 'Kabupaten Jember, Jawa Timur',
+        warehouseNote: 'Simulasi PGL tujuan UMKM.',
+      ),
+      CollectorShipmentBatch(
+        code: 'PGL-2026-000906',
+        collectorId: 'collector-demo-pakis',
+        sourceBatchCodes: const ['DRN-DEMO-PAKIS-001'],
+        totalWeightKg: 12,
+        totalFruitCount: 3,
+        gradeBreakdown: const [
+          CollectorStockBreakdown(
+            key: 'A',
+            label: 'Grade A',
+            totalWeightKg: 12,
+            totalFruitCount: 3,
+            batchCount: 1,
+          ),
+        ],
+        varietyBreakdown: const [
+          CollectorStockBreakdown(
+            key: 'bawor',
+            label: 'Durian Bawor',
+            totalWeightKg: 12,
+            totalFruitCount: 3,
+            batchCount: 1,
+          ),
+        ],
+        packagedAt: now.subtract(const Duration(minutes: 45)),
+        status: CollectorShipmentStatus.readyToShip,
+        destinationType: ShipmentDestinationType.consumer,
+        destinationName: 'Ayu Prameswari',
+        destinationLocation: 'Kota Surabaya',
+        warehouseNote: 'Simulasi PGL tujuan konsumen.',
       ),
     ];
   }

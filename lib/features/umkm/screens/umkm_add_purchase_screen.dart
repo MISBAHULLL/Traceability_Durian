@@ -5,6 +5,8 @@ import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/product_media_tile.dart';
 import '../../../shared/widgets/qr_preview.dart';
+import '../../collector/models/collector_delivery_receipt.dart';
+import '../../collector/models/collector_shipment_batch.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../data/umkm_repository.dart';
 import '../models/umkm_purchase.dart';
@@ -23,6 +25,7 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
 
   final _searchCtrl = TextEditingController();
   final _drnCtrl = TextEditingController();
+  final _pglCtrl = TextEditingController();
   String _query = '';
   _MainTab _activeTab = _MainTab.beli;
   UmkmSupplierType? _activeSupplierFilter;
@@ -42,6 +45,7 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
     _repo.removeListener(_onRepoChanged);
     _searchCtrl.dispose();
     _drnCtrl.dispose();
+    _pglCtrl.dispose();
     super.dispose();
   }
 
@@ -152,6 +156,48 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
     }
   }
 
+  Future<void> _openCollectorShipment() async {
+    final input = _pglCtrl.text.trim().toUpperCase();
+    final match = RegExp(r'PGL-\d{4}-\d{6}').firstMatch(input);
+    final code = match?.group(0) ?? input;
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Masukkan kode PGL terlebih dahulu.')),
+      );
+      return;
+    }
+
+    final shipment = _repo.scanCollectorShipment(code);
+    if (shipment == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('PGL tidak tersedia atau bukan tujuan UMKM ini.'),
+        ),
+      );
+      return;
+    }
+    if (shipment.status == CollectorShipmentStatus.completed ||
+        shipment.status == CollectorShipmentStatus.rejected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('PGL ini sudah ${shipment.status.label}.')),
+      );
+      return;
+    }
+
+    final success = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UmkmCollectorShipmentReceiveScreen(shipmentCode: code),
+      ),
+    );
+    if (success == true && mounted) {
+      _pglCtrl.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PGL pengepul berhasil diproses.')),
+      );
+    }
+  }
+
   Widget _buildBeliTab(List<UmkmStockOffer> offers) {
     final categories = <UmkmSupplierType?>[
       null,
@@ -190,7 +236,16 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
         const SizedBox(height: 14),
         _DirectFarmerReceiveCard(
           controller: _drnCtrl,
+          title: 'Terima DRN dari Petani',
+          hint: 'DRN-2026-000009',
           onSubmit: _openDirectFarmerBatch,
+        ),
+        const SizedBox(height: 10),
+        _DirectFarmerReceiveCard(
+          controller: _pglCtrl,
+          title: 'Terima PGL dari Pengepul',
+          hint: 'PGL-2026-000905',
+          onSubmit: _openCollectorShipment,
         ),
         const SizedBox(height: 14),
         SizedBox(
@@ -314,6 +369,343 @@ class UmkmDirectFarmerReceiveScreen extends StatefulWidget {
   @override
   State<UmkmDirectFarmerReceiveScreen> createState() =>
       _UmkmDirectFarmerReceiveScreenState();
+}
+
+class UmkmCollectorShipmentReceiveScreen extends StatefulWidget {
+  const UmkmCollectorShipmentReceiveScreen({
+    super.key,
+    required this.shipmentCode,
+  });
+
+  final String shipmentCode;
+
+  @override
+  State<UmkmCollectorShipmentReceiveScreen> createState() =>
+      _UmkmCollectorShipmentReceiveScreenState();
+}
+
+class _UmkmCollectorShipmentReceiveScreenState
+    extends State<UmkmCollectorShipmentReceiveScreen> {
+  final _repo = UmkmRepository.instance;
+  final _weightCtrl = TextEditingController();
+  final _fruitCtrl = TextEditingController();
+  final _locationCtrl = TextEditingController();
+  final _discrepancyCtrl = TextEditingController();
+  final _qualityCtrl = TextEditingController();
+  final _conditions = CollectorDeliveryReceiptCondition.values;
+  var _condition = CollectorDeliveryReceiptCondition.good;
+  var _isSaving = false;
+
+  CollectorShipmentBatch? get _shipment =>
+      _repo.findCollectorShipment(widget.shipmentCode);
+
+  @override
+  void initState() {
+    super.initState();
+    final shipment = _shipment;
+    if (shipment != null) {
+      _weightCtrl.text = _formatNumber(shipment.totalWeightKg);
+      _fruitCtrl.text = '${shipment.totalFruitCount}';
+      _locationCtrl.text = _repo.profile.location;
+    }
+    _weightCtrl.addListener(_refresh);
+    _fruitCtrl.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    _weightCtrl.removeListener(_refresh);
+    _fruitCtrl.removeListener(_refresh);
+    _weightCtrl.dispose();
+    _fruitCtrl.dispose();
+    _locationCtrl.dispose();
+    _discrepancyCtrl.dispose();
+    _qualityCtrl.dispose();
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  double? get _weight =>
+      double.tryParse(_weightCtrl.text.trim().replaceAll(',', '.'));
+
+  int? get _fruit => int.tryParse(_fruitCtrl.text.trim());
+
+  bool _hasDiscrepancy(CollectorShipmentBatch shipment) {
+    final weight = _weight;
+    final fruit = _fruit;
+    if (weight == null || fruit == null) return false;
+    return (weight - shipment.totalWeightKg).abs() > 0.01 ||
+        fruit != shipment.totalFruitCount;
+  }
+
+  Future<void> _accept(CollectorShipmentBatch shipment) async {
+    final weight = _weight;
+    final fruit = _fruit;
+    if (weight == null || weight <= 0 || fruit == null || fruit <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Berat dan jumlah aktual wajib valid.')),
+      );
+      return;
+    }
+    if (_locationCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lokasi penerimaan wajib diisi.')),
+      );
+      return;
+    }
+    if (_hasDiscrepancy(shipment) && _discrepancyCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Isi catatan untuk selisih stok.')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    await Future.delayed(const Duration(milliseconds: 350));
+    final receipt = _repo.receiveCollectorShipment(
+      code: shipment.code,
+      receivedWeightKg: weight,
+      receivedFruitCount: fruit,
+      condition: _condition,
+      destinationLocation: _locationCtrl.text,
+      discrepancyNote: _discrepancyCtrl.text,
+      qualityNote: _qualityCtrl.text,
+    );
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+    if (receipt == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Penerimaan PGL gagal disimpan.')),
+      );
+      return;
+    }
+    Navigator.pop(context, true);
+  }
+
+  Future<void> _reject(CollectorShipmentBatch shipment) async {
+    final reason = _qualityCtrl.text.trim();
+    if (reason.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Isi catatan sebagai alasan penolakan.')),
+      );
+      return;
+    }
+    if (_locationCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lokasi pemeriksaan wajib diisi.')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    await Future.delayed(const Duration(milliseconds: 300));
+    final receipt = _repo.rejectCollectorShipment(
+      code: shipment.code,
+      reason: reason,
+      destinationLocation: _locationCtrl.text,
+    );
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+    if (receipt == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Penolakan PGL gagal disimpan.')),
+      );
+      return;
+    }
+    Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shipment = _shipment;
+    final existingReceipt = _repo.deliveryReceiptForShipment(
+      widget.shipmentCode,
+    );
+    final unavailable =
+        shipment == null ||
+        existingReceipt != null ||
+        shipment.status == CollectorShipmentStatus.completed ||
+        shipment.status == CollectorShipmentStatus.rejected;
+
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const AppTopBar(title: 'Validasi PGL Pengepul'),
+            Expanded(
+              child: unavailable
+                  ? const _EmptyState(
+                      icon: Icons.inventory_2_outlined,
+                      title: 'PGL tidak tersedia',
+                      subtitle:
+                          'PGL ini sudah diproses atau bukan tujuan UMKM.',
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _InfoCard(
+                            title: 'Ringkasan PGL',
+                            children: [
+                              _DetailLine(label: 'Kode', value: shipment.code),
+                              _DetailLine(
+                                label: 'Tujuan',
+                                value:
+                                    shipment.destinationName ??
+                                    shipment.destinationType.label,
+                              ),
+                              _DetailLine(
+                                label: 'Lokasi Tujuan',
+                                value: shipment.destinationLocation ?? '-',
+                              ),
+                              _DetailLine(
+                                label: 'Jumlah Kirim',
+                                value:
+                                    '${_formatNumber(shipment.totalWeightKg)} kg / ${shipment.totalFruitCount} butir',
+                              ),
+                              _DetailLine(
+                                label: 'Sumber Batch',
+                                value: shipment.sourceBatchCodes.join(', '),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _InfoCard(
+                            title: 'Validasi Stok Masuk',
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _weightCtrl,
+                                      keyboardType: TextInputType.number,
+                                      decoration: _receiveInputDecoration(
+                                        'Berat aktual kg',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _fruitCtrl,
+                                      keyboardType: TextInputType.number,
+                                      decoration: _receiveInputDecoration(
+                                        'Jumlah butir',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (_hasDiscrepancy(shipment)) ...[
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _discrepancyCtrl,
+                                  maxLines: 2,
+                                  decoration: _receiveInputDecoration(
+                                    'Catatan selisih wajib diisi',
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _locationCtrl,
+                                decoration: _receiveInputDecoration(
+                                  'Lokasi penerimaan',
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _conditions.map((condition) {
+                                  final selected = condition == _condition;
+                                  return ChoiceChip(
+                                    label: Text(condition.label),
+                                    selected: selected,
+                                    onSelected: (_) =>
+                                        setState(() => _condition = condition),
+                                    selectedColor: AppColors.primaryContainer
+                                        .withValues(alpha: 0.18),
+                                    labelStyle: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: selected
+                                          ? AppColors.primary
+                                          : AppColors.subtitle,
+                                    ),
+                                    side: BorderSide(
+                                      color: selected
+                                          ? AppColors.primaryContainer
+                                          : const Color(0xFFE5E7EB),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _qualityCtrl,
+                                maxLines: 3,
+                                decoration: _receiveInputDecoration(
+                                  'Catatan kondisi atau alasan penolakan',
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          PrimaryPillButton(
+                            label: 'TERIMA STOK',
+                            isLoading: _isSaving,
+                            onPressed: _isSaving
+                                ? null
+                                : () => _accept(shipment),
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton.icon(
+                            onPressed: _isSaving
+                                ? null
+                                : () => _reject(shipment),
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            label: const Text('TOLAK STOK'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                              foregroundColor: const Color(0xFFD64545),
+                              side: const BorderSide(color: Color(0xFFD64545)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _receiveInputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: AppColors.surface,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    );
+  }
 }
 
 class _UmkmDirectFarmerReceiveScreenState
@@ -666,13 +1058,22 @@ class UmkmStockOfferDetailScreen extends StatelessWidget {
 
 enum _MainTab { beli, pesanan }
 
+String _formatNumber(double value) {
+  if (value % 1 == 0) return value.toStringAsFixed(0);
+  return value.toStringAsFixed(1);
+}
+
 class _DirectFarmerReceiveCard extends StatelessWidget {
   const _DirectFarmerReceiveCard({
     required this.controller,
+    required this.title,
+    required this.hint,
     required this.onSubmit,
   });
 
   final TextEditingController controller;
+  final String title;
+  final String hint;
   final VoidCallback onSubmit;
 
   @override
@@ -687,17 +1088,17 @@ class _DirectFarmerReceiveCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.qr_code_scanner_rounded,
                 size: 18,
                 color: AppColors.primary,
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text(
-                'Terima DRN dari Petani',
-                style: TextStyle(
+                title,
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
                   color: AppColors.black,
@@ -713,7 +1114,7 @@ class _DirectFarmerReceiveCard extends StatelessWidget {
                   controller: controller,
                   textCapitalization: TextCapitalization.characters,
                   decoration: InputDecoration(
-                    hintText: 'DRN-2026-000009',
+                    hintText: hint,
                     hintStyle: const TextStyle(
                       fontSize: 13,
                       color: AppColors.placeholder,

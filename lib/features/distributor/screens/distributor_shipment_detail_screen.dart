@@ -1352,6 +1352,8 @@ Color _statusColor(CollectorShipmentStatus status) {
       return const Color(0xFFB45309);
     case CollectorShipmentStatus.completed:
       return const Color(0xFF1D6FA4);
+    case CollectorShipmentStatus.rejected:
+      return const Color(0xFFD64545);
   }
 }
 

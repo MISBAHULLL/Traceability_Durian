@@ -4,6 +4,9 @@ import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../../traceability/data/traceability_repository.dart';
 import '../../traceability/models/traceability_models.dart';
+import '../../collector/data/collector_repository.dart';
+import '../../collector/models/collector_delivery_receipt.dart';
+import '../../collector/models/collector_shipment_batch.dart';
 import '../models/umkm_order.dart';
 import '../models/umkm_product.dart';
 import '../models/umkm_profile.dart';
@@ -41,6 +44,7 @@ class UmkmRepository extends ChangeNotifier {
   List<UmkmPurchase>? _purchases;
   List<UmkmStockOffer>? _stockOffers;
   List<UmkmStockOrder>? _stockOrders;
+  final List<CollectorDeliveryReceipt> _collectorDeliveryReceipts = [];
 
   UmkmProfile get profile => _profile ??= _seedProfile;
   List<UmkmProduct> get products =>
@@ -140,6 +144,201 @@ class UmkmRepository extends ChangeNotifier {
       actorName: profile.name,
       locationLabel: profile.location,
     );
+  }
+
+  List<CollectorShipmentBatch> get incomingCollectorShipments {
+    final items = CollectorRepository.instance.allShipmentBatches
+        .where(
+          (shipment) =>
+              shipment.destinationType == ShipmentDestinationType.umkm,
+        )
+        .toList();
+    items.sort((a, b) => b.packagedAt.compareTo(a.packagedAt));
+    return List.unmodifiable(items);
+  }
+
+  CollectorShipmentBatch? findCollectorShipment(String code) {
+    final cleanCode = code.trim().toUpperCase();
+    if (cleanCode.isEmpty) return null;
+    try {
+      return incomingCollectorShipments.firstWhere(
+        (shipment) => shipment.code.toUpperCase() == cleanCode,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  CollectorDeliveryReceipt? deliveryReceiptForShipment(String shipmentCode) {
+    final cleanCode = shipmentCode.trim().toUpperCase();
+    try {
+      return _collectorDeliveryReceipts.firstWhere(
+        (receipt) =>
+            receipt.shipmentCode.toUpperCase() == cleanCode &&
+            receipt.receiverId == profile.umkmId &&
+            receipt.receiverType == ShipmentDestinationType.umkm,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  CollectorShipmentBatch? scanCollectorShipment(String code) {
+    final shipment = findCollectorShipment(code);
+    if (shipment == null) return null;
+    if (shipment.status == CollectorShipmentStatus.readyToShip) {
+      CollectorRepository.instance.markShipmentSent(shipment.code);
+      return findCollectorShipment(shipment.code);
+    }
+    return shipment;
+  }
+
+  CollectorDeliveryReceipt? receiveCollectorShipment({
+    required String code,
+    required double receivedWeightKg,
+    required int receivedFruitCount,
+    required CollectorDeliveryReceiptCondition condition,
+    required String destinationLocation,
+    String? discrepancyNote,
+    String? qualityNote,
+  }) {
+    final cleanCode = code.trim().toUpperCase();
+    var shipment = scanCollectorShipment(cleanCode);
+    if (shipment == null ||
+        shipment.status != CollectorShipmentStatus.sent ||
+        receivedWeightKg <= 0 ||
+        receivedFruitCount <= 0 ||
+        destinationLocation.trim().isEmpty ||
+        deliveryReceiptForShipment(cleanCode) != null) {
+      return null;
+    }
+
+    final weightDifference = receivedWeightKg - shipment.totalWeightKg;
+    final fruitDifference = receivedFruitCount - shipment.totalFruitCount;
+    final hasDiscrepancy =
+        weightDifference.abs() > 0.01 || fruitDifference != 0;
+    final cleanDiscrepancyNote = discrepancyNote?.trim();
+    if (hasDiscrepancy &&
+        (cleanDiscrepancyNote == null || cleanDiscrepancyNote.isEmpty)) {
+      return null;
+    }
+
+    final cleanQualityNote = qualityNote?.trim();
+    final completed = CollectorRepository.instance.completeShipment(
+      cleanCode,
+      warehouseNote: cleanQualityNote?.isNotEmpty == true
+          ? cleanQualityNote
+          : 'Diterima dan divalidasi oleh UMKM.',
+    );
+    if (!completed) return null;
+    shipment = findCollectorShipment(cleanCode) ?? shipment;
+
+    final receipt = CollectorDeliveryReceipt(
+      id: 'UMKM-RCP-${DateTime.now().millisecondsSinceEpoch}',
+      shipmentCode: cleanCode,
+      receiverId: profile.umkmId,
+      receiverName: profile.name,
+      receiverType: ShipmentDestinationType.umkm,
+      expectedWeightKg: shipment.totalWeightKg,
+      expectedFruitCount: shipment.totalFruitCount,
+      receivedWeightKg: receivedWeightKg,
+      receivedFruitCount: receivedFruitCount,
+      condition: condition,
+      decision: CollectorDeliveryReceiptDecision.accepted,
+      checkedAt: DateTime.now(),
+      destinationLocation: destinationLocation.trim(),
+      discrepancyNote: cleanDiscrepancyNote?.isEmpty == true
+          ? null
+          : cleanDiscrepancyNote,
+      qualityNote: cleanQualityNote?.isEmpty == true ? null : cleanQualityNote,
+    );
+    _collectorDeliveryReceipts.add(receipt);
+
+    TraceabilityRepository.instance.recordReceiptVariance(
+      batchCode: shipment.code,
+      actorId: profile.umkmId,
+      actorRole: TraceActorRole.umkm,
+      actorName: profile.name,
+      expectedQuantity: shipment.totalWeightKg,
+      receivedQuantity: receivedWeightKg,
+      unit: 'kg',
+      expectedFruitCount: shipment.totalFruitCount,
+      receivedFruitCount: receivedFruitCount,
+      conditionLabel: condition.label,
+      locationLabel: receipt.destinationLocation,
+      relatedObjectId: receipt.id,
+      note: cleanDiscrepancyNote?.isNotEmpty == true
+          ? cleanDiscrepancyNote
+          : cleanQualityNote,
+    );
+
+    addPurchase(
+      UmkmPurchase(
+        id: 'PUR-${DateTime.now().millisecondsSinceEpoch}',
+        supplierName: shipment.destinationName ?? 'Pengepul',
+        productName: 'Durian PGL ${shipment.code}',
+        quantity: receivedWeightKg.round(),
+        totalLabel: '-',
+        createdAt: DateTime.now(),
+        qrCodeData: shipment.code,
+        note: cleanQualityNote,
+      ),
+    );
+    notifyListeners();
+    return receipt;
+  }
+
+  CollectorDeliveryReceipt? rejectCollectorShipment({
+    required String code,
+    required String reason,
+    required String destinationLocation,
+  }) {
+    final cleanCode = code.trim().toUpperCase();
+    final cleanReason = reason.trim();
+    var shipment = scanCollectorShipment(cleanCode);
+    if (shipment == null ||
+        cleanReason.isEmpty ||
+        destinationLocation.trim().isEmpty ||
+        deliveryReceiptForShipment(cleanCode) != null) {
+      return null;
+    }
+
+    final rejected = CollectorRepository.instance.rejectShipment(
+      cleanCode,
+      reason: cleanReason,
+    );
+    if (!rejected) return null;
+    shipment = findCollectorShipment(cleanCode) ?? shipment;
+
+    final receipt = CollectorDeliveryReceipt(
+      id: 'UMKM-RJT-${DateTime.now().millisecondsSinceEpoch}',
+      shipmentCode: cleanCode,
+      receiverId: profile.umkmId,
+      receiverName: profile.name,
+      receiverType: ShipmentDestinationType.umkm,
+      expectedWeightKg: shipment.totalWeightKg,
+      expectedFruitCount: shipment.totalFruitCount,
+      decision: CollectorDeliveryReceiptDecision.rejected,
+      checkedAt: DateTime.now(),
+      destinationLocation: destinationLocation.trim(),
+      rejectionReason: cleanReason,
+    );
+    _collectorDeliveryReceipts.add(receipt);
+
+    TraceabilityRepository.instance.recordReceiptRejection(
+      batchCode: shipment.code,
+      actorId: profile.umkmId,
+      actorRole: TraceActorRole.umkm,
+      actorName: profile.name,
+      expectedQuantity: shipment.totalWeightKg,
+      unit: 'kg',
+      expectedFruitCount: shipment.totalFruitCount,
+      locationLabel: receipt.destinationLocation,
+      relatedObjectId: receipt.id,
+      reason: cleanReason,
+    );
+    notifyListeners();
+    return receipt;
   }
 
   bool receiveFarmerBatch({

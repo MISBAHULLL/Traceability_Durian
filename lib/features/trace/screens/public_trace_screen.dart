@@ -315,6 +315,8 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
         'Batch sedang dikirim ke tujuan berikutnya.',
       CollectorShipmentStatus.completed =>
         'Batch sudah diterima di tujuan berikutnya.',
+      CollectorShipmentStatus.rejected =>
+        'Batch ditolak saat validasi penerimaan.',
     };
   }
 

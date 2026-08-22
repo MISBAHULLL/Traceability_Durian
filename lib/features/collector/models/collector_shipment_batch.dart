@@ -2,7 +2,7 @@ import 'collector_stock_summary.dart';
 
 // [DB - Model/Entity] Enum ini merepresentasikan status batch pengiriman
 // milik pengepul sebelum nanti dipindahkan ke state backend/blockchain.
-enum CollectorShipmentStatus { readyToShip, sent, completed }
+enum CollectorShipmentStatus { readyToShip, sent, completed, rejected }
 
 // [DB - Model/Entity] Enum ini membedakan penerima manifest agar pengiriman
 // langsung ke UMKM tidak masuk ke antrean operasional distributor.
@@ -32,6 +32,8 @@ extension CollectorShipmentStatusX on CollectorShipmentStatus {
         return 'Dikirim';
       case CollectorShipmentStatus.completed:
         return 'Selesai';
+      case CollectorShipmentStatus.rejected:
+        return 'Ditolak';
     }
   }
 }
@@ -55,6 +57,7 @@ class CollectorShipmentBatch {
     this.warehouseNote,
     this.sentAt,
     this.completedAt,
+    this.rejectedAt,
   });
 
   final String code;
@@ -72,6 +75,7 @@ class CollectorShipmentBatch {
   final String? warehouseNote;
   final DateTime? sentAt;
   final DateTime? completedAt;
+  final DateTime? rejectedAt;
 
   // [DB - Model/Entity] copyWith dipakai repository untuk mengubah status
   // pengiriman tanpa membuat UI tahu detail struktur model.
@@ -83,6 +87,7 @@ class CollectorShipmentBatch {
     String? warehouseNote,
     DateTime? sentAt,
     DateTime? completedAt,
+    DateTime? rejectedAt,
   }) {
     return CollectorShipmentBatch(
       code: code,
@@ -100,6 +105,7 @@ class CollectorShipmentBatch {
       warehouseNote: warehouseNote ?? this.warehouseNote,
       sentAt: sentAt ?? this.sentAt,
       completedAt: completedAt ?? this.completedAt,
+      rejectedAt: rejectedAt ?? this.rejectedAt,
     );
   }
 
@@ -119,6 +125,7 @@ class CollectorShipmentBatch {
     'warehouseNote': warehouseNote,
     'sentAt': sentAt?.toIso8601String(),
     'completedAt': completedAt?.toIso8601String(),
+    'rejectedAt': rejectedAt?.toIso8601String(),
   };
 
   factory CollectorShipmentBatch.fromJson(Map<String, dynamic> json) {
@@ -164,6 +171,9 @@ class CollectorShipmentBatch {
       completedAt: json['completedAt'] == null
           ? null
           : DateTime.parse(json['completedAt'] as String),
+      rejectedAt: json['rejectedAt'] == null
+          ? null
+          : DateTime.parse(json['rejectedAt'] as String),
     );
   }
 }

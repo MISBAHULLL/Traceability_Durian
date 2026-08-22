@@ -1,8 +1,13 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/storage/local_storage_service.dart';
+import '../../collector/data/collector_repository.dart';
+import '../../collector/models/collector_delivery_receipt.dart';
+import '../../collector/models/collector_shipment_batch.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../../traceability/data/traceability_repository.dart';
+import '../../traceability/models/traceability_models.dart';
 import '../models/consumer_product.dart';
 import '../models/consumer_transaction.dart';
 
@@ -34,6 +39,7 @@ class ConsumerRepository extends ChangeNotifier {
   late ConsumerProfile _profile;
   late List<ConsumerProduct> _products;
   late List<ConsumerTransaction> _transactions;
+  late List<CollectorDeliveryReceipt> _collectorDeliveryReceipts;
 
   void _loadFromLocal() {
     _currentConsumerId =
@@ -46,11 +52,24 @@ class ConsumerRepository extends ChangeNotifier {
     } else {
       _profile = _kSeedProfile;
     }
+
+    final deliveryReceiptsJson = LocalStorageService.loadJsonList(
+      'consumer_collector_delivery_receipts',
+    );
+    _collectorDeliveryReceipts = deliveryReceiptsJson == null
+        ? <CollectorDeliveryReceipt>[]
+        : deliveryReceiptsJson
+              .map((json) => CollectorDeliveryReceipt.fromJson(json))
+              .toList();
   }
 
   void _saveToLocal() {
     LocalStorageService.saveString('consumer_current_id', _currentConsumerId);
     LocalStorageService.saveJson('consumer_profile', _profile.toJson());
+    LocalStorageService.saveJsonList(
+      'consumer_collector_delivery_receipts',
+      _collectorDeliveryReceipts.map((item) => item.toJson()).toList(),
+    );
   }
 
   static List<ConsumerProduct> _buildSeedProducts() {
@@ -271,6 +290,190 @@ class ConsumerRepository extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  List<CollectorShipmentBatch> get incomingCollectorShipments {
+    final items = CollectorRepository.instance.allShipmentBatches
+        .where(
+          (shipment) =>
+              shipment.destinationType == ShipmentDestinationType.consumer,
+        )
+        .toList();
+    items.sort((a, b) => b.packagedAt.compareTo(a.packagedAt));
+    return List.unmodifiable(items);
+  }
+
+  CollectorShipmentBatch? findCollectorShipment(String code) {
+    final cleanCode = code.trim().toUpperCase();
+    if (cleanCode.isEmpty) return null;
+    try {
+      return incomingCollectorShipments.firstWhere(
+        (shipment) => shipment.code.toUpperCase() == cleanCode,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  CollectorDeliveryReceipt? deliveryReceiptForShipment(String shipmentCode) {
+    final cleanCode = shipmentCode.trim().toUpperCase();
+    try {
+      return _collectorDeliveryReceipts.firstWhere(
+        (receipt) =>
+            receipt.shipmentCode.toUpperCase() == cleanCode &&
+            receipt.receiverId == profile.consumerId &&
+            receipt.receiverType == ShipmentDestinationType.consumer,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  CollectorShipmentBatch? scanCollectorShipment(String code) {
+    final shipment = findCollectorShipment(code);
+    if (shipment == null) return null;
+    if (shipment.status == CollectorShipmentStatus.readyToShip) {
+      CollectorRepository.instance.markShipmentSent(shipment.code);
+      return findCollectorShipment(shipment.code);
+    }
+    return shipment;
+  }
+
+  CollectorDeliveryReceipt? receiveCollectorShipment({
+    required String code,
+    required double receivedWeightKg,
+    required int receivedFruitCount,
+    required CollectorDeliveryReceiptCondition condition,
+    required String destinationLocation,
+    String? discrepancyNote,
+    String? qualityNote,
+  }) {
+    final cleanCode = code.trim().toUpperCase();
+    var shipment = scanCollectorShipment(cleanCode);
+    if (shipment == null ||
+        shipment.status != CollectorShipmentStatus.sent ||
+        receivedWeightKg <= 0 ||
+        receivedFruitCount <= 0 ||
+        destinationLocation.trim().isEmpty ||
+        deliveryReceiptForShipment(cleanCode) != null) {
+      return null;
+    }
+
+    final weightDifference = receivedWeightKg - shipment.totalWeightKg;
+    final fruitDifference = receivedFruitCount - shipment.totalFruitCount;
+    final hasDiscrepancy =
+        weightDifference.abs() > 0.01 || fruitDifference != 0;
+    final cleanDiscrepancyNote = discrepancyNote?.trim();
+    if (hasDiscrepancy &&
+        (cleanDiscrepancyNote == null || cleanDiscrepancyNote.isEmpty)) {
+      return null;
+    }
+
+    final cleanQualityNote = qualityNote?.trim();
+    final completed = CollectorRepository.instance.completeShipment(
+      cleanCode,
+      warehouseNote: cleanQualityNote?.isNotEmpty == true
+          ? cleanQualityNote
+          : 'Diterima dan divalidasi oleh konsumen.',
+    );
+    if (!completed) return null;
+    shipment = findCollectorShipment(cleanCode) ?? shipment;
+
+    final receipt = CollectorDeliveryReceipt(
+      id: 'CON-RCP-${DateTime.now().millisecondsSinceEpoch}',
+      shipmentCode: cleanCode,
+      receiverId: profile.consumerId,
+      receiverName: profile.fullName,
+      receiverType: ShipmentDestinationType.consumer,
+      expectedWeightKg: shipment.totalWeightKg,
+      expectedFruitCount: shipment.totalFruitCount,
+      receivedWeightKg: receivedWeightKg,
+      receivedFruitCount: receivedFruitCount,
+      condition: condition,
+      decision: CollectorDeliveryReceiptDecision.accepted,
+      checkedAt: DateTime.now(),
+      destinationLocation: destinationLocation.trim(),
+      discrepancyNote: cleanDiscrepancyNote?.isEmpty == true
+          ? null
+          : cleanDiscrepancyNote,
+      qualityNote: cleanQualityNote?.isEmpty == true ? null : cleanQualityNote,
+    );
+    _collectorDeliveryReceipts.add(receipt);
+
+    TraceabilityRepository.instance.recordReceiptVariance(
+      batchCode: shipment.code,
+      actorId: profile.consumerId,
+      actorRole: TraceActorRole.consumer,
+      actorName: profile.fullName,
+      expectedQuantity: shipment.totalWeightKg,
+      receivedQuantity: receivedWeightKg,
+      unit: 'kg',
+      expectedFruitCount: shipment.totalFruitCount,
+      receivedFruitCount: receivedFruitCount,
+      conditionLabel: condition.label,
+      locationLabel: receipt.destinationLocation,
+      relatedObjectId: receipt.id,
+      note: cleanDiscrepancyNote?.isNotEmpty == true
+          ? cleanDiscrepancyNote
+          : cleanQualityNote,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return receipt;
+  }
+
+  CollectorDeliveryReceipt? rejectCollectorShipment({
+    required String code,
+    required String reason,
+    required String destinationLocation,
+  }) {
+    final cleanCode = code.trim().toUpperCase();
+    final cleanReason = reason.trim();
+    var shipment = scanCollectorShipment(cleanCode);
+    if (shipment == null ||
+        cleanReason.isEmpty ||
+        destinationLocation.trim().isEmpty ||
+        deliveryReceiptForShipment(cleanCode) != null) {
+      return null;
+    }
+
+    final rejected = CollectorRepository.instance.rejectShipment(
+      cleanCode,
+      reason: cleanReason,
+    );
+    if (!rejected) return null;
+    shipment = findCollectorShipment(cleanCode) ?? shipment;
+
+    final receipt = CollectorDeliveryReceipt(
+      id: 'CON-RJT-${DateTime.now().millisecondsSinceEpoch}',
+      shipmentCode: cleanCode,
+      receiverId: profile.consumerId,
+      receiverName: profile.fullName,
+      receiverType: ShipmentDestinationType.consumer,
+      expectedWeightKg: shipment.totalWeightKg,
+      expectedFruitCount: shipment.totalFruitCount,
+      decision: CollectorDeliveryReceiptDecision.rejected,
+      checkedAt: DateTime.now(),
+      destinationLocation: destinationLocation.trim(),
+      rejectionReason: cleanReason,
+    );
+    _collectorDeliveryReceipts.add(receipt);
+
+    TraceabilityRepository.instance.recordReceiptRejection(
+      batchCode: shipment.code,
+      actorId: profile.consumerId,
+      actorRole: TraceActorRole.consumer,
+      actorName: profile.fullName,
+      expectedQuantity: shipment.totalWeightKg,
+      unit: 'kg',
+      expectedFruitCount: shipment.totalFruitCount,
+      locationLabel: receipt.destinationLocation,
+      relatedObjectId: receipt.id,
+      reason: cleanReason,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return receipt;
   }
 
   ConsumerTransaction addTransaction(

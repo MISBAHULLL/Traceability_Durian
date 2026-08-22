@@ -858,11 +858,11 @@ class FarmerRepository extends ChangeNotifier {
         case BatchStatus.receivedByUmkm:
           items.add(
             FarmerNotification(
-              id: '${batch.code}-umkm',
+              id: '${batch.code}-received-umkm',
               batchCode: batch.code,
               title: 'Batch diterima UMKM',
               message:
-                  '${batch.variety} sudah dikonfirmasi penerima hilir dan trace tetap tersambung.',
+                  '${batch.variety} sudah diterima UMKM dan trace tetap tersambung.',
               createdAt: (batch.verifiedAt ?? baseTime).add(
                 const Duration(days: 2),
               ),
@@ -942,11 +942,16 @@ class FarmerRepository extends ChangeNotifier {
   }
 
   // [FE - State Management] Getter lintas-role ini menyediakan stok hasil
-  // verifikasi dari seluruh petani untuk operasional pengepul pada mock FE.
-  // Backend nanti harus membatasi hasil berdasarkan collectorId penerima.
+  // verifikasi pengepul untuk operasional pengepul pada mock FE. Batch yang
+  // diterima langsung oleh distributor/UMKM tidak masuk gudang pengepul.
   List<HarvestBatch> get batchesForCollectorStock {
     final items = _batches
-        .where((b) => b.status == BatchStatus.verifiedByCollector)
+        .where(
+          (b) =>
+              b.status == BatchStatus.verifiedByCollector &&
+              (b.verifiedByRole == null ||
+                  b.verifiedByRole == BatchReceiverRole.collector),
+        )
         .toList();
     items.sort((a, b) {
       final aDate = a.verifiedAt ?? a.createdAt ?? a.harvestDate;
@@ -972,8 +977,8 @@ class FarmerRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
-  // [FE - State Management] Mutasi ini menjadi transisi status dari petani
-  // ke pengepul: CREATED -> VERIFIED_BY_COLLECTOR pada fase mock FE-only.
+  // [FE - State Management] Wrapper legacy untuk jalur pengepul. UI lama tetap
+  // aman, tetapi mutasi utama sekarang generik lintas penerima.
   bool verifyBatchByCollector({
     required String code,
     required double receivedQuantity,
@@ -983,6 +988,32 @@ class FarmerRepository extends ChangeNotifier {
     String? verificationPhotoPath,
     String? qualityNotes,
     String verifiedBy = 'Pengepul',
+  }) {
+    return verifyBatchByReceiver(
+      code: code,
+      receiverRole: BatchReceiverRole.collector,
+      receivedQuantity: receivedQuantity,
+      receivedFruitCount: receivedFruitCount,
+      gradeBreakdown: gradeBreakdown,
+      warehouseId: warehouseId,
+      verificationPhotoPath: verificationPhotoPath,
+      qualityNotes: qualityNotes,
+      receiverName: verifiedBy,
+    );
+  }
+
+  // [FE - State Management] Mutasi T2 generik: penerima memindai QR DRN,
+  // menimbang aktual, mengecek kondisi, lalu batch berpindah ke penerima.
+  bool verifyBatchByReceiver({
+    required String code,
+    required BatchReceiverRole receiverRole,
+    required double receivedQuantity,
+    required int receivedFruitCount,
+    required List<BatchGradeBreakdown> gradeBreakdown,
+    String? warehouseId,
+    String? verificationPhotoPath,
+    String? qualityNotes,
+    String receiverName = 'Penerima',
   }) {
     final cleanBreakdown = gradeBreakdown.where((e) => e.hasValue).toList();
     if (receivedQuantity <= 0 ||
@@ -1005,7 +1036,9 @@ class FarmerRepository extends ChangeNotifier {
     final dominantGrade = dominantBreakdown.grade.trim();
 
     _batches[index] = existing.copyWith(
-      status: BatchStatus.verifiedByCollector,
+      status: receiverRole == BatchReceiverRole.umkm
+          ? BatchStatus.receivedByUmkm
+          : BatchStatus.verifiedByCollector,
       receivedQuantity: receivedQuantity,
       receivedFruitCount: receivedFruitCount,
       warehouseId: warehouseId?.trim(),
@@ -1013,7 +1046,10 @@ class FarmerRepository extends ChangeNotifier {
       gradeBreakdown: cleanBreakdown,
       verificationPhotoPath: verificationPhotoPath?.trim(),
       qualityNotes: qualityNotes?.trim(),
-      verifiedBy: verifiedBy.trim().isEmpty ? 'Pengepul' : verifiedBy.trim(),
+      verifiedBy: receiverName.trim().isEmpty
+          ? receiverRole.label
+          : receiverName.trim(),
+      verifiedByRole: receiverRole,
       verifiedAt: DateTime.now(),
     );
     _saveToLocal();
@@ -1066,12 +1102,26 @@ class FarmerRepository extends ChangeNotifier {
     return true;
   }
 
-  // [FE - State Management] Mutasi ini menjadi jalur penolakan batch dari
-  // pengepul ke petani pada fase mock FE-only.
+  // [FE - State Management] Wrapper legacy penolakan pengepul.
   bool rejectBatchByCollector({
     required String code,
     required String reason,
     String rejectedBy = 'Pengepul',
+  }) {
+    return rejectBatchByReceiver(
+      code: code,
+      reason: reason,
+      receiverRole: BatchReceiverRole.collector,
+      rejectedBy: rejectedBy,
+    );
+  }
+
+  // [FE - State Management] Penolakan T2 generik untuk penerima lintas role.
+  bool rejectBatchByReceiver({
+    required String code,
+    required String reason,
+    required BatchReceiverRole receiverRole,
+    String rejectedBy = 'Penerima',
   }) {
     final cleanReason = reason.trim();
     if (cleanReason.isEmpty) return false;
@@ -1085,7 +1135,10 @@ class FarmerRepository extends ChangeNotifier {
     _batches[index] = existing.copyWith(
       status: BatchStatus.rejected,
       rejectionReason: cleanReason,
-      rejectedBy: rejectedBy.trim().isEmpty ? 'Pengepul' : rejectedBy.trim(),
+      rejectedBy: rejectedBy.trim().isEmpty
+          ? receiverRole.label
+          : rejectedBy.trim(),
+      verifiedByRole: receiverRole,
       rejectedAt: DateTime.now(),
     );
     _saveToLocal();
@@ -1170,7 +1223,12 @@ class FarmerRepository extends ChangeNotifier {
     final events = <BatchEvent>[];
     final actorName = _profile.fullName;
     final createdAt = batch.createdAt ?? batch.harvestDate;
-    final verifiedBy = batch.verifiedBy ?? 'Pengepul';
+    final receiverRole = batch.verifiedByRole ?? BatchReceiverRole.collector;
+    final receiverLabel = receiverRole.label;
+    final receiverActionTitle = receiverRole == BatchReceiverRole.umkm
+        ? 'Diterima UMKM'
+        : 'Terverifikasi $receiverLabel';
+    final verifiedBy = batch.verifiedBy ?? receiverLabel;
     final verifiedAt =
         batch.verifiedAt ?? createdAt.add(const Duration(days: 1));
 
@@ -1192,7 +1250,7 @@ class FarmerRepository extends ChangeNotifier {
       case BatchStatus.verifiedByCollector:
         events.add(
           BatchEvent(
-            title: 'Terverifikasi Pengepul',
+            title: receiverActionTitle,
             actorLabel: verifiedBy,
             timestamp: verifiedAt,
             status: BatchStatus.verifiedByCollector,
@@ -1201,7 +1259,7 @@ class FarmerRepository extends ChangeNotifier {
       case BatchStatus.inDistribution:
         events.add(
           BatchEvent(
-            title: 'Terverifikasi Pengepul',
+            title: receiverActionTitle,
             actorLabel: verifiedBy,
             timestamp: verifiedAt,
             status: BatchStatus.verifiedByCollector,
@@ -1210,7 +1268,7 @@ class FarmerRepository extends ChangeNotifier {
         events.add(
           BatchEvent(
             title: 'Dalam Distribusi',
-            actorLabel: 'Pengepul',
+            actorLabel: receiverLabel,
             timestamp: createdAt.add(const Duration(days: 2)),
             status: BatchStatus.inDistribution,
           ),
@@ -1218,32 +1276,36 @@ class FarmerRepository extends ChangeNotifier {
       case BatchStatus.receivedByUmkm:
         events.add(
           BatchEvent(
-            title: 'Terverifikasi Pengepul',
+            title: receiverActionTitle,
             actorLabel: verifiedBy,
             timestamp: verifiedAt,
-            status: BatchStatus.verifiedByCollector,
+            status: receiverRole == BatchReceiverRole.umkm
+                ? BatchStatus.receivedByUmkm
+                : BatchStatus.verifiedByCollector,
           ),
         );
-        events.add(
-          BatchEvent(
-            title: 'Dalam Distribusi',
-            actorLabel: 'Pengepul',
-            timestamp: createdAt.add(const Duration(days: 2)),
-            status: BatchStatus.inDistribution,
-          ),
-        );
-        events.add(
-          BatchEvent(
-            title: 'Diterima UMKM',
-            actorLabel: 'UMKM',
-            timestamp: createdAt.add(const Duration(days: 3)),
-            status: BatchStatus.receivedByUmkm,
-          ),
-        );
+        if (receiverRole != BatchReceiverRole.umkm) {
+          events.add(
+            BatchEvent(
+              title: 'Dalam Distribusi',
+              actorLabel: receiverLabel,
+              timestamp: createdAt.add(const Duration(days: 2)),
+              status: BatchStatus.inDistribution,
+            ),
+          );
+          events.add(
+            BatchEvent(
+              title: 'Diterima UMKM',
+              actorLabel: 'UMKM',
+              timestamp: createdAt.add(const Duration(days: 3)),
+              status: BatchStatus.receivedByUmkm,
+            ),
+          );
+        }
       case BatchStatus.processed:
         events.add(
           BatchEvent(
-            title: 'Terverifikasi Pengepul',
+            title: receiverActionTitle,
             actorLabel: verifiedBy,
             timestamp: verifiedAt,
             status: BatchStatus.verifiedByCollector,
@@ -1252,7 +1314,7 @@ class FarmerRepository extends ChangeNotifier {
         events.add(
           BatchEvent(
             title: 'Dalam Distribusi',
-            actorLabel: 'Pengepul',
+            actorLabel: receiverLabel,
             timestamp: createdAt.add(const Duration(days: 2)),
             status: BatchStatus.inDistribution,
           ),
@@ -1276,7 +1338,7 @@ class FarmerRepository extends ChangeNotifier {
       case BatchStatus.sold:
         events.add(
           BatchEvent(
-            title: 'Terverifikasi Pengepul',
+            title: receiverActionTitle,
             actorLabel: verifiedBy,
             timestamp: verifiedAt,
             status: BatchStatus.verifiedByCollector,
@@ -1285,7 +1347,7 @@ class FarmerRepository extends ChangeNotifier {
         events.add(
           BatchEvent(
             title: 'Dalam Distribusi',
-            actorLabel: 'Pengepul',
+            actorLabel: receiverLabel,
             timestamp: createdAt.add(const Duration(days: 2)),
             status: BatchStatus.inDistribution,
           ),
@@ -1317,8 +1379,8 @@ class FarmerRepository extends ChangeNotifier {
       case BatchStatus.rejected:
         events.add(
           BatchEvent(
-            title: 'Ditolak Pengepul',
-            actorLabel: batch.rejectedBy ?? 'Pengepul',
+            title: 'Ditolak $receiverLabel',
+            actorLabel: batch.rejectedBy ?? receiverLabel,
             timestamp:
                 batch.rejectedAt ?? createdAt.add(const Duration(days: 1)),
             status: BatchStatus.rejected,

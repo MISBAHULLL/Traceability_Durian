@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../farmer/data/farmer_repository.dart';
+import '../../farmer/models/harvest_batch.dart';
 import '../models/umkm_order.dart';
 import '../models/umkm_product.dart';
 import '../models/umkm_profile.dart';
@@ -120,6 +122,66 @@ class UmkmRepository extends ChangeNotifier {
   void addStockOrder(UmkmStockOrder order) {
     _stockOrdersOrCreate().insert(0, order);
     notifyListeners();
+  }
+
+  List<HarvestBatch> get availableFarmerBatches =>
+      FarmerRepository.instance.batchesForCollectorVerification;
+
+  HarvestBatch? findFarmerBatch(String code) {
+    return FarmerRepository.instance.findPublicBatch(code);
+  }
+
+  bool receiveFarmerBatch({
+    required String code,
+    required double receivedWeightKg,
+    required int receivedFruitCount,
+    required String conditionNote,
+  }) {
+    final batch = FarmerRepository.instance.findPublicBatch(code);
+    if (batch == null || batch.status != BatchStatus.created) return false;
+
+    final ok = FarmerRepository.instance.verifyBatchByReceiver(
+      code: code,
+      receiverRole: BatchReceiverRole.umkm,
+      receivedQuantity: receivedWeightKg,
+      receivedFruitCount: receivedFruitCount,
+      gradeBreakdown: [
+        BatchGradeBreakdown(
+          grade: batch.grade,
+          weightKg: receivedWeightKg,
+          fruitCount: receivedFruitCount,
+        ),
+      ],
+      qualityNotes: conditionNote,
+      receiverName: profile.name,
+    );
+    if (!ok) return false;
+
+    addPurchase(
+      UmkmPurchase(
+        id: 'PUR-${DateTime.now().millisecondsSinceEpoch}',
+        supplierName: 'Petani ${batch.farmerId}',
+        productName: 'Durian ${batch.variety}',
+        quantity: receivedWeightKg.round(),
+        totalLabel: '-',
+        createdAt: DateTime.now(),
+        qrCodeData: code,
+        note: conditionNote,
+      ),
+    );
+    notifyListeners();
+    return true;
+  }
+
+  bool rejectFarmerBatch({required String code, required String reason}) {
+    final ok = FarmerRepository.instance.rejectBatchByReceiver(
+      code: code,
+      reason: reason,
+      receiverRole: BatchReceiverRole.umkm,
+      rejectedBy: profile.name,
+    );
+    if (ok) notifyListeners();
+    return ok;
   }
 
   void updateStockOrder(UmkmStockOrder updatedOrder) {

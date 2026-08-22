@@ -5,6 +5,7 @@ import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/product_media_tile.dart';
 import '../../../shared/widgets/qr_preview.dart';
+import '../../farmer/models/harvest_batch.dart';
 import '../data/umkm_repository.dart';
 import '../models/umkm_purchase.dart';
 import '../models/umkm_stock_offer.dart';
@@ -21,6 +22,7 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
   final _repo = UmkmRepository.instance;
 
   final _searchCtrl = TextEditingController();
+  final _drnCtrl = TextEditingController();
   String _query = '';
   _MainTab _activeTab = _MainTab.beli;
   UmkmSupplierType? _activeSupplierFilter;
@@ -39,6 +41,7 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
   void dispose() {
     _repo.removeListener(_onRepoChanged);
     _searchCtrl.dispose();
+    _drnCtrl.dispose();
     super.dispose();
   }
 
@@ -113,6 +116,41 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
     }
   }
 
+  Future<void> _openDirectFarmerBatch() async {
+    final input = _drnCtrl.text.trim().toUpperCase();
+    final match = RegExp(r'DRN-\d{4}-\d{6}').firstMatch(input);
+    final code = match?.group(0) ?? input;
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Masukkan kode DRN terlebih dahulu.')),
+      );
+      return;
+    }
+
+    final batch = _repo.findFarmerBatch(code);
+    if (batch == null || batch.status != BatchStatus.created) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Batch DRN tidak tersedia untuk diterima UMKM.'),
+        ),
+      );
+      return;
+    }
+
+    final success = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UmkmDirectFarmerReceiveScreen(batchCode: code),
+      ),
+    );
+    if (success == true && mounted) {
+      _drnCtrl.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Batch petani berhasil diterima UMKM.')),
+      );
+    }
+  }
+
   Widget _buildBeliTab(List<UmkmStockOffer> offers) {
     final categories = <UmkmSupplierType?>[
       null,
@@ -147,6 +185,11 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
               borderSide: BorderSide.none,
             ),
           ),
+        ),
+        const SizedBox(height: 14),
+        _DirectFarmerReceiveCard(
+          controller: _drnCtrl,
+          onSubmit: _openDirectFarmerBatch,
         ),
         const SizedBox(height: 14),
         SizedBox(
@@ -262,6 +305,263 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
   }
 }
 
+class UmkmDirectFarmerReceiveScreen extends StatefulWidget {
+  const UmkmDirectFarmerReceiveScreen({super.key, required this.batchCode});
+
+  final String batchCode;
+
+  @override
+  State<UmkmDirectFarmerReceiveScreen> createState() =>
+      _UmkmDirectFarmerReceiveScreenState();
+}
+
+class _UmkmDirectFarmerReceiveScreenState
+    extends State<UmkmDirectFarmerReceiveScreen> {
+  final _repo = UmkmRepository.instance;
+  final _weightCtrl = TextEditingController();
+  final _fruitCtrl = TextEditingController();
+  final _noteCtrl = TextEditingController();
+  final _conditions = const ['Baik', 'Perlu sortir', 'Rusak sebagian'];
+  var _condition = 'Baik';
+  var _isSaving = false;
+
+  HarvestBatch? get _batch => _repo.findFarmerBatch(widget.batchCode);
+
+  @override
+  void initState() {
+    super.initState();
+    final batch = _batch;
+    if (batch != null) {
+      _weightCtrl.text = batch.quantity.toStringAsFixed(0);
+      _fruitCtrl.text = '${batch.fruitCount ?? 0}';
+    }
+  }
+
+  @override
+  void dispose() {
+    _weightCtrl.dispose();
+    _fruitCtrl.dispose();
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  double? get _weight =>
+      double.tryParse(_weightCtrl.text.trim().replaceAll(',', '.'));
+
+  int? get _fruit => int.tryParse(_fruitCtrl.text.trim());
+
+  Future<void> _accept() async {
+    final weight = _weight;
+    final fruit = _fruit;
+    if (weight == null || weight <= 0 || fruit == null || fruit <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Berat dan jumlah aktual wajib valid.')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    await Future.delayed(const Duration(milliseconds: 400));
+    final note = _noteCtrl.text.trim();
+    final ok = _repo.receiveFarmerBatch(
+      code: widget.batchCode,
+      receivedWeightKg: weight,
+      receivedFruitCount: fruit,
+      conditionNote: note.isEmpty
+          ? 'Kondisi fisik: $_condition'
+          : 'Kondisi fisik: $_condition. $note',
+    );
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+    if (!ok) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Validasi gagal disimpan.')));
+      return;
+    }
+    Navigator.pop(context, true);
+  }
+
+  Future<void> _reject() async {
+    final reason = _noteCtrl.text.trim();
+    if (reason.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Isi catatan sebagai alasan penolakan.')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    await Future.delayed(const Duration(milliseconds: 300));
+    final ok = _repo.rejectFarmerBatch(code: widget.batchCode, reason: reason);
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Penolakan gagal disimpan.')),
+      );
+      return;
+    }
+    Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final batch = _batch;
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const AppTopBar(title: 'Validasi DRN Petani'),
+            Expanded(
+              child: batch == null || batch.status != BatchStatus.created
+                  ? const _EmptyState(
+                      icon: Icons.search_off_rounded,
+                      title: 'Batch tidak tersedia',
+                      subtitle: 'DRN ini tidak dapat diterima oleh UMKM.',
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _InfoCard(
+                            title: 'Batch Petani',
+                            children: [
+                              _DetailLine(label: 'Kode', value: batch.code),
+                              _DetailLine(
+                                label: 'Varietas',
+                                value: batch.variety,
+                              ),
+                              _DetailLine(
+                                label: 'Kebun',
+                                value: batch.farmName,
+                              ),
+                              _DetailLine(
+                                label: 'Grade Awal',
+                                value: 'Grade ${batch.grade}',
+                              ),
+                              _DetailLine(
+                                label: 'Manifest',
+                                value:
+                                    '${batch.quantity.toStringAsFixed(0)} ${batch.unit} / ${batch.fruitCount ?? 0} butir',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _InfoCard(
+                            title: 'Hasil Pemeriksaan UMKM',
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _weightCtrl,
+                                      keyboardType: TextInputType.number,
+                                      decoration: _receiveInputDecoration(
+                                        'Berat aktual kg',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _fruitCtrl,
+                                      keyboardType: TextInputType.number,
+                                      decoration: _receiveInputDecoration(
+                                        'Jumlah butir',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _conditions.map((condition) {
+                                  final selected = condition == _condition;
+                                  return ChoiceChip(
+                                    label: Text(condition),
+                                    selected: selected,
+                                    onSelected: (_) =>
+                                        setState(() => _condition = condition),
+                                    selectedColor: AppColors.primaryContainer
+                                        .withValues(alpha: 0.18),
+                                    labelStyle: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: selected
+                                          ? AppColors.primary
+                                          : AppColors.subtitle,
+                                    ),
+                                    side: BorderSide(
+                                      color: selected
+                                          ? AppColors.primaryContainer
+                                          : const Color(0xFFE5E7EB),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _noteCtrl,
+                                maxLines: 3,
+                                decoration: _receiveInputDecoration(
+                                  'Catatan kondisi atau alasan penolakan',
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          PrimaryPillButton(
+                            label: 'TERIMA STOK',
+                            isLoading: _isSaving,
+                            onPressed: _isSaving ? null : _accept,
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton.icon(
+                            onPressed: _isSaving ? null : _reject,
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            label: const Text('TOLAK STOK'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                              foregroundColor: const Color(0xFFD64545),
+                              side: const BorderSide(color: Color(0xFFD64545)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _receiveInputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: AppColors.surface,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    );
+  }
+}
+
 class UmkmStockOfferDetailScreen extends StatelessWidget {
   const UmkmStockOfferDetailScreen({super.key, required this.offer});
 
@@ -364,6 +664,102 @@ class UmkmStockOfferDetailScreen extends StatelessWidget {
 }
 
 enum _MainTab { beli, pesanan }
+
+class _DirectFarmerReceiveCard extends StatelessWidget {
+  const _DirectFarmerReceiveCard({
+    required this.controller,
+    required this.onSubmit,
+  });
+
+  final TextEditingController controller;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAF7),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE1E6DF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.qr_code_scanner_rounded,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Terima DRN dari Petani',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.black,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    hintText: 'DRN-2026-000009',
+                    hintStyle: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.placeholder,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.white,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                height: 46,
+                child: ElevatedButton(
+                  onPressed: onSubmit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                  ),
+                  child: const Text(
+                    'Validasi',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _SectionTabs extends StatelessWidget {
   const _SectionTabs({

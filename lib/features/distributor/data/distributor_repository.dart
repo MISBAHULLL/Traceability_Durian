@@ -1049,13 +1049,17 @@ class DistributorRepository extends ChangeNotifier {
       return false;
     }
 
-    final ok = FarmerRepository.instance.verifyBatchByCollector(
+    final ok = FarmerRepository.instance.verifyBatchByReceiver(
       code: batch.code,
+      receiverRole: BatchReceiverRole.distributor,
       receivedQuantity: receivedWeightKg,
       receivedFruitCount: receivedFruitCount,
       gradeBreakdown: cleanBreakdown,
+      warehouseId: defaultWarehouse?.id,
       qualityNotes: qualityNote,
-      verifiedBy: _profile.fullName,
+      receiverName: _profile.businessName.trim().isEmpty
+          ? _profile.fullName
+          : _profile.businessName,
     );
     if (!ok) return false;
 
@@ -1096,9 +1100,10 @@ class DistributorRepository extends ChangeNotifier {
     }
 
     if (transaction.source == DistributorAcquisitionSource.farmer) {
-      final ok = FarmerRepository.instance.rejectBatchByCollector(
+      final ok = FarmerRepository.instance.rejectBatchByReceiver(
         code: transaction.itemCode,
         reason: cleanNote,
+        receiverRole: BatchReceiverRole.distributor,
         rejectedBy: _profile.fullName,
       );
       if (!ok) return false;

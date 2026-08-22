@@ -6,11 +6,13 @@ import '../../../shared/widgets/batch_photo.dart';
 import '../../../shared/widgets/osm_map_preview.dart';
 import '../../collector/data/collector_repository.dart';
 import '../../collector/models/collector_shipment_batch.dart';
+import '../../distributor/data/distributor_repository.dart';
 import '../../farmer/data/cahyadsn_region_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/batch_event.dart';
 import '../../farmer/models/farm.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../../umkm/data/umkm_repository.dart';
 
 // [FE - Component Rendering] Screen ini menjadi halaman trace publik yang
 // dibuka dari QR batch; konsumen hanya membaca data tanpa aksi edit/verifikasi.
@@ -26,6 +28,8 @@ class PublicTraceScreen extends StatefulWidget {
 class _PublicTraceScreenState extends State<PublicTraceScreen> {
   final _repo = FarmerRepository.instance;
   final _collectorRepo = CollectorRepository.instance;
+  final _distributorRepo = DistributorRepository.instance;
+  final _umkmRepo = UmkmRepository.instance;
   final _regionService = CahyadsnRegionService.instance;
   var _routeLoadSerial = 0;
   var _routeLoading = true;
@@ -36,6 +40,8 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     super.initState();
     _repo.addListener(_onRepoChanged);
     _collectorRepo.addListener(_onRepoChanged);
+    _distributorRepo.addListener(_onRepoChanged);
+    _umkmRepo.addListener(_onRepoChanged);
     _loadRouteStops();
   }
 
@@ -43,6 +49,8 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
   void dispose() {
     _repo.removeListener(_onRepoChanged);
     _collectorRepo.removeListener(_onRepoChanged);
+    _distributorRepo.removeListener(_onRepoChanged);
+    _umkmRepo.removeListener(_onRepoChanged);
     super.dispose();
   }
 
@@ -86,25 +94,22 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
 
     final verifiedEvent =
         _eventForStatus(events, BatchStatus.verifiedByCollector) ??
-        _eventByTitle(events, 'Terverifikasi Pengepul');
-    final shouldShowCollector =
+        _eventForStatus(events, BatchStatus.receivedByUmkm) ??
+        _eventByTitle(events, 'Terverifikasi Pengepul') ??
+        _eventByTitle(events, 'Terverifikasi Distributor') ??
+        _eventByTitle(events, 'Diterima UMKM');
+    final shouldShowReceiver =
         verifiedEvent != null ||
         batch.verifiedAt != null ||
         batch.warehouseId?.trim().isNotEmpty == true;
-    if (shouldShowCollector) {
-      final warehouse = _collectorRepo.findWarehouse(batch.warehouseId);
-      final collectorAddress = warehouse?.location.trim().isNotEmpty == true
-          ? warehouse!.location.trim()
-          : _collectorAddress;
-      final collectorName = batch.verifiedBy?.trim().isNotEmpty == true
-          ? batch.verifiedBy!.trim()
-          : _collectorRepo.profile.businessName;
+    if (shouldShowReceiver) {
+      final receiver = _directReceiverInfo(batch);
       stops.add(
         _TraceStop(
-          title: 'Pengepul',
-          actorLabel: 'Pengepul - $collectorName',
-          locationName: warehouse?.name ?? _collectorRepo.profile.businessName,
-          address: collectorAddress,
+          title: receiver.roleLabel,
+          actorLabel: '${receiver.roleLabel} - ${receiver.name}',
+          locationName: receiver.name,
+          address: receiver.address,
           timestamp:
               verifiedEvent?.timestamp ??
               batch.verifiedAt ??
@@ -113,11 +118,10 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
               ),
           description:
               'Stok diterima, ditimbang, dan kondisi durian diperiksa.',
-          point: await _pointForAddress(collectorAddress),
+          point: await _pointForAddress(receiver.address),
         ),
       );
     }
-
     final shipment = _shipmentForBatch(batch.code);
     if (shipment != null) {
       final destinationAddress = shipment.destinationLocation?.trim() ?? '';
@@ -172,6 +176,52 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     }
   }
 
+  _ReceiverInfo _directReceiverInfo(HarvestBatch batch) {
+    final role = batch.verifiedByRole ?? BatchReceiverRole.collector;
+    final receiverName = batch.verifiedBy?.trim();
+    switch (role) {
+      case BatchReceiverRole.collector:
+        final warehouse = _collectorRepo.findWarehouse(batch.warehouseId);
+        final name = receiverName?.isNotEmpty == true
+            ? receiverName!
+            : _collectorRepo.profile.businessName;
+        final address = warehouse?.location.trim().isNotEmpty == true
+            ? warehouse!.location.trim()
+            : _collectorAddress;
+        return _ReceiverInfo(
+          roleLabel: role.label,
+          name: name.isEmpty ? role.label : name,
+          address: address,
+        );
+      case BatchReceiverRole.distributor:
+        final warehouse = _distributorRepo.defaultWarehouse;
+        final profile = _distributorRepo.profile;
+        final name = receiverName?.isNotEmpty == true
+            ? receiverName!
+            : profile.businessName;
+        final address = warehouse?.location.trim().isNotEmpty == true
+            ? warehouse!.location.trim()
+            : _distributorAddress;
+        return _ReceiverInfo(
+          roleLabel: role.label,
+          name: name.isEmpty ? profile.fullName : name,
+          address: address,
+        );
+      case BatchReceiverRole.umkm:
+        final profile = _umkmRepo.profile;
+        final name = receiverName?.isNotEmpty == true
+            ? receiverName!
+            : profile.name;
+        return _ReceiverInfo(
+          roleLabel: role.label,
+          name: name.isEmpty ? role.label : name,
+          address: profile.location.trim().isEmpty
+              ? 'Alamat UMKM belum dicatat'
+              : profile.location.trim(),
+        );
+    }
+  }
+
   String get _collectorAddress {
     final profile = _collectorRepo.profile;
     final parts = [
@@ -182,6 +232,20 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
       profile.location,
     ].where((value) => value.trim().isNotEmpty).toList();
     return parts.isEmpty ? 'Alamat pengepul belum dicatat' : parts.join(', ');
+  }
+
+  String get _distributorAddress {
+    final profile = _distributorRepo.profile;
+    final parts = [
+      profile.address,
+      profile.village,
+      profile.district,
+      profile.city,
+      profile.location,
+    ].where((value) => value.trim().isNotEmpty).toList();
+    return parts.isEmpty
+        ? 'Alamat distributor belum dicatat'
+        : parts.join(', ');
   }
 
   String _farmAddress(Farm? farm) {
@@ -460,6 +524,18 @@ class _TraceContent extends StatelessWidget {
         (batch.notes != null && batch.notes!.isNotEmpty) ||
         (batch.qualityNotes != null && batch.qualityNotes!.isNotEmpty);
   }
+}
+
+class _ReceiverInfo {
+  const _ReceiverInfo({
+    required this.roleLabel,
+    required this.name,
+    required this.address,
+  });
+
+  final String roleLabel;
+  final String name;
+  final String address;
 }
 
 class _TraceStop {

@@ -18,6 +18,30 @@ enum BatchStatus {
   rejected,
 }
 
+enum BatchReceiverRole { collector, distributor, umkm }
+
+extension BatchReceiverRoleX on BatchReceiverRole {
+  String get label {
+    switch (this) {
+      case BatchReceiverRole.collector:
+        return 'Pengepul';
+      case BatchReceiverRole.distributor:
+        return 'Distributor';
+      case BatchReceiverRole.umkm:
+        return 'UMKM';
+    }
+  }
+}
+
+BatchReceiverRole? batchReceiverRoleFromJson(Object? value) {
+  if (value == null) return null;
+  final name = value.toString();
+  for (final role in BatchReceiverRole.values) {
+    if (role.name == name) return role;
+  }
+  return null;
+}
+
 // [FE - Component Rendering] Extension ini menyediakan label, warna teks,
 // dan warna background badge untuk tiap status — dikonsumsi langsung oleh widget badge.
 /// Label, warna teks, dan warna background badge untuk tiap status.
@@ -184,6 +208,7 @@ class HarvestBatch {
     this.verificationPhotoPath,
     this.qualityNotes,
     this.verifiedBy,
+    this.verifiedByRole,
     this.verifiedAt,
     this.rejectionReason,
     this.rejectedBy,
@@ -263,6 +288,7 @@ class HarvestBatch {
   final String? verificationPhotoPath;
   final String? qualityNotes;
   final String? verifiedBy;
+  final BatchReceiverRole? verifiedByRole;
   final DateTime? verifiedAt;
 
   // [DB - Model/Entity] Metadata penolakan ini menjaga alasan audit saat
@@ -300,6 +326,7 @@ class HarvestBatch {
     String? verificationPhotoPath,
     String? qualityNotes,
     String? verifiedBy,
+    BatchReceiverRole? verifiedByRole,
     DateTime? verifiedAt,
     String? rejectionReason,
     String? rejectedBy,
@@ -334,6 +361,7 @@ class HarvestBatch {
           verificationPhotoPath ?? this.verificationPhotoPath,
       qualityNotes: qualityNotes ?? this.qualityNotes,
       verifiedBy: verifiedBy ?? this.verifiedBy,
+      verifiedByRole: verifiedByRole ?? this.verifiedByRole,
       verifiedAt: verifiedAt ?? this.verifiedAt,
       rejectionReason: rejectionReason ?? this.rejectionReason,
       rejectedBy: rejectedBy ?? this.rejectedBy,
@@ -371,6 +399,7 @@ class HarvestBatch {
     'verificationPhotoPath': verificationPhotoPath,
     'qualityNotes': qualityNotes,
     'verifiedBy': verifiedBy,
+    'verifiedByRole': verifiedByRole?.name,
     'verifiedAt': verifiedAt?.toIso8601String(),
     'rejectionReason': rejectionReason,
     'rejectedBy': rejectedBy,
@@ -418,6 +447,7 @@ class HarvestBatch {
     verificationPhotoPath: json['verificationPhotoPath'] as String?,
     qualityNotes: json['qualityNotes'] as String?,
     verifiedBy: json['verifiedBy'] as String?,
+    verifiedByRole: batchReceiverRoleFromJson(json['verifiedByRole']),
     verifiedAt: json['verifiedAt'] != null
         ? DateTime.parse(json['verifiedAt'] as String)
         : null,

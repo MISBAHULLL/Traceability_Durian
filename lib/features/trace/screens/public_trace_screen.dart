@@ -99,10 +99,12 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
           title: event.title,
           actorLabel: event.actorLabel,
           locationName: location.isEmpty ? event.actorLabel : location,
-          address: location.isEmpty ? 'Lokasi belum dicatat' : location,
+          address: location.isEmpty
+              ? 'Lokasi belum dicatat'
+              : _publicAddressLabel(location),
           timestamp: event.timestamp,
           description: event.description ?? event.title,
-          point: await _pointForAddress(location),
+          point: await _publicPointForAddress(location),
         ),
       );
     }
@@ -115,11 +117,11 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
         title: 'Petani',
         actorLabel: createdEvent?.actorLabel ?? 'Petani',
         locationName: batch.farmName,
-        address: _farmAddress(farm),
+        address: _publicFarmAddress(farm),
         timestamp:
             createdEvent?.timestamp ?? batch.createdAt ?? batch.harvestDate,
         description: 'Batch dibuat dan QR trace diterbitkan.',
-        point: await _pointForFarm(farm),
+        point: await _publicPointForFarm(farm),
       ),
     );
 
@@ -132,11 +134,13 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
           title: event.title.replaceFirst('QR discan ', ''),
           actorLabel: event.actorLabel,
           locationName: location.isEmpty ? event.actorLabel : location,
-          address: location.isEmpty ? 'Lokasi scan belum dicatat' : location,
+          address: location.isEmpty
+              ? 'Lokasi scan belum dicatat'
+              : _publicAddressLabel(location),
           timestamp: event.timestamp,
           description:
               event.description ?? 'QR batch discan untuk validasi penerimaan.',
-          point: await _pointForAddress(location),
+          point: await _publicPointForAddress(location),
         ),
       );
     }
@@ -158,7 +162,7 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
           title: receiver.roleLabel,
           actorLabel: '${receiver.roleLabel} - ${receiver.name}',
           locationName: receiver.name,
-          address: receiver.address,
+          address: _publicAddressLabel(receiver.address),
           timestamp:
               verifiedEvent?.timestamp ??
               batch.verifiedAt ??
@@ -167,7 +171,7 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
               ),
           description:
               'Stok diterima, ditimbang, dan kondisi durian diperiksa.',
-          point: await _pointForAddress(receiver.address),
+          point: await _publicPointForAddress(receiver.address),
         ),
       );
     }
@@ -185,11 +189,11 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
           locationName: destinationName,
           address: destinationAddress.isEmpty
               ? 'Alamat tujuan belum dicatat'
-              : destinationAddress,
+              : _publicAddressLabel(destinationAddress),
           timestamp:
               shipment.completedAt ?? shipment.sentAt ?? shipment.packagedAt,
           description: _shipmentDescription(shipment),
-          point: await _pointForAddress(destinationAddress),
+          point: await _publicPointForAddress(destinationAddress),
         ),
       );
     }
@@ -303,18 +307,6 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
         : parts.join(', ');
   }
 
-  String _farmAddress(Farm? farm) {
-    if (farm == null) return 'Alamat kebun belum ditemukan';
-    final parts = [
-      farm.address,
-      farm.village,
-      farm.district,
-      farm.city,
-      farm.province,
-    ].where((value) => value.trim().isNotEmpty).toList();
-    return parts.isEmpty ? 'Alamat kebun belum dilengkapi' : parts.join(', ');
-  }
-
   String _shipmentDescription(CollectorShipmentBatch shipment) {
     return switch (shipment.status) {
       CollectorShipmentStatus.readyToShip =>
@@ -326,16 +318,38 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     };
   }
 
-  Future<OsmMapPoint?> _pointForFarm(Farm? farm) async {
-    if (farm == null) return null;
-    if (farm.latitude != null && farm.longitude != null) {
-      return OsmMapPoint(farm.latitude!, farm.longitude!);
+  String _publicFarmAddress(Farm? farm) {
+    if (farm == null) return 'Wilayah kebun belum ditemukan';
+    final parts = [
+      farm.village,
+      farm.district,
+      farm.city,
+      farm.province,
+    ].where((value) => value.trim().isNotEmpty).toList();
+    return parts.isEmpty ? 'Wilayah kebun belum dilengkapi' : parts.join(', ');
+  }
+
+  String _publicAddressLabel(String address) {
+    final parts = address
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .where(
+          (part) =>
+              !part.toLowerCase().startsWith('jl ') &&
+              !part.toLowerCase().startsWith('jalan ') &&
+              !RegExp(r'^rt\b|^rw\b', caseSensitive: false).hasMatch(part),
+        )
+        .toList();
+    if (parts.isEmpty) {
+      return address.trim().isEmpty ? 'Wilayah belum dicatat' : address.trim();
     }
+    final visible = parts.length <= 3 ? parts : parts.sublist(parts.length - 3);
+    return visible.join(', ');
+  }
 
-    final query = _farmAddress(farm);
-    final exact = await _regionService.findAddress(query);
-    if (exact != null) return OsmMapPoint(exact.latitude, exact.longitude);
-
+  Future<OsmMapPoint?> _publicPointForFarm(Farm? farm) async {
+    if (farm == null) return null;
     final regionCode = _resolveRegionCode(farm);
     final boundary = await _regionService.loadBoundaryFor(regionCode);
     if (boundary != null) {
@@ -343,12 +357,19 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     }
     final region = _regionService.mapForClosest(regionCode);
     if (region != null) return OsmMapPoint(region.latitude, region.longitude);
+
+    final exact = await _regionService.findAddress(_publicFarmAddress(farm));
+    if (exact != null) return OsmMapPoint(exact.latitude, exact.longitude);
     return null;
   }
 
-  Future<OsmMapPoint?> _pointForAddress(String address) async {
-    if (address.trim().isEmpty) return null;
-    final result = await _regionService.findAddress(address);
+  Future<OsmMapPoint?> _publicPointForAddress(String address) async {
+    final publicAddress = _publicAddressLabel(address);
+    if (publicAddress.trim().isEmpty ||
+        publicAddress == 'Wilayah belum dicatat') {
+      return null;
+    }
+    final result = await _regionService.findAddress(publicAddress);
     if (result == null) return null;
     return OsmMapPoint(result.latitude, result.longitude);
   }

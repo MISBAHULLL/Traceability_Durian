@@ -11,6 +11,7 @@ enum BatchEventType {
   batchReceived,
   batchProcessed,
   batchSold,
+  batchTransferred,
 }
 
 BatchEventType batchEventTypeFromJson(Object? value) {

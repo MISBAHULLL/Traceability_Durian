@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 
 import '../../../core/storage/local_storage_service.dart';
 import '../../traceability/data/traceability_repository.dart';
@@ -1302,6 +1302,72 @@ class FarmerRepository extends ChangeNotifier {
                   '${item.grade}: ${item.weightKg} kg / ${item.fruitCount} butir',
             )
             .join(', '),
+      },
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  bool transferCollectorBatchWarehouse({
+    required String code,
+    required String fromWarehouseId,
+    required String fromWarehouseLabel,
+    required String toWarehouseId,
+    required String toWarehouseLabel,
+    required String reason,
+    String actorName = 'Pengepul',
+  }) {
+    final cleanCode = code.trim().toUpperCase();
+    final cleanFromId = fromWarehouseId.trim();
+    final cleanToId = toWarehouseId.trim();
+    final cleanReason = reason.trim();
+    if (cleanCode.isEmpty ||
+        cleanFromId.isEmpty ||
+        cleanToId.isEmpty ||
+        cleanFromId == cleanToId ||
+        cleanReason.isEmpty) {
+      return false;
+    }
+
+    final index = _batches.indexWhere((b) => b.code == cleanCode);
+    if (index == -1) return false;
+
+    final existing = _batches[index];
+    if (existing.status != BatchStatus.verifiedByCollector ||
+        existing.verifiedByRole != BatchReceiverRole.collector ||
+        existing.warehouseId?.trim() != cleanFromId) {
+      return false;
+    }
+
+    final transferredAt = DateTime.now();
+    final weight = existing.receivedQuantity ?? existing.quantity;
+    final fruitCount = existing.receivedFruitCount ?? existing.fruitCount ?? 0;
+    final cleanActorName = actorName.trim().isEmpty
+        ? 'Pengepul'
+        : actorName.trim();
+    final cleanFromLabel = fromWarehouseLabel.trim().isEmpty
+        ? cleanFromId
+        : fromWarehouseLabel.trim();
+    final cleanToLabel = toWarehouseLabel.trim().isEmpty
+        ? cleanToId
+        : toWarehouseLabel.trim();
+
+    _batches[index] = existing.copyWith(warehouseId: cleanToId);
+    _appendBatchEvent(
+      batchCode: cleanCode,
+      type: BatchEventType.batchTransferred,
+      title: 'Transfer Gudang',
+      actorLabel: cleanActorName,
+      timestamp: transferredAt,
+      status: existing.status,
+      description: cleanReason,
+      locationLabel: cleanToLabel,
+      metadata: {
+        'Gudang asal': cleanFromLabel,
+        'Gudang tujuan': cleanToLabel,
+        'Jumlah dipindah': '$weight ${existing.unit}',
+        'Jumlah buah': '$fruitCount butir',
       },
     );
     _saveToLocal();

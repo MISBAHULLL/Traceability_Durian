@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 
 import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
@@ -10,6 +10,7 @@ import '../models/collector_product.dart';
 import '../models/collector_shipment_batch.dart';
 import '../models/collector_stock_summary.dart';
 import '../models/collector_warehouse.dart';
+import '../models/collector_warehouse_transfer.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CollectorRepository
@@ -93,6 +94,20 @@ class CollectorRepository extends ChangeNotifier {
         LocalStorageService.loadInt('collector_warehouse_counter') ??
         _warehouses.length;
 
+    final warehouseTransfersJsonList = LocalStorageService.loadJsonList(
+      'collector_warehouse_transfers',
+    );
+    if (warehouseTransfersJsonList != null) {
+      _warehouseTransfers = warehouseTransfersJsonList
+          .map((e) => CollectorWarehouseTransfer.fromJson(e))
+          .toList();
+    } else {
+      _warehouseTransfers = [];
+    }
+    _warehouseTransferCounter =
+        LocalStorageService.loadInt('collector_warehouse_transfer_counter') ??
+        _warehouseTransfers.length;
+
     final seedShipmentMigrated = _migratePrimarySeedShipment();
     final simulationShipmentsAdded = _ensureDistributorSimulationShipments();
 
@@ -131,6 +146,14 @@ class CollectorRepository extends ChangeNotifier {
     LocalStorageService.saveInt(
       'collector_warehouse_counter',
       _warehouseCounter,
+    );
+    LocalStorageService.saveJsonList(
+      'collector_warehouse_transfers',
+      _warehouseTransfers.map((e) => e.toJson()).toList(),
+    );
+    LocalStorageService.saveInt(
+      'collector_warehouse_transfer_counter',
+      _warehouseTransferCounter,
     );
   }
 
@@ -372,9 +395,11 @@ class CollectorRepository extends ChangeNotifier {
   late List<CollectorShipmentBatch> _shipmentBatches;
   late List<CollectorPurchaseTransaction> _purchaseTransactions;
   late List<CollectorWarehouse> _warehouses;
+  late List<CollectorWarehouseTransfer> _warehouseTransfers;
   late int _shipmentCounter;
   late int _purchaseTransactionCounter;
   late int _warehouseCounter;
+  late int _warehouseTransferCounter;
   final FarmerRepository _farmerRepo = FarmerRepository.instance;
 
   // ── Identitas sesi ──────────────────────────────────────────────────────────
@@ -442,6 +467,14 @@ class CollectorRepository extends ChangeNotifier {
   String warehouseLabel(String? id) {
     final warehouse = findWarehouse(id);
     return warehouse == null ? 'Gudang belum dipilih' : warehouse.name;
+  }
+
+  List<CollectorWarehouseTransfer> get warehouseTransfers {
+    final items = _warehouseTransfers
+        .where((transfer) => transfer.collectorId == _currentCollectorId)
+        .toList();
+    items.sort((a, b) => b.transferredAt.compareTo(a.transferredAt));
+    return List.unmodifiable(items);
   }
 
   CollectorWarehouse createWarehouse({
@@ -512,6 +545,107 @@ class CollectorRepository extends ChangeNotifier {
     _saveToLocal();
     notifyListeners();
     return true;
+  }
+
+  // [FE - State Management] Batch yang bisa dipindah antar gudang adalah stok
+  // yang sudah diterima pengepul, punya gudang asal, dan belum dialokasikan ke
+  // batch pengiriman berikutnya.
+  List<HarvestBatch> get transferableWarehouseBatches {
+    final allocatedCodes = _allocatedSourceBatchCodes;
+    final items = stockBatches
+        .where(
+          (batch) =>
+              batch.warehouseId?.trim().isNotEmpty == true &&
+              !allocatedCodes.contains(batch.code),
+        )
+        .toList();
+    items.sort(
+      (a, b) => (b.verifiedAt ?? b.harvestDate).compareTo(
+        a.verifiedAt ?? a.harvestDate,
+      ),
+    );
+    return List.unmodifiable(items);
+  }
+
+  CollectorWarehouseTransfer? transferWarehouseStock({
+    required String batchCode,
+    required String fromWarehouseId,
+    required String toWarehouseId,
+    required String reason,
+  }) {
+    final cleanBatchCode = batchCode.trim().toUpperCase();
+    final cleanFromId = fromWarehouseId.trim();
+    final cleanToId = toWarehouseId.trim();
+    final cleanReason = reason.trim();
+    if (cleanBatchCode.isEmpty ||
+        cleanFromId.isEmpty ||
+        cleanToId.isEmpty ||
+        cleanFromId == cleanToId ||
+        cleanReason.isEmpty) {
+      return null;
+    }
+
+    final fromWarehouse = findWarehouse(cleanFromId);
+    final toWarehouse = findWarehouse(cleanToId);
+    if (fromWarehouse == null || toWarehouse == null) return null;
+
+    HarvestBatch batch;
+    try {
+      batch = transferableWarehouseBatches.firstWhere(
+        (item) => item.code == cleanBatchCode,
+      );
+    } catch (_) {
+      return null;
+    }
+    if (batch.warehouseId?.trim() != cleanFromId) return null;
+
+    final actorName = _profile.businessName.trim().isEmpty
+        ? _profile.fullName
+        : _profile.businessName;
+    final updated = _farmerRepo.transferCollectorBatchWarehouse(
+      code: cleanBatchCode,
+      fromWarehouseId: cleanFromId,
+      fromWarehouseLabel: fromWarehouse.name,
+      toWarehouseId: cleanToId,
+      toWarehouseLabel: toWarehouse.name,
+      reason: cleanReason,
+      actorName: actorName,
+    );
+    if (!updated) return null;
+
+    final transfer = CollectorWarehouseTransfer(
+      id: _generateWarehouseTransferId(),
+      collectorId: _currentCollectorId,
+      batchCode: cleanBatchCode,
+      fromWarehouseId: cleanFromId,
+      fromWarehouseName: fromWarehouse.name,
+      toWarehouseId: cleanToId,
+      toWarehouseName: toWarehouse.name,
+      weightKg: batch.receivedQuantity ?? batch.quantity,
+      fruitCount: batch.receivedFruitCount ?? batch.fruitCount ?? 0,
+      reason: cleanReason,
+      actorName: actorName,
+      transferredAt: DateTime.now(),
+    );
+    _warehouseTransfers.add(transfer);
+
+    TraceabilityRepository.instance.recordWarehouseTransfer(
+      batchCode: cleanBatchCode,
+      actorId: _currentCollectorId,
+      actorRole: TraceActorRole.collector,
+      actorName: actorName,
+      fromLocationLabel: _warehouseTraceLabel(fromWarehouse),
+      toLocationLabel: _warehouseTraceLabel(toWarehouse),
+      quantity: transfer.weightKg,
+      unit: batch.unit,
+      fruitCount: transfer.fruitCount,
+      reason: cleanReason,
+      relatedObjectId: transfer.id,
+    );
+
+    _saveToLocal();
+    notifyListeners();
+    return transfer;
   }
 
   // [FE - State Management] Batch tersedia untuk agregasi mengecualikan
@@ -806,10 +940,22 @@ class CollectorRepository extends ChangeNotifier {
     return 'T1-$year-$seq';
   }
 
+  String _warehouseTraceLabel(CollectorWarehouse warehouse) {
+    final location = warehouse.location.trim();
+    if (location.isEmpty) return warehouse.name;
+    return '${warehouse.name}, $location';
+  }
+
   String _generateWarehouseId() {
     _warehouseCounter++;
     final seq = _warehouseCounter.toString().padLeft(4, '0');
     return 'WH-$_currentCollectorId-$seq';
+  }
+
+  String _generateWarehouseTransferId() {
+    _warehouseTransferCounter++;
+    final seq = _warehouseTransferCounter.toString().padLeft(6, '0');
+    return 'WHT-$_currentCollectorId-$seq';
   }
 
   void _closePurchaseTransaction({

@@ -638,6 +638,85 @@ class TraceabilityRepository extends ChangeNotifier {
     return true;
   }
 
+  bool recordWarehouseTransfer({
+    required String batchCode,
+    required String actorId,
+    required TraceActorRole actorRole,
+    required String actorName,
+    required String fromLocationLabel,
+    required String toLocationLabel,
+    required double quantity,
+    required String unit,
+    required String reason,
+    int? fruitCount,
+    String? relatedObjectId,
+  }) {
+    final cleanBatchCode = batchCode.trim().toUpperCase();
+    final cleanReason = reason.trim();
+    if (cleanBatchCode.isEmpty ||
+        quantity <= 0 ||
+        fromLocationLabel.trim().isEmpty ||
+        toLocationLabel.trim().isEmpty ||
+        cleanReason.isEmpty) {
+      return false;
+    }
+    if (relatedObjectId != null &&
+        _events.any(
+          (event) =>
+              event.relatedObjectId == relatedObjectId &&
+              event.type == TraceEventType.warehouseTransferred,
+        )) {
+      return true;
+    }
+
+    final now = DateTime.now();
+    final event = _createEvent(
+      batchCode: cleanBatchCode,
+      type: TraceEventType.warehouseTransferred,
+      actorId: actorId,
+      actorRole: actorRole,
+      actorName: actorName,
+      title: 'Transfer gudang',
+      description:
+          '$cleanBatchCode dipindahkan dari $fromLocationLabel ke $toLocationLabel.',
+      occurredAt: now,
+      locationLabel: toLocationLabel,
+      relatedObjectId: relatedObjectId,
+      metadata: {
+        'Gudang asal': fromLocationLabel,
+        'Gudang tujuan': toLocationLabel,
+        'Jumlah dipindah': '$quantity $unit',
+        if (fruitCount != null) 'Jumlah buah': '$fruitCount butir',
+        'Alasan': cleanReason,
+      },
+    );
+    _events.add(event);
+    _movements.add(
+      _createMovement(
+        batchCode: cleanBatchCode,
+        type: TraceQuantityMovementType.transferred,
+        quantity: quantity,
+        unit: unit,
+        fruitCount: fruitCount,
+        eventId: event.id,
+        occurredAt: now,
+        reason: '$fromLocationLabel -> $toLocationLabel. $cleanReason',
+      ),
+    );
+
+    final batchIndex = _batches.indexWhere(
+      (batch) => batch.code == cleanBatchCode,
+    );
+    if (batchIndex != -1) {
+      final batch = _batches[batchIndex];
+      _batches[batchIndex] = batch.copyWith(locationLabel: toLocationLabel);
+    }
+
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
   TraceHandover? createHandoverProposal({
     required String senderId,
     required TraceActorRole senderRole,

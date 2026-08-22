@@ -9,6 +9,7 @@ enum TraceQuantityMovementType {
   loss,
   disposed,
   consumed,
+  transferred,
 }
 
 extension TraceQuantityMovementTypeX on TraceQuantityMovementType {
@@ -34,6 +35,8 @@ extension TraceQuantityMovementTypeX on TraceQuantityMovementType {
         return 'Disposal';
       case TraceQuantityMovementType.consumed:
         return 'Consumed';
+      case TraceQuantityMovementType.transferred:
+        return 'Transfer Gudang';
     }
   }
 }

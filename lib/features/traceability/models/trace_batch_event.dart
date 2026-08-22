@@ -17,6 +17,7 @@ enum TraceEventType {
   correctionRecorded,
   lossRecorded,
   disposalRecorded,
+  warehouseTransferred,
 }
 
 extension TraceEventTypeX on TraceEventType {
@@ -54,6 +55,8 @@ extension TraceEventTypeX on TraceEventType {
         return 'Loss Dicatat';
       case TraceEventType.disposalRecorded:
         return 'Disposal Dicatat';
+      case TraceEventType.warehouseTransferred:
+        return 'Transfer Gudang';
     }
   }
 }

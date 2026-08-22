@@ -2,20 +2,48 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
-import '../../../shared/widgets/batch_photo.dart';
-import '../../farmer/models/harvest_batch.dart';
-import '../collector_routes.dart';
 import '../data/collector_repository.dart';
-import '../models/collector_shipment_batch.dart';
-import 'shipment_qr_screen.dart';
+import '../models/collector_audit_event.dart';
 
 const _pageBackground = Color(0xFFF4F6F3);
 const _borderColor = Color(0xFFE1E6DF);
 
-enum _HistoryTab { receipts, shipments }
+enum _AuditPeriod { all, today, sevenDays, thirtyDays }
 
-// [FE - Component Rendering] Screen ini menjadi audit trail operasional
-// pengepul dengan pemisahan aktivitas penerimaan dan pengiriman stok.
+extension _AuditPeriodX on _AuditPeriod {
+  String get label {
+    switch (this) {
+      case _AuditPeriod.all:
+        return 'Semua';
+      case _AuditPeriod.today:
+        return 'Hari ini';
+      case _AuditPeriod.sevenDays:
+        return '7 hari';
+      case _AuditPeriod.thirtyDays:
+        return '30 hari';
+    }
+  }
+
+  bool matches(DateTime value) {
+    final now = DateTime.now();
+    switch (this) {
+      case _AuditPeriod.all:
+        return true;
+      case _AuditPeriod.today:
+        return value.year == now.year &&
+            value.month == now.month &&
+            value.day == now.day;
+      case _AuditPeriod.sevenDays:
+        return !value.isBefore(now.subtract(const Duration(days: 7)));
+      case _AuditPeriod.thirtyDays:
+        return !value.isBefore(now.subtract(const Duration(days: 30)));
+    }
+  }
+}
+
+// [FE - Component Rendering] Audit trail formal pengepul. Semua aksi utama
+// ditampilkan dalam satu timeline agar bisa difilter berdasarkan aktor,
+// periode, tipe event, kode batch/PGL, dan kategori aksi.
 class CollectorHistoryScreen extends StatefulWidget {
   const CollectorHistoryScreen({super.key});
 
@@ -25,39 +53,65 @@ class CollectorHistoryScreen extends StatefulWidget {
 
 class _CollectorHistoryScreenState extends State<CollectorHistoryScreen> {
   final _repo = CollectorRepository.instance;
-  _HistoryTab _activeTab = _HistoryTab.receipts;
+  final _searchCtrl = TextEditingController();
+
+  CollectorAuditEventType? _selectedType;
+  String? _selectedActor;
+  _AuditPeriod _period = _AuditPeriod.all;
 
   @override
   void initState() {
     super.initState();
     _repo.addListener(_onRepoChanged);
+    _searchCtrl.addListener(_onRepoChanged);
   }
 
   @override
   void dispose() {
     _repo.removeListener(_onRepoChanged);
+    _searchCtrl.removeListener(_onRepoChanged);
+    _searchCtrl.dispose();
     super.dispose();
   }
 
-  // [FE - State Management] Listener ini menjaga riwayat mengikuti perubahan
-  // status verifikasi, penolakan, dan handover pengiriman secara reaktif.
   void _onRepoChanged() {
     if (mounted) setState(() {});
   }
 
-  // [FE - Event Handler] Kartu pengiriman membuka QR dan detail handover dari
-  // manifest yang dipilih tanpa membuat salinan data riwayat baru.
-  Future<void> _openShipment(CollectorShipmentBatch shipment) async {
-    await CollectorRoutes.push(
-      context,
-      ShipmentQrScreen(shipmentCode: shipment.code),
-    );
+  List<CollectorAuditEvent> _filteredEvents(List<CollectorAuditEvent> events) {
+    final query = _searchCtrl.text.trim().toLowerCase();
+    return events.where((event) {
+      final matchesQuery =
+          query.isEmpty ||
+          event.objectCode.toLowerCase().contains(query) ||
+          event.action.toLowerCase().contains(query) ||
+          event.description.toLowerCase().contains(query) ||
+          event.metadata.values.any(
+            (value) => value.toLowerCase().contains(query),
+          );
+      final matchesType = _selectedType == null || event.type == _selectedType;
+      final matchesActor =
+          _selectedActor == null || event.actorName == _selectedActor;
+      final matchesPeriod = _period.matches(event.occurredAt);
+      return matchesQuery && matchesType && matchesActor && matchesPeriod;
+    }).toList();
+  }
+
+  void _clearFilters() {
+    _searchCtrl.clear();
+    setState(() {
+      _selectedType = null;
+      _selectedActor = null;
+      _period = _AuditPeriod.all;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final receipts = _repo.historyBatches;
-    final shipments = _repo.shipmentBatches;
+    final allEvents = _repo.auditEvents;
+    final actors = allEvents.map((event) => event.actorName).toSet().toList()
+      ..sort();
+    final visibleEvents = _filteredEvents(allEvents);
 
     return Scaffold(
       backgroundColor: _pageBackground,
@@ -66,20 +120,31 @@ class _CollectorHistoryScreenState extends State<CollectorHistoryScreen> {
           children: [
             const ColoredBox(
               color: AppColors.white,
-              child: AppTopBar(title: 'Riwayat Aktivitas'),
+              child: AppTopBar(title: 'Audit Trail Pengepul'),
             ),
-            _HistoryTabBar(
-              activeTab: _activeTab,
-              receiptCount: receipts.length,
-              shipmentCount: shipments.length,
-              onChanged: (tab) => setState(() => _activeTab = tab),
+            _AuditFilterPanel(
+              searchCtrl: _searchCtrl,
+              selectedType: _selectedType,
+              selectedActor: _selectedActor,
+              actors: actors,
+              period: _period,
+              totalCount: allEvents.length,
+              visibleCount: visibleEvents.length,
+              onTypeChanged: (value) => setState(() => _selectedType = value),
+              onActorChanged: (value) => setState(() => _selectedActor = value),
+              onPeriodChanged: (value) => setState(() => _period = value),
+              onClear: _clearFilters,
             ),
             Expanded(
-              child: _activeTab == _HistoryTab.receipts
-                  ? _ReceiptHistoryList(receipts: receipts)
-                  : _ShipmentHistoryList(
-                      shipments: shipments,
-                      onOpen: _openShipment,
+              child: visibleEvents.isEmpty
+                  ? const _EmptyAuditState()
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+                      itemCount: visibleEvents.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        return _AuditEventCard(event: visibleEvents[index]);
+                      },
                     ),
             ),
           ],
@@ -89,220 +154,180 @@ class _CollectorHistoryScreenState extends State<CollectorHistoryScreen> {
   }
 }
 
-// [FE - Component Rendering] Segmented tab menjaga dua jenis audit tetap
-// berada pada satu menu tanpa mencampurkan penerimaan dan pengiriman.
-class _HistoryTabBar extends StatelessWidget {
-  const _HistoryTabBar({
-    required this.activeTab,
-    required this.receiptCount,
-    required this.shipmentCount,
-    required this.onChanged,
+class _AuditFilterPanel extends StatelessWidget {
+  const _AuditFilterPanel({
+    required this.searchCtrl,
+    required this.selectedType,
+    required this.selectedActor,
+    required this.actors,
+    required this.period,
+    required this.totalCount,
+    required this.visibleCount,
+    required this.onTypeChanged,
+    required this.onActorChanged,
+    required this.onPeriodChanged,
+    required this.onClear,
   });
 
-  final _HistoryTab activeTab;
-  final int receiptCount;
-  final int shipmentCount;
-  final ValueChanged<_HistoryTab> onChanged;
+  final TextEditingController searchCtrl;
+  final CollectorAuditEventType? selectedType;
+  final String? selectedActor;
+  final List<String> actors;
+  final _AuditPeriod period;
+  final int totalCount;
+  final int visibleCount;
+  final ValueChanged<CollectorAuditEventType?> onTypeChanged;
+  final ValueChanged<String?> onActorChanged;
+  final ValueChanged<_AuditPeriod> onPeriodChanged;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.white,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-      child: Container(
-        height: 44,
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: _pageBackground,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: _TabButton(
-                label: 'Penerimaan',
-                count: receiptCount,
-                selected: activeTab == _HistoryTab.receipts,
-                onTap: () => onChanged(_HistoryTab.receipts),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '$visibleCount dari $totalCount event',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.subtitle,
+                  ),
+                ),
               ),
-            ),
-            Expanded(
-              child: _TabButton(
-                label: 'Pengiriman',
-                count: shipmentCount,
-                selected: activeTab == _HistoryTab.shipments,
-                onTap: () => onChanged(_HistoryTab.shipments),
+              TextButton.icon(
+                onPressed: onClear,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Reset'),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TabButton extends StatelessWidget {
-  const _TabButton({
-    required this.label,
-    required this.count,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final int count;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? AppColors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          border: selected ? Border.all(color: _borderColor) : null,
-        ),
-        child: Text(
-          '$label ($count)',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: selected ? AppColors.primary : AppColors.placeholder,
+            ],
           ),
-        ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: searchCtrl,
+            textCapitalization: TextCapitalization.characters,
+            decoration: InputDecoration(
+              hintText: 'Cari kode batch/PGL, aksi, atau catatan',
+              prefixIcon: const Icon(Icons.search_rounded, size: 20),
+              filled: true,
+              fillColor: _pageBackground,
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: _borderColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: _borderColor),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<CollectorAuditEventType?>(
+                  initialValue: selectedType,
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('Semua tipe'),
+                    ),
+                    ...CollectorAuditEventType.values.map(
+                      (type) => DropdownMenuItem(
+                        value: type,
+                        child: Text(type.label),
+                      ),
+                    ),
+                  ],
+                  onChanged: onTypeChanged,
+                  decoration: _filterDecoration('Tipe event'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DropdownButtonFormField<String?>(
+                  initialValue: selectedActor,
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('Semua aktor'),
+                    ),
+                    ...actors.map(
+                      (actor) =>
+                          DropdownMenuItem(value: actor, child: Text(actor)),
+                    ),
+                  ],
+                  onChanged: onActorChanged,
+                  decoration: _filterDecoration('Aktor'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _AuditPeriod.values.map((item) {
+                final selected = item == period;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    selected: selected,
+                    label: Text(item.label),
+                    onSelected: (_) => onPeriodChanged(item),
+                    selectedColor: const Color(0xFFEAF4E6),
+                    backgroundColor: AppColors.white,
+                    side: BorderSide(
+                      color: selected ? AppColors.primary : _borderColor,
+                    ),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: selected ? AppColors.primary : AppColors.subtitle,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _filterDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: _pageBackground,
+      isDense: true,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: _borderColor),
       ),
     );
   }
 }
 
-class _ReceiptHistoryList extends StatelessWidget {
-  const _ReceiptHistoryList({required this.receipts});
+class _AuditEventCard extends StatelessWidget {
+  const _AuditEventCard({required this.event});
 
-  final List<HarvestBatch> receipts;
-
-  @override
-  Widget build(BuildContext context) {
-    if (receipts.isEmpty) {
-      return const _EmptyHistory(
-        icon: Icons.fact_check_outlined,
-        title: 'Belum ada aktivitas penerimaan',
-        message: 'Verifikasi dan penolakan batch petani akan tercatat di sini.',
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-      itemCount: receipts.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, index) => _ReceiptCard(batch: receipts[index]),
-    );
-  }
-}
-
-class _ShipmentHistoryList extends StatelessWidget {
-  const _ShipmentHistoryList({required this.shipments, required this.onOpen});
-
-  final List<CollectorShipmentBatch> shipments;
-  final ValueChanged<CollectorShipmentBatch> onOpen;
+  final CollectorAuditEvent event;
 
   @override
   Widget build(BuildContext context) {
-    if (shipments.isEmpty) {
-      return const _EmptyHistory(
-        icon: Icons.local_shipping_outlined,
-        title: 'Belum ada aktivitas pengiriman',
-        message:
-            'Manifest yang dibuat untuk UMKM, distributor, konsumen, atau pengepul lain akan muncul di sini.',
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-      itemCount: shipments.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final shipment = shipments[index];
-        return _ShipmentHistoryCard(
-          shipment: shipment,
-          onTap: () => onOpen(shipment),
-        );
-      },
-    );
-  }
-}
-
-class _EmptyHistory extends StatelessWidget {
-  const _EmptyHistory({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: AppColors.placeholder),
-            const SizedBox(height: 14),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: AppColors.black,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                height: 1.4,
-                color: AppColors.placeholder,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// [FE - Component Rendering] Kartu penerimaan mempertahankan data awal dan
-// hasil aksi pengepul sebagai bukti audit yang tidak hilang saat status lanjut.
-class _ReceiptCard extends StatelessWidget {
-  const _ReceiptCard({required this.batch});
-
-  final HarvestBatch batch;
-
-  bool get _isRejected => batch.rejectedAt != null;
-
-  @override
-  Widget build(BuildContext context) {
-    final eventAt = _isRejected
-        ? batch.rejectedAt!
-        : batch.verifiedAt ?? batch.createdAt ?? batch.harvestDate;
-    final statusColor = _isRejected
-        ? const Color(0xFFC83B3B)
-        : AppColors.primary;
-    final receivedWeight = batch.receivedQuantity ?? batch.quantity;
-    final receivedFruit = batch.receivedFruitCount ?? batch.fruitCount;
-
+    final color = _colorForType(event.type);
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -317,265 +342,127 @@ class _ReceiptCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ActivityIcon(
-                  icon: _isRejected
-                      ? Icons.close_rounded
-                      : Icons.fact_check_outlined,
-                  color: statusColor,
-                ),
+                _AuditIcon(type: event.type, color: color),
                 const SizedBox(width: 11),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        batch.code,
+                        event.objectCode,
                         style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
                           color: AppColors.primary,
                         ),
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Durian ${batch.variety} · ${batch.farmName}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        event.action,
                         style: const TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w900,
                           color: AppColors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        event.description,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          height: 1.35,
+                          color: AppColors.subtitle,
                         ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                _StatusBadge(
-                  label: _isRejected ? 'Ditolak' : 'Diterima',
-                  color: statusColor,
-                ),
+                _TypeBadge(label: event.type.label, color: color),
               ],
             ),
           ),
           const Divider(height: 1, color: _borderColor),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
+            padding: const EdgeInsets.fromLTRB(14, 11, 14, 12),
             child: Column(
               children: [
-                _DetailRow(label: 'Waktu', value: _formatDateTime(eventAt)),
-                _DetailRow(
-                  label: _isRejected ? 'Jumlah awal' : 'Jumlah diterima',
-                  value:
-                      '${_formatWeight(receivedWeight)} kg · ${receivedFruit ?? '-'} butir',
+                _InfoRow(
+                  label: 'Waktu',
+                  value: _formatDateTime(event.occurredAt),
                 ),
-                _DetailRow(
-                  label: 'Grade',
-                  value: _isRejected
-                      ? 'Estimasi petani Grade ${batch.grade}'
-                      : 'Dominan Grade ${batch.verifiedGrade ?? batch.grade}',
-                  isLast: true,
+                _InfoRow(
+                  label: 'Aktor',
+                  value: '${event.actorRole} - ${event.actorName}',
                 ),
+                if (event.locationLabel?.trim().isNotEmpty == true)
+                  _InfoRow(label: 'Lokasi', value: event.locationLabel!.trim()),
+                if (event.statusLabel?.trim().isNotEmpty == true)
+                  _InfoRow(label: 'Status', value: event.statusLabel!.trim()),
               ],
             ),
           ),
-          if ((_isRejected ? batch.rejectionReason : batch.qualityNotes)
-                  ?.trim()
-                  .isNotEmpty ==
-              true)
-            _NoteBox(
-              text: (_isRejected ? batch.rejectionReason : batch.qualityNotes)!
-                  .trim(),
-              isError: _isRejected,
-            ),
-          if (!_isRejected &&
-              batch.verificationPhotoPath?.trim().isNotEmpty == true)
-            _VerificationPhotoPreview(path: batch.verificationPhotoPath!),
-        ],
-      ),
-    );
-  }
-}
-
-class _VerificationPhotoPreview extends StatelessWidget {
-  const _VerificationPhotoPreview({required this.path});
-
-  final String path;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: _borderColor)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Foto Verifikasi Fisik',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: AppColors.placeholder,
-            ),
-          ),
-          const SizedBox(height: 8),
-          BatchPhoto(
-            path: path,
-            width: double.infinity,
-            height: 150,
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// [FE - Component Rendering] Kartu pengiriman mencatat manifest, penerima,
-// kuantitas, dan status handover untuk audit stok keluar pengepul.
-class _ShipmentHistoryCard extends StatelessWidget {
-  const _ShipmentHistoryCard({required this.shipment, required this.onTap});
-
-  final CollectorShipmentBatch shipment;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColor = switch (shipment.status) {
-      CollectorShipmentStatus.readyToShip => const Color(0xFF9A6700),
-      CollectorShipmentStatus.sent => const Color(0xFF1D6FA4),
-      CollectorShipmentStatus.completed => AppColors.primary,
-    };
-    final latestTime =
-        shipment.completedAt ?? shipment.sentAt ?? shipment.packagedAt;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _borderColor),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _ActivityIcon(
-                    icon:
-                        shipment.destinationType == ShipmentDestinationType.umkm
-                        ? Icons.storefront_outlined
-                        : Icons.local_shipping_outlined,
-                    color: statusColor,
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          shipment.code,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          shipment.destinationName?.trim().isNotEmpty == true
-                              ? '${shipment.destinationType.label} - '
-                                    '${shipment.destinationName!.trim()}'
-                              : 'Tujuan ${shipment.destinationType.label}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.black,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _StatusBadge(
-                    label: shipment.status.label,
-                    color: statusColor,
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1, color: _borderColor),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
-              child: Column(
-                children: [
-                  _DetailRow(
-                    label: 'Aktivitas terakhir',
-                    value: _formatDateTime(latestTime),
-                  ),
-                  _DetailRow(
-                    label: 'Isi manifest',
-                    value: '${shipment.sourceBatchCodes.length} batch sumber',
-                  ),
-                  _DetailRow(
-                    label: 'Total dikirim',
-                    value:
-                        '${_formatWeight(shipment.totalWeightKg)} kg · ${shipment.totalFruitCount} butir',
-                    isLast: true,
-                  ),
-                ],
-              ),
-            ),
+          if (event.metadata.isNotEmpty)
             Container(
-              padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
               decoration: const BoxDecoration(
                 color: Color(0xFFF8F9F7),
                 border: Border(top: BorderSide(color: _borderColor)),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      shipment.sourceBatchCodes.join(', '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: AppColors.placeholder,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    size: 20,
-                    color: AppColors.primary,
-                  ),
-                ],
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: event.metadata.entries.map((entry) {
+                  return _MetadataPill(label: entry.key, value: entry.value);
+                }).toList(),
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
+
+  Color _colorForType(CollectorAuditEventType type) {
+    switch (type) {
+      case CollectorAuditEventType.purchase:
+        return const Color(0xFF1D6FA4);
+      case CollectorAuditEventType.receipt:
+        return AppColors.primary;
+      case CollectorAuditEventType.rejection:
+        return const Color(0xFFC83B3B);
+      case CollectorAuditEventType.grading:
+        return const Color(0xFF7C3AED);
+      case CollectorAuditEventType.shipment:
+        return const Color(0xFF0F766E);
+      case CollectorAuditEventType.incoming:
+        return const Color(0xFF2563EB);
+      case CollectorAuditEventType.warehouse:
+        return const Color(0xFFB45309);
+      case CollectorAuditEventType.transfer:
+        return const Color(0xFF475569);
+    }
+  }
 }
 
-class _ActivityIcon extends StatelessWidget {
-  const _ActivityIcon({required this.icon, required this.color});
+class _AuditIcon extends StatelessWidget {
+  const _AuditIcon({required this.type, required this.color});
 
-  final IconData icon;
+  final CollectorAuditEventType type;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
+    final icon = switch (type) {
+      CollectorAuditEventType.purchase => Icons.qr_code_scanner_rounded,
+      CollectorAuditEventType.receipt => Icons.fact_check_outlined,
+      CollectorAuditEventType.rejection => Icons.close_rounded,
+      CollectorAuditEventType.grading => Icons.grading_outlined,
+      CollectorAuditEventType.shipment => Icons.local_shipping_outlined,
+      CollectorAuditEventType.incoming => Icons.move_to_inbox_outlined,
+      CollectorAuditEventType.warehouse => Icons.warehouse_outlined,
+      CollectorAuditEventType.transfer => Icons.swap_horiz_rounded,
+    };
     return Container(
       width: 40,
       height: 40,
@@ -588,8 +475,8 @@ class _ActivityIcon extends StatelessWidget {
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label, required this.color});
+class _TypeBadge extends StatelessWidget {
+  const _TypeBadge({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -614,26 +501,21 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.label,
-    required this.value,
-    this.isLast = false,
-  });
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
 
   final String label;
   final String value;
-  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
+      padding: const EdgeInsets.only(bottom: 7),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 112,
+            width: 82,
             child: Text(
               label,
               style: const TextStyle(
@@ -660,39 +542,51 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-class _NoteBox extends StatelessWidget {
-  const _NoteBox({required this.text, required this.isError});
+class _MetadataPill extends StatelessWidget {
+  const _MetadataPill({required this.label, required this.value});
 
-  final String text;
-  final bool isError;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
-        color: isError ? const Color(0xFFFFF1F1) : const Color(0xFFF8F9F7),
-        border: const Border(top: BorderSide(color: _borderColor)),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
       ),
       child: Text(
-        text,
-        style: TextStyle(
+        '$label: $value',
+        style: const TextStyle(
           fontSize: 11,
-          height: 1.4,
-          color: isError ? const Color(0xFFA52F2F) : AppColors.placeholder,
+          fontWeight: FontWeight.w700,
+          color: AppColors.subtitle,
         ),
       ),
     );
   }
 }
 
-String _formatWeight(double value) {
-  return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+class _EmptyAuditState extends StatelessWidget {
+  const _EmptyAuditState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(28),
+        child: Text(
+          'Tidak ada event audit yang cocok dengan filter.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: AppColors.placeholder),
+        ),
+      ),
+    );
+  }
 }
 
-// [UTIL - Helper Function] Formatter ini menyeragamkan waktu audit pada kartu
-// penerimaan dan pengiriman agar kronologi mudah dibandingkan pengguna.
 String _formatDateTime(DateTime date) {
   const months = [
     'Jan',

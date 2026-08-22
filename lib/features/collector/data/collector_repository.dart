@@ -5,6 +5,7 @@ import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../../traceability/data/traceability_repository.dart';
 import '../../traceability/models/traceability_models.dart';
+import '../models/collector_audit_event.dart';
 import '../models/collector_incoming_receipt.dart';
 import '../models/collector_purchase_transaction.dart';
 import '../models/collector_product.dart';
@@ -95,6 +96,17 @@ class CollectorRepository extends ChangeNotifier {
         LocalStorageService.loadInt('collector_warehouse_counter') ??
         _warehouses.length;
 
+    final auditEventsJsonList = LocalStorageService.loadJsonList(
+      'collector_audit_events',
+    );
+    if (auditEventsJsonList != null) {
+      _auditEvents = auditEventsJsonList
+          .map((e) => CollectorAuditEvent.fromJson(e))
+          .toList();
+    } else {
+      _auditEvents = [];
+    }
+
     final incomingReceiptsJsonList = LocalStorageService.loadJsonList(
       'collector_incoming_receipts',
     );
@@ -158,6 +170,10 @@ class CollectorRepository extends ChangeNotifier {
     LocalStorageService.saveInt(
       'collector_warehouse_counter',
       _warehouseCounter,
+    );
+    LocalStorageService.saveJsonList(
+      'collector_audit_events',
+      _auditEvents.map((e) => e.toJson()).toList(),
     );
     LocalStorageService.saveJsonList(
       'collector_incoming_receipts',
@@ -410,6 +426,7 @@ class CollectorRepository extends ChangeNotifier {
   late List<CollectorProduct> _products;
   late List<CollectorShipmentBatch> _shipmentBatches;
   late List<CollectorPurchaseTransaction> _purchaseTransactions;
+  late List<CollectorAuditEvent> _auditEvents;
   late List<CollectorIncomingReceipt> _incomingReceipts;
   late List<CollectorWarehouse> _warehouses;
   late List<CollectorWarehouseTransfer> _warehouseTransfers;
@@ -535,13 +552,34 @@ class CollectorRepository extends ChangeNotifier {
           .toList();
     }
     final existing = _warehouses[index];
-    _warehouses[index] = CollectorWarehouse(
+    final updated = CollectorWarehouse(
       id: existing.id,
       name: name.trim(),
       location: location.trim(),
       note: note?.trim().isEmpty == true ? null : note?.trim(),
       isDefault: setAsDefault ? true : existing.isDefault,
       createdAt: existing.createdAt,
+    );
+    _warehouses[index] = updated;
+    _recordManualAuditEvent(
+      CollectorAuditEvent(
+        id: 'AUD-WH-UPDATE--',
+        type: CollectorAuditEventType.warehouse,
+        action: 'Gudang diperbarui',
+        actorName: _collectorActorName,
+        actorRole: 'Pengepul',
+        objectCode: updated.id,
+        description: ' diperbarui.',
+        occurredAt: DateTime.now(),
+        locationLabel: updated.location,
+        statusLabel: updated.isDefault ? 'Default' : 'Aktif',
+        metadata: {
+          'Nama lama': existing.name,
+          'Nama baru': updated.name,
+          'Lokasi lama': existing.location,
+          'Lokasi baru': updated.location,
+        },
+      ),
     );
     _saveToLocal();
     notifyListeners();
@@ -556,6 +594,25 @@ class CollectorRepository extends ChangeNotifier {
     if (isUsed || _warehouses.length <= 1) return false;
 
     final removed = _warehouses.removeAt(index);
+    _recordManualAuditEvent(
+      CollectorAuditEvent(
+        id: 'AUD-WH-DELETE--',
+        type: CollectorAuditEventType.warehouse,
+        action: 'Gudang dihapus',
+        actorName: _collectorActorName,
+        actorRole: 'Pengepul',
+        objectCode: removed.id,
+        description: ' dihapus dari daftar gudang.',
+        occurredAt: DateTime.now(),
+        locationLabel: removed.location,
+        statusLabel: 'Dihapus',
+        metadata: {
+          'Nama gudang': removed.name,
+          if (removed.note?.trim().isNotEmpty == true)
+            'Catatan': removed.note!.trim(),
+        },
+      ),
+    );
     if (removed.isDefault && _warehouses.isNotEmpty) {
       _warehouses[0] = _warehouses[0].copyWith(isDefault: true);
     }
@@ -1074,6 +1131,19 @@ class CollectorRepository extends ChangeNotifier {
     return true;
   }
 
+  String get _collectorActorName => _profile.businessName.trim().isEmpty
+      ? _profile.fullName
+      : _profile.businessName;
+
+  void _recordManualAuditEvent(CollectorAuditEvent event) {
+    final index = _auditEvents.indexWhere((item) => item.id == event.id);
+    if (index == -1) {
+      _auditEvents.add(event);
+    } else {
+      _auditEvents[index] = event;
+    }
+  }
+
   // [UTIL - Helper Function] Generator ini membuat kode batch pengiriman
   // monotetik agar FE mock mendekati pola ID yang nanti dibuat backend.
   String _generateShipmentCode() {
@@ -1214,6 +1284,269 @@ class CollectorRepository extends ChangeNotifier {
         .toList();
     values.sort((a, b) => a.label.compareTo(b.label));
     return List.unmodifiable(values);
+  }
+
+  List<CollectorAuditEvent> get auditEvents {
+    final items = <CollectorAuditEvent>[..._auditEvents];
+    final actor = _collectorActorName;
+
+    for (final transaction in _purchaseTransactions.where(
+      (item) => item.collectorId == _currentCollectorId,
+    )) {
+      items.add(
+        CollectorAuditEvent(
+          id: 'AUD-T1-${transaction.id}',
+          type: CollectorAuditEventType.purchase,
+          action: 'Scan QR / T1 dibuat',
+          actorName: actor,
+          actorRole: 'Pengepul',
+          objectCode: transaction.batchCode,
+          description:
+              '${transaction.batchCode} discan dari ${transaction.farmerLabel}.',
+          occurredAt: transaction.initiatedAt,
+          locationLabel: transaction.originLabel,
+          statusLabel: transaction.status.label,
+          metadata: {
+            'Transaksi': transaction.id,
+            'Sumber': transaction.farmerLabel,
+            'Asal': transaction.originLabel,
+          },
+        ),
+      );
+    }
+
+    for (final batch in historyBatches) {
+      if (batch.verifiedAt != null &&
+          (batch.verifiedByRole == null ||
+              batch.verifiedByRole == BatchReceiverRole.collector)) {
+        final warehouse = findWarehouse(batch.warehouseId);
+        items.add(
+          CollectorAuditEvent(
+            id: 'AUD-RECEIPT-${batch.code}-${batch.verifiedAt!.millisecondsSinceEpoch}',
+            type: CollectorAuditEventType.receipt,
+            action: 'T2 penerimaan batch',
+            actorName: batch.verifiedBy?.trim().isNotEmpty == true
+                ? batch.verifiedBy!.trim()
+                : actor,
+            actorRole: 'Pengepul',
+            objectCode: batch.code,
+            description:
+                '${batch.code} diterima dan divalidasi dari ${batch.farmName}.',
+            occurredAt: batch.verifiedAt!,
+            locationLabel: warehouse?.location ?? warehouse?.name,
+            statusLabel: batch.status.label,
+            metadata: {
+              'Varietas': batch.variety,
+              'Grade': batch.verifiedGrade ?? batch.grade,
+              'Berat diterima':
+                  '${batch.receivedQuantity ?? batch.quantity} ${batch.unit}',
+              'Jumlah diterima':
+                  '${batch.receivedFruitCount ?? batch.fruitCount ?? 0} butir',
+              if (batch.qualityNotes?.trim().isNotEmpty == true)
+                'Catatan': batch.qualityNotes!.trim(),
+            },
+          ),
+        );
+
+        if (batch.gradeBreakdown.isNotEmpty) {
+          items.add(
+            CollectorAuditEvent(
+              id: 'AUD-GRADING-${batch.code}-${batch.verifiedAt!.millisecondsSinceEpoch}',
+              type: CollectorAuditEventType.grading,
+              action: 'Grading dicatat',
+              actorName: batch.verifiedBy?.trim().isNotEmpty == true
+                  ? batch.verifiedBy!.trim()
+                  : actor,
+              actorRole: 'Pengepul',
+              objectCode: batch.code,
+              description: '${batch.code} memiliki rincian grading pengepul.',
+              occurredAt: batch.verifiedAt!,
+              locationLabel: warehouse?.name,
+              statusLabel: batch.verifiedGrade == null
+                  ? null
+                  : 'Dominan ${batch.verifiedGrade}',
+              metadata: {
+                'Rincian grade': batch.gradeBreakdown
+                    .map(
+                      (item) =>
+                          '${item.grade}: ${item.weightKg} kg / ${item.fruitCount} butir',
+                    )
+                    .join(', '),
+              },
+            ),
+          );
+        }
+      }
+      if (batch.rejectedAt != null) {
+        items.add(
+          CollectorAuditEvent(
+            id: 'AUD-REJECT-${batch.code}-${batch.rejectedAt!.millisecondsSinceEpoch}',
+            type: CollectorAuditEventType.rejection,
+            action: 'T2 ditolak',
+            actorName: batch.rejectedBy?.trim().isNotEmpty == true
+                ? batch.rejectedBy!.trim()
+                : actor,
+            actorRole: 'Pengepul',
+            objectCode: batch.code,
+            description: '${batch.code} ditolak saat validasi penerimaan.',
+            occurredAt: batch.rejectedAt!,
+            statusLabel: 'Ditolak',
+            metadata: {
+              'Alasan': batch.rejectionReason ?? '-',
+              'Varietas': batch.variety,
+              'Asal': batch.farmName,
+            },
+          ),
+        );
+      }
+    }
+
+    for (final shipment in _shipmentBatches.where(
+      (item) => item.collectorId == _currentCollectorId,
+    )) {
+      items.add(
+        CollectorAuditEvent(
+          id: 'AUD-SHIP-CREATE-${shipment.code}',
+          type: CollectorAuditEventType.shipment,
+          action: 'Buat PGL',
+          actorName: actor,
+          actorRole: 'Pengepul',
+          objectCode: shipment.code,
+          description:
+              '${shipment.code} dibuat untuk ${shipment.destinationType.label}.',
+          occurredAt: shipment.packagedAt,
+          locationLabel: shipment.destinationLocation,
+          statusLabel: shipment.status.label,
+          metadata: {
+            'Tujuan':
+                shipment.destinationName ?? shipment.destinationType.label,
+            'Total':
+                '${shipment.totalWeightKg} kg / ${shipment.totalFruitCount} butir',
+            'Batch sumber': shipment.sourceBatchCodes.join(', '),
+          },
+        ),
+      );
+      if (shipment.sentAt != null) {
+        items.add(
+          CollectorAuditEvent(
+            id: 'AUD-SHIP-SENT-${shipment.code}',
+            type: CollectorAuditEventType.shipment,
+            action: 'PGL discan / dikirim',
+            actorName: actor,
+            actorRole: 'Pengepul',
+            objectCode: shipment.code,
+            description: '${shipment.code} mulai dikirim ke tujuan.',
+            occurredAt: shipment.sentAt!,
+            locationLabel: shipment.destinationLocation,
+            statusLabel: 'Dikirim',
+            metadata: {'Tujuan': shipment.destinationType.label},
+          ),
+        );
+      }
+      if (shipment.completedAt != null) {
+        items.add(
+          CollectorAuditEvent(
+            id: 'AUD-SHIP-DONE-${shipment.code}',
+            type: CollectorAuditEventType.shipment,
+            action: 'PGL selesai diterima',
+            actorName: actor,
+            actorRole: 'Pengepul',
+            objectCode: shipment.code,
+            description: '${shipment.code} selesai pada tujuan.',
+            occurredAt: shipment.completedAt!,
+            locationLabel: shipment.destinationLocation,
+            statusLabel: 'Selesai',
+            metadata: {
+              if (shipment.warehouseNote?.trim().isNotEmpty == true)
+                'Catatan': shipment.warehouseNote!.trim(),
+            },
+          ),
+        );
+      }
+    }
+
+    for (final receipt in _incomingReceipts.where(
+      (item) => item.receiverCollectorId == _currentCollectorId,
+    )) {
+      items.add(
+        CollectorAuditEvent(
+          id: 'AUD-INCOMING-${receipt.shipmentCode}-${receipt.receivedAt.millisecondsSinceEpoch}',
+          type: CollectorAuditEventType.incoming,
+          action: 'Terima PGL dari pengepul lain',
+          actorName: actor,
+          actorRole: 'Pengepul',
+          objectCode: receipt.shipmentCode,
+          description:
+              '${receipt.shipmentCode} diterima dari ${receipt.senderCollectorId}.',
+          occurredAt: receipt.receivedAt,
+          locationLabel: receipt.destinationLocation,
+          statusLabel: receipt.condition.label,
+          metadata: {
+            'Gudang tujuan': receipt.destinationWarehouseName,
+            'Berat diterima': '${receipt.receivedWeightKg} kg',
+            'Jumlah diterima': '${receipt.receivedFruitCount} butir',
+            if (receipt.discrepancyNote?.trim().isNotEmpty == true)
+              'Alasan selisih': receipt.discrepancyNote!.trim(),
+            if (receipt.qualityNote?.trim().isNotEmpty == true)
+              'Catatan': receipt.qualityNote!.trim(),
+          },
+        ),
+      );
+    }
+
+    for (final warehouse in _warehouses) {
+      items.add(
+        CollectorAuditEvent(
+          id: 'AUD-WH-CREATE-${warehouse.id}',
+          type: CollectorAuditEventType.warehouse,
+          action: 'Gudang tercatat',
+          actorName: actor,
+          actorRole: 'Pengepul',
+          objectCode: warehouse.id,
+          description: '${warehouse.name} tercatat sebagai gudang pengepul.',
+          occurredAt: warehouse.createdAt ?? DateTime(2026, 1, 1),
+          locationLabel: warehouse.location,
+          statusLabel: warehouse.isDefault ? 'Default' : 'Aktif',
+          metadata: {
+            'Nama gudang': warehouse.name,
+            if (warehouse.note?.trim().isNotEmpty == true)
+              'Catatan': warehouse.note!.trim(),
+          },
+        ),
+      );
+    }
+
+    for (final transfer in warehouseTransfers) {
+      items.add(
+        CollectorAuditEvent(
+          id: 'AUD-WH-TRANSFER-${transfer.id}',
+          type: CollectorAuditEventType.transfer,
+          action: 'Transfer antar gudang',
+          actorName: transfer.actorName,
+          actorRole: 'Pengepul',
+          objectCode: transfer.batchCode,
+          description:
+              '${transfer.batchCode} dipindahkan dari ${transfer.fromWarehouseName} ke ${transfer.toWarehouseName}.',
+          occurredAt: transfer.transferredAt,
+          locationLabel: transfer.toWarehouseName,
+          statusLabel: 'Selesai',
+          metadata: {
+            'Gudang asal': transfer.fromWarehouseName,
+            'Gudang tujuan': transfer.toWarehouseName,
+            'Jumlah': '${transfer.weightKg} kg / ${transfer.fruitCount} butir',
+            'Alasan': transfer.reason,
+          },
+        ),
+      );
+    }
+
+    final deduped = <String, CollectorAuditEvent>{};
+    for (final event in items) {
+      deduped[event.id] = event;
+    }
+    final result = deduped.values.toList()
+      ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+    return List.unmodifiable(result);
   }
 
   // [FE - State Management] Riwayat pengepul menggabungkan batch yang sudah

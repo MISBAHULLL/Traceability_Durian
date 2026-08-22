@@ -298,6 +298,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
+    final hasReceiptVariance =
+        (farmerWeight != null && (quantity - farmerWeight).abs() > 0.01) ||
+        (farmerFruitCount != null && receivedFruitCount != farmerFruitCount);
+    if (hasReceiptVariance && _notesCtrl.text.trim().isEmpty) {
+      _notif.show(
+        context,
+        'Catatan kondisi wajib diisi jika berat atau jumlah diterima berbeda.',
+        isError: true,
+      );
+      FocusScope.of(context).requestFocus(_notesFocus);
+      return;
+    }
+
     // [ERROR - Exception Handling] Validasi mass balance ini memastikan total
     // hasil sortir Grade A/B/C sama dengan stok fisik yang diterima pengepul.
     final gradeBreakdown = _buildGradeBreakdown();
@@ -735,8 +748,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Catatan Kualitas (opsional)
-                    const _FieldLabel(label: 'Catatan Kualitas (opsional)'),
+                    // Catatan kualitas menjadi bukti audit saat ada selisih.
+                    const _FieldLabel(label: 'Catatan Kondisi'),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _notesCtrl,
@@ -748,7 +761,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         color: AppColors.black,
                       ),
                       decoration: InputDecoration(
-                        hintText: 'Tambahkan catatan kualitas produk...',
+                        hintText:
+                            'Wajib jika ada selisih berat/jumlah atau kerusakan.',
                         hintStyle: const TextStyle(
                           fontSize: 14,
                           color: AppColors.placeholder,

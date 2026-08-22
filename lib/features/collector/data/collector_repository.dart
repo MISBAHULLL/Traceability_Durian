@@ -974,6 +974,9 @@ class CollectorRepository extends ChangeNotifier {
     String? qualityNotes,
     String? transactionId,
   }) {
+    final sourceBatch = _farmerRepo.findPublicBatch(code);
+    if (sourceBatch == null) return false;
+
     final ok = _farmerRepo.verifyBatchByCollector(
       code: code,
       receivedQuantity: receivedQuantity,
@@ -985,6 +988,28 @@ class CollectorRepository extends ChangeNotifier {
       verifiedBy: _profile.fullName,
     );
     if (!ok) return false;
+
+    final actorName = _profile.businessName.isEmpty
+        ? _profile.fullName
+        : _profile.businessName;
+    final warehouse = findWarehouse(warehouseId);
+    TraceabilityRepository.instance.recordReceiptVariance(
+      batchCode: code,
+      actorId: _currentCollectorId,
+      actorRole: TraceActorRole.collector,
+      actorName: actorName,
+      expectedQuantity: sourceBatch.quantity,
+      receivedQuantity: receivedQuantity,
+      unit: sourceBatch.unit,
+      expectedFruitCount: sourceBatch.fruitCount,
+      receivedFruitCount: receivedFruitCount,
+      conditionLabel: qualityNotes?.trim().isNotEmpty == true
+          ? qualityNotes!.trim()
+          : 'Divalidasi pengepul',
+      locationLabel: warehouse?.location ?? _profile.location,
+      relatedObjectId: transactionId ?? 'COLLECTOR-VERIFY-$code',
+      note: qualityNotes,
+    );
 
     _closePurchaseTransaction(
       batchCode: code,

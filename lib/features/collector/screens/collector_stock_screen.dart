@@ -694,7 +694,7 @@ class _StockTrendPanel extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           SizedBox(
-            height: 116,
+            height: 132,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: points.map((point) {
@@ -732,7 +732,7 @@ class _TrendBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ratio = maxWeight <= 0 ? 0.0 : point.totalWeightKg / maxWeight;
-    final barHeight = 16 + (ratio * 58);
+    final barHeight = 14 + (ratio * 54);
     final isEmpty = point.totalWeightKg <= 0;
 
     return Padding(
@@ -741,13 +741,13 @@ class _TrendBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           SizedBox(
-            height: 22,
+            height: 18,
             child: Text(
               isEmpty ? '-' : _formatWeight(point.totalWeightKg),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 9,
+                fontSize: 8,
                 fontWeight: FontWeight.w800,
                 color: isEmpty ? AppColors.placeholder : AppColors.subtitle,
               ),
@@ -771,11 +771,13 @@ class _TrendBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 6),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontSize: 10,
+              fontSize: 9,
               fontWeight: FontWeight.w700,
               color: AppColors.placeholder,
             ),

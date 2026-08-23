@@ -234,15 +234,22 @@ class _AuditFilterPanel extends StatelessWidget {
               Expanded(
                 child: DropdownButtonFormField<CollectorAuditEventType?>(
                   initialValue: selectedType,
+                  isExpanded: true,
                   items: [
                     const DropdownMenuItem(
                       value: null,
-                      child: Text('Semua tipe'),
+                      child: Text(
+                        'Semua tipe',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     ...CollectorAuditEventType.values.map(
                       (type) => DropdownMenuItem(
                         value: type,
-                        child: Text(type.label),
+                        child: Text(
+                          type.label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ],
@@ -254,14 +261,20 @@ class _AuditFilterPanel extends StatelessWidget {
               Expanded(
                 child: DropdownButtonFormField<String?>(
                   initialValue: selectedActor,
+                  isExpanded: true,
                   items: [
                     const DropdownMenuItem(
                       value: null,
-                      child: Text('Semua aktor'),
+                      child: Text(
+                        'Semua aktor',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     ...actors.map(
-                      (actor) =>
-                          DropdownMenuItem(value: actor, child: Text(actor)),
+                      (actor) => DropdownMenuItem(
+                        value: actor,
+                        child: Text(actor, overflow: TextOverflow.ellipsis),
+                      ),
                     ),
                   ],
                   onChanged: onActorChanged,
@@ -311,6 +324,8 @@ class _AuditFilterPanel extends StatelessWidget {
       filled: true,
       fillColor: _pageBackground,
       isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      floatingLabelStyle: const TextStyle(fontSize: 11),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),

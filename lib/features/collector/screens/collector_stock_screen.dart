@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../../trace/screens/public_trace_screen.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_stock_summary.dart';
@@ -195,6 +196,13 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
     );
   }
 
+  Future<void> _openTrace(HarvestBatch batch) async {
+    await CollectorRoutes.push(
+      context,
+      PublicTraceScreen(batchCode: batch.code),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final stocks = _repo.stockBatches;
@@ -271,6 +279,9 @@ class _CollectorStockScreenState extends State<CollectorStockScreen> {
                                     ?.code,
                                 onAdvancedGrading: () {
                                   _openAdvancedGrading(batch);
+                                },
+                                onTrace: () {
+                                  _openTrace(batch);
                                 },
                               ),
                             ),
@@ -1246,6 +1257,7 @@ class _StockCard extends StatelessWidget {
     required this.batch,
     required this.warehouseName,
     required this.onAdvancedGrading,
+    required this.onTrace,
     this.shipmentCode,
   });
 
@@ -1253,6 +1265,7 @@ class _StockCard extends StatelessWidget {
   final String warehouseName;
   final String? shipmentCode;
   final VoidCallback onAdvancedGrading;
+  final VoidCallback onTrace;
 
   String _formatDate(DateTime date) {
     const months = [
@@ -1404,8 +1417,11 @@ class _StockCard extends StatelessWidget {
             dominantGrade: verifiedGrade,
             breakdown: batch.gradeBreakdown,
           ),
-          if (!isAllocated)
-            _StockActionStrip(onAdvancedGrading: onAdvancedGrading),
+          _StockActionStrip(
+            onAdvancedGrading: onAdvancedGrading,
+            onTrace: onTrace,
+            allowGrading: !isAllocated,
+          ),
           if (isAllocated) _AllocationNotice(code: shipmentCode!),
           if (batch.qualityNotes?.trim().isNotEmpty == true)
             _QualityNote(note: batch.qualityNotes!.trim()),
@@ -1508,9 +1524,15 @@ class _ExpiryBadge extends StatelessWidget {
 }
 
 class _StockActionStrip extends StatelessWidget {
-  const _StockActionStrip({required this.onAdvancedGrading});
+  const _StockActionStrip({
+    required this.onAdvancedGrading,
+    required this.onTrace,
+    required this.allowGrading,
+  });
 
   final VoidCallback onAdvancedGrading;
+  final VoidCallback onTrace;
+  final bool allowGrading;
 
   @override
   Widget build(BuildContext context) {
@@ -1520,25 +1542,50 @@ class _StockActionStrip extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: _borderColor)),
       ),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: OutlinedButton.icon(
-          onPressed: onAdvancedGrading,
-          icon: const Icon(Icons.call_split_outlined, size: 16),
-          label: const Text('Grading'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.primary,
-            side: const BorderSide(color: _borderColor),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            textStyle: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          OutlinedButton.icon(
+            onPressed: onTrace,
+            icon: const Icon(Icons.route_outlined, size: 16),
+            label: const Text('Trace'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: _borderColor),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
             ),
           ),
-        ),
+          if (allowGrading) ...[
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: onAdvancedGrading,
+              icon: const Icon(Icons.call_split_outlined, size: 16),
+              label: const Text('Grading'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: _borderColor),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -8,6 +8,7 @@ import '../../traceability/models/traceability_models.dart';
 import '../models/collector_audit_event.dart';
 import '../models/collector_incoming_receipt.dart';
 import '../models/collector_purchase_transaction.dart';
+import '../models/collector_receipt.dart';
 import '../models/collector_product.dart';
 import '../models/collector_shipment_batch.dart';
 import '../models/collector_stock_summary.dart';
@@ -118,6 +119,17 @@ class CollectorRepository extends ChangeNotifier {
       _incomingReceipts = [];
     }
 
+    final collectorReceiptsJsonList = LocalStorageService.loadJsonList(
+      'collector_receipts',
+    );
+    if (collectorReceiptsJsonList != null) {
+      _collectorReceipts = collectorReceiptsJsonList
+          .map((e) => CollectorReceipt.fromJson(e))
+          .toList();
+    } else {
+      _collectorReceipts = [];
+    }
+
     final warehouseTransfersJsonList = LocalStorageService.loadJsonList(
       'collector_warehouse_transfers',
     );
@@ -178,6 +190,10 @@ class CollectorRepository extends ChangeNotifier {
     LocalStorageService.saveJsonList(
       'collector_incoming_receipts',
       _incomingReceipts.map((e) => e.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      'collector_receipts',
+      _collectorReceipts.map((e) => e.toJson()).toList(),
     );
     LocalStorageService.saveJsonList(
       'collector_warehouse_transfers',
@@ -428,6 +444,7 @@ class CollectorRepository extends ChangeNotifier {
   late List<CollectorPurchaseTransaction> _purchaseTransactions;
   late List<CollectorAuditEvent> _auditEvents;
   late List<CollectorIncomingReceipt> _incomingReceipts;
+  List<CollectorReceipt> _collectorReceipts = <CollectorReceipt>[];
   late List<CollectorWarehouse> _warehouses;
   late List<CollectorWarehouseTransfer> _warehouseTransfers;
   late int _shipmentCounter;
@@ -783,6 +800,25 @@ class CollectorRepository extends ChangeNotifier {
         (receipt) =>
             receipt.shipmentCode.toUpperCase() == cleanCode &&
             receipt.receiverCollectorId == _currentCollectorId,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<CollectorReceipt> get collectorReceipts {
+    final items = _collectorReceipts
+        .where((receipt) => receipt.collectorId == _currentCollectorId)
+        .toList();
+    items.sort((a, b) => b.checkedAt.compareTo(a.checkedAt));
+    return List.unmodifiable(items);
+  }
+
+  CollectorReceipt? receiptForBatch(String batchCode) {
+    final cleanCode = batchCode.trim().toUpperCase();
+    try {
+      return collectorReceipts.firstWhere(
+        (receipt) => receipt.batchCode.toUpperCase() == cleanCode,
       );
     } catch (_) {
       return null;
@@ -1226,6 +1262,32 @@ class CollectorRepository extends ChangeNotifier {
     );
   }
 
+  void _recordCollectorReceipt(CollectorReceipt receipt) {
+    final index = _collectorReceipts.indexWhere(
+      (item) =>
+          item.collectorId == receipt.collectorId &&
+          item.batchCode.toUpperCase() == receipt.batchCode.toUpperCase(),
+    );
+    if (index == -1) {
+      _collectorReceipts.add(receipt);
+    } else {
+      _collectorReceipts[index] = receipt;
+    }
+  }
+
+  String _collectorReceiptId({
+    required String batchCode,
+    required CollectorReceiptStatus status,
+    String? transactionId,
+  }) {
+    final cleanTransactionId = transactionId?.trim();
+    if (cleanTransactionId != null && cleanTransactionId.isNotEmpty) {
+      return 'RCP-$cleanTransactionId';
+    }
+    final prefix = status == CollectorReceiptStatus.accepted ? 'RCP' : 'RJT';
+    return '$prefix-${DateTime.now().millisecondsSinceEpoch}-$batchCode';
+  }
+
   // [UTIL - Helper Function] Helper ini menghitung overview dari kumpulan
   // batch tertentu, dipakai oleh dashboard stok dan pembuatan batch agregat.
   CollectorStockOverview _overviewForBatches(List<HarvestBatch> batches) {
@@ -1340,38 +1402,95 @@ class CollectorRepository extends ChangeNotifier {
       );
     }
 
+    for (final receipt in collectorReceipts) {
+      final isAccepted = receipt.status == CollectorReceiptStatus.accepted;
+      items.add(
+        CollectorAuditEvent(
+          id: 'AUD-COLLECTOR-RECEIPT-${receipt.id}',
+          type: isAccepted
+              ? CollectorAuditEventType.receipt
+              : CollectorAuditEventType.rejection,
+          action: isAccepted ? 'T2 penerimaan batch' : 'T2 ditolak',
+          actorName: receipt.actorName,
+          actorRole: 'Pengepul',
+          objectCode: receipt.batchCode,
+          description: isAccepted
+              ? '${receipt.batchCode} diterima dan divalidasi dari ${receipt.farmName}.'
+              : '${receipt.batchCode} ditolak saat validasi penerimaan.',
+          occurredAt: receipt.checkedAt,
+          locationLabel: receipt.warehouseLocation ?? receipt.warehouseName,
+          statusLabel: receipt.status.label,
+          metadata: {
+            'Receipt': receipt.id,
+            if (receipt.transactionId?.trim().isNotEmpty == true)
+              'Transaksi T1': receipt.transactionId!.trim(),
+            'Sumber': receipt.farmerLabel,
+            'Varietas': receipt.variety,
+            'Berat dikirim': '${receipt.expectedWeightKg} ${receipt.unit}',
+            if (receipt.expectedFruitCount != null)
+              'Jumlah dikirim': '${receipt.expectedFruitCount} butir',
+            if (receipt.receivedWeightKg != null)
+              'Berat diterima': '${receipt.receivedWeightKg} ${receipt.unit}',
+            if (receipt.receivedFruitCount != null)
+              'Jumlah diterima': '${receipt.receivedFruitCount} butir',
+            if (receipt.hasDiscrepancy)
+              'Selisih':
+                  '${receipt.weightDifferenceKg} ${receipt.unit} / ${receipt.fruitDifference} butir',
+            if (receipt.warehouseName?.trim().isNotEmpty == true)
+              'Gudang': receipt.warehouseName!.trim(),
+            if (receipt.gradeBreakdown.isNotEmpty)
+              'Rincian grade': receipt.gradeBreakdown
+                  .map(
+                    (item) =>
+                        '${item.grade}: ${item.weightKg} kg / ${item.fruitCount} butir',
+                  )
+                  .join(', '),
+            if (receipt.conditionNote?.trim().isNotEmpty == true)
+              'Catatan': receipt.conditionNote!.trim(),
+            if (receipt.rejectionReason?.trim().isNotEmpty == true)
+              'Alasan': receipt.rejectionReason!.trim(),
+            if (receipt.verificationPhotoPath?.trim().isNotEmpty == true)
+              'Foto bukti': 'Ada',
+          },
+        ),
+      );
+    }
+
     for (final batch in historyBatches) {
+      final hasFormalReceipt = receiptForBatch(batch.code) != null;
       if (batch.verifiedAt != null &&
           (batch.verifiedByRole == null ||
               batch.verifiedByRole == BatchReceiverRole.collector)) {
         final warehouse = findWarehouse(batch.warehouseId);
-        items.add(
-          CollectorAuditEvent(
-            id: 'AUD-RECEIPT-${batch.code}-${batch.verifiedAt!.millisecondsSinceEpoch}',
-            type: CollectorAuditEventType.receipt,
-            action: 'T2 penerimaan batch',
-            actorName: batch.verifiedBy?.trim().isNotEmpty == true
-                ? batch.verifiedBy!.trim()
-                : actor,
-            actorRole: 'Pengepul',
-            objectCode: batch.code,
-            description:
-                '${batch.code} diterima dan divalidasi dari ${batch.farmName}.',
-            occurredAt: batch.verifiedAt!,
-            locationLabel: warehouse?.location ?? warehouse?.name,
-            statusLabel: batch.status.label,
-            metadata: {
-              'Varietas': batch.variety,
-              'Grade': batch.verifiedGrade ?? batch.grade,
-              'Berat diterima':
-                  '${batch.receivedQuantity ?? batch.quantity} ${batch.unit}',
-              'Jumlah diterima':
-                  '${batch.receivedFruitCount ?? batch.fruitCount ?? 0} butir',
-              if (batch.qualityNotes?.trim().isNotEmpty == true)
-                'Catatan': batch.qualityNotes!.trim(),
-            },
-          ),
-        );
+        if (!hasFormalReceipt) {
+          items.add(
+            CollectorAuditEvent(
+              id: 'AUD-RECEIPT-${batch.code}-${batch.verifiedAt!.millisecondsSinceEpoch}',
+              type: CollectorAuditEventType.receipt,
+              action: 'T2 penerimaan batch',
+              actorName: batch.verifiedBy?.trim().isNotEmpty == true
+                  ? batch.verifiedBy!.trim()
+                  : actor,
+              actorRole: 'Pengepul',
+              objectCode: batch.code,
+              description:
+                  '${batch.code} diterima dan divalidasi dari ${batch.farmName}.',
+              occurredAt: batch.verifiedAt!,
+              locationLabel: warehouse?.location ?? warehouse?.name,
+              statusLabel: batch.status.label,
+              metadata: {
+                'Varietas': batch.variety,
+                'Grade': batch.verifiedGrade ?? batch.grade,
+                'Berat diterima':
+                    '${batch.receivedQuantity ?? batch.quantity} ${batch.unit}',
+                'Jumlah diterima':
+                    '${batch.receivedFruitCount ?? batch.fruitCount ?? 0} butir',
+                if (batch.qualityNotes?.trim().isNotEmpty == true)
+                  'Catatan': batch.qualityNotes!.trim(),
+              },
+            ),
+          );
+        }
 
         if (batch.gradeBreakdown.isNotEmpty) {
           items.add(
@@ -1402,7 +1521,7 @@ class CollectorRepository extends ChangeNotifier {
           );
         }
       }
-      if (batch.rejectedAt != null) {
+      if (batch.rejectedAt != null && !hasFormalReceipt) {
         items.add(
           CollectorAuditEvent(
             id: 'AUD-REJECT-${batch.code}-${batch.rejectedAt!.millisecondsSinceEpoch}',
@@ -1647,6 +1766,7 @@ class CollectorRepository extends ChangeNotifier {
         ? _profile.fullName
         : _profile.businessName;
     final warehouse = findWarehouse(warehouseId);
+    final checkedAt = DateTime.now();
     TraceabilityRepository.instance.recordReceiptVariance(
       batchCode: code,
       actorId: _currentCollectorId,
@@ -1663,6 +1783,41 @@ class CollectorRepository extends ChangeNotifier {
       locationLabel: warehouse?.location ?? _profile.location,
       relatedObjectId: transactionId ?? 'COLLECTOR-VERIFY-$code',
       note: qualityNotes,
+    );
+    _recordCollectorReceipt(
+      CollectorReceipt(
+        id: _collectorReceiptId(
+          batchCode: code,
+          status: CollectorReceiptStatus.accepted,
+          transactionId: transactionId,
+        ),
+        collectorId: _currentCollectorId,
+        batchCode: code,
+        farmerLabel: 'Petani ${sourceBatch.farmerId}',
+        farmName: sourceBatch.farmName,
+        variety: sourceBatch.variety,
+        expectedWeightKg: sourceBatch.quantity,
+        expectedFruitCount: sourceBatch.fruitCount,
+        receivedWeightKg: receivedQuantity,
+        receivedFruitCount: receivedFruitCount,
+        unit: sourceBatch.unit,
+        status: CollectorReceiptStatus.accepted,
+        checkedAt: checkedAt,
+        actorName: actorName,
+        warehouseId: warehouse?.id ?? warehouseId?.trim(),
+        warehouseName: warehouse?.name,
+        warehouseLocation: warehouse?.location,
+        conditionNote: qualityNotes?.trim().isEmpty == true
+            ? null
+            : qualityNotes?.trim(),
+        verificationPhotoPath: verificationPhotoPath?.trim().isEmpty == true
+            ? null
+            : verificationPhotoPath?.trim(),
+        transactionId: transactionId?.trim().isEmpty == true
+            ? null
+            : transactionId?.trim(),
+        gradeBreakdown: gradeBreakdown.where((item) => item.hasValue).toList(),
+      ),
     );
 
     _closePurchaseTransaction(
@@ -1701,12 +1856,58 @@ class CollectorRepository extends ChangeNotifier {
     required String reason,
     String? transactionId,
   }) {
+    final sourceBatch = _farmerRepo.findPublicBatch(code);
+    if (sourceBatch == null) return false;
+
     final ok = _farmerRepo.rejectBatchByCollector(
       code: code,
       reason: reason,
       rejectedBy: _profile.fullName,
     );
     if (!ok) return false;
+
+    final actorName = _profile.businessName.isEmpty
+        ? _profile.fullName
+        : _profile.businessName;
+    final checkedAt = DateTime.now();
+    _recordCollectorReceipt(
+      CollectorReceipt(
+        id: _collectorReceiptId(
+          batchCode: code,
+          status: CollectorReceiptStatus.rejected,
+          transactionId: transactionId,
+        ),
+        collectorId: _currentCollectorId,
+        batchCode: code,
+        farmerLabel: 'Petani ${sourceBatch.farmerId}',
+        farmName: sourceBatch.farmName,
+        variety: sourceBatch.variety,
+        expectedWeightKg: sourceBatch.quantity,
+        expectedFruitCount: sourceBatch.fruitCount,
+        unit: sourceBatch.unit,
+        status: CollectorReceiptStatus.rejected,
+        checkedAt: checkedAt,
+        actorName: actorName,
+        rejectionReason: reason.trim(),
+        transactionId: transactionId?.trim().isEmpty == true
+            ? null
+            : transactionId?.trim(),
+      ),
+    );
+    TraceabilityRepository.instance.recordReceiptRejection(
+      batchCode: code,
+      actorId: _currentCollectorId,
+      actorRole: TraceActorRole.collector,
+      actorName: actorName,
+      expectedQuantity: sourceBatch.quantity,
+      unit: sourceBatch.unit,
+      expectedFruitCount: sourceBatch.fruitCount,
+      locationLabel: _profile.location,
+      relatedObjectId: transactionId == null
+          ? 'COLLECTOR-REJECT-$code'
+          : 'COLLECTOR-REJECT-$transactionId',
+      reason: reason,
+    );
 
     _closePurchaseTransaction(
       batchCode: code,

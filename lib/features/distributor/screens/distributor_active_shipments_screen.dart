@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../collector/models/collector_shipment_batch.dart';
+import '../../farmer/models/harvest_batch.dart';
 import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
+import '../models/distributor_acquisition_transaction.dart';
 import 'distributor_acquisition_verify_screen.dart';
 import 'distributor_receipt_screen.dart';
 import 'distributor_stock_receipt_screen.dart';
@@ -82,10 +84,44 @@ class _DistributorActiveShipmentsScreenState
     );
   }
 
+  Future<void> _openFarmerValidation(HarvestBatch batch) async {
+    final transaction = _repo.initiateFarmerAcquisition(batch.code);
+    if (transaction == null) {
+      return;
+    }
+
+    await DistributorRoutes.push<bool>(
+      context,
+      DistributorAcquisitionVerifyScreen(transactionId: transaction.id),
+    );
+  }
+
+  Future<void> _openPendingValidation(
+    DistributorAcquisitionTransaction transaction,
+  ) async {
+    await DistributorRoutes.push<bool>(
+      context,
+      DistributorAcquisitionVerifyScreen(transactionId: transaction.id),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final ready = _repo.readyToPickShipments;
+    final pending = _repo.pendingAcquisitionTransactions;
+    final pendingCodes = pending.map((item) => item.itemCode).toSet();
+    final pendingCollector = pending
+        .where((item) => item.source == DistributorAcquisitionSource.collector)
+        .toList();
+    final pendingFarmer = pending
+        .where((item) => item.source == DistributorAcquisitionSource.farmer)
+        .toList();
+    final ready = _repo.readyToPickShipments
+        .where((shipment) => !pendingCodes.contains(shipment.code))
+        .toList();
     final transit = _repo.activeShipments;
+    final farmerBatches = _repo.availableFarmerAcquisitionBatches
+        .where((batch) => !pendingCodes.contains(batch.code))
+        .toList();
     final showReady =
         _statusFilter == _ShipmentStatusFilter.all ||
         _statusFilter == _ShipmentStatusFilter.ready;
@@ -93,7 +129,18 @@ class _DistributorActiveShipmentsScreenState
         _statusFilter == _ShipmentStatusFilter.all ||
         _statusFilter == _ShipmentStatusFilter.transit;
     final hasVisibleShipments =
-        (showReady && ready.isNotEmpty) || (showTransit && transit.isNotEmpty);
+        (showReady &&
+            (ready.isNotEmpty ||
+                farmerBatches.isNotEmpty ||
+                pendingCollector.isNotEmpty ||
+                pendingFarmer.isNotEmpty)) ||
+        (showTransit && transit.isNotEmpty);
+    final totalReadyCount =
+        ready.length +
+        farmerBatches.length +
+        pendingCollector.length +
+        pendingFarmer.length;
+    final totalActiveCount = totalReadyCount + transit.length;
 
     return Scaffold(
       backgroundColor: _pageBackground,
@@ -114,20 +161,20 @@ class _DistributorActiveShipmentsScreenState
               ],
             ),
             Expanded(
-              child: ready.isEmpty && transit.isEmpty
+              child: totalActiveCount == 0
                   ? _EmptyActiveShipment(onScan: _openScanner)
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
                       children: [
                         _QueueSummary(
-                          readyCount: ready.length,
+                          readyCount: totalReadyCount,
                           transitCount: transit.length,
                           onScan: _openScanner,
                         ),
                         const SizedBox(height: 14),
                         _StatusFilterBar(
                           selected: _statusFilter,
-                          readyCount: ready.length,
+                          readyCount: totalReadyCount,
                           transitCount: transit.length,
                           onChanged: (filter) =>
                               setState(() => _statusFilter = filter),
@@ -135,6 +182,24 @@ class _DistributorActiveShipmentsScreenState
                         if (!hasVisibleShipments) ...[
                           const SizedBox(height: 18),
                           _FilteredEmptyState(filter: _statusFilter),
+                        ],
+                        if (showReady && pending.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          _SectionHeader(
+                            title: 'T1 Menunggu T2',
+                            count: pending.length,
+                          ),
+                          const SizedBox(height: 9),
+                          ...pending.map(
+                            (transaction) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _PendingAcquisitionCard(
+                                transaction: transaction,
+                                onPrimaryAction: () =>
+                                    _openPendingValidation(transaction),
+                              ),
+                            ),
+                          ),
                         ],
                         if (showReady && ready.isNotEmpty) ...[
                           const SizedBox(height: 20),
@@ -152,6 +217,24 @@ class _DistributorActiveShipmentsScreenState
                                 onDetail: () => _openDetail(shipment),
                                 onPrimaryAction: () =>
                                     _openCollectorValidation(shipment),
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (showReady && farmerBatches.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          _SectionHeader(
+                            title: 'DRN Petani Siap Divalidasi',
+                            count: farmerBatches.length,
+                          ),
+                          const SizedBox(height: 9),
+                          ...farmerBatches.map(
+                            (batch) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _FarmerBatchCard(
+                                batch: batch,
+                                onPrimaryAction: () =>
+                                    _openFarmerValidation(batch),
                               ),
                             ),
                           ),
@@ -209,7 +292,7 @@ class _QueueSummary extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _QueueMetric(label: 'PGL siap', value: '$readyCount'),
+                child: _QueueMetric(label: 'Siap T2', value: '$readyCount'),
               ),
               Container(width: 1, height: 38, color: const Color(0xFF8BCB70)),
               Expanded(
@@ -307,7 +390,7 @@ class _StatusFilterBar extends StatelessWidget {
             onTap: () => onChanged(_ShipmentStatusFilter.all),
           ),
           _StatusFilterButton(
-            label: 'PGL Baru',
+            label: 'Siap T2',
             count: readyCount,
             selected: selected == _ShipmentStatusFilter.ready,
             onTap: () => onChanged(_ShipmentStatusFilter.ready),
@@ -367,6 +450,212 @@ class _StatusFilterButton extends StatelessWidget {
   }
 }
 
+class _PendingAcquisitionCard extends StatelessWidget {
+  const _PendingAcquisitionCard({
+    required this.transaction,
+    required this.onPrimaryAction,
+  });
+
+  final DistributorAcquisitionTransaction transaction;
+  final VoidCallback onPrimaryAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final isFarmer = transaction.source == DistributorAcquisitionSource.farmer;
+    final statusColor = const Color(0xFF9A6700);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    isFarmer
+                        ? Icons.agriculture_outlined
+                        : Icons.inventory_2_outlined,
+                    size: 21,
+                    color: statusColor,
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        transaction.itemCode,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${transaction.source.label} / ${transaction.supplierLabel} / '
+                        '${_formatWeight(transaction.expectedWeightKg)} / '
+                        '${transaction.expectedFruitCount} butir',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _StateBadge(label: 'T1 aktif', color: statusColor),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: _borderColor),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 9, 12, 11),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: onPrimaryAction,
+                icon: const Icon(Icons.fact_check_outlined, size: 15),
+                label: const Text('Lanjut Validasi T2'),
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  backgroundColor: const Color.fromARGB(255, 88, 168, 53),
+                  foregroundColor: AppColors.white,
+                  minimumSize: const Size.fromHeight(38),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FarmerBatchCard extends StatelessWidget {
+  const _FarmerBatchCard({required this.batch, required this.onPrimaryAction});
+
+  final HarvestBatch batch;
+  final VoidCallback onPrimaryAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = batch.status.color;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.agriculture_outlined,
+                    size: 21,
+                    color: statusColor,
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        batch.code,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Dari petani ${batch.farmerId} / ${batch.farmName} / '
+                        'Durian ${batch.variety} / ${_formatWeight(batch.quantity)} / '
+                        '${batch.fruitCount ?? 0} butir',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _StateBadge(label: 'DRN siap', color: statusColor),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: _borderColor),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 9, 12, 11),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: onPrimaryAction,
+                icon: const Icon(Icons.qr_code_scanner_rounded, size: 15),
+                label: const Text('Validasi Terima'),
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  backgroundColor: const Color.fromARGB(255, 88, 168, 53),
+                  foregroundColor: AppColors.white,
+                  minimumSize: const Size.fromHeight(38),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title, required this.count});
 
@@ -404,7 +693,7 @@ class _FilteredEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final message = switch (filter) {
-      _ShipmentStatusFilter.ready => 'Tidak ada PGL yang perlu divalidasi.',
+      _ShipmentStatusFilter.ready => 'Tidak ada stok yang perlu divalidasi.',
       _ShipmentStatusFilter.transit => 'Tidak ada PGL yang perlu receipt.',
       _ShipmentStatusFilter.all => 'Tidak ada stok masuk aktif.',
     };

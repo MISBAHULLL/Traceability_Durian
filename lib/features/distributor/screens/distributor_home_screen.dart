@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../collector/models/collector_shipment_batch.dart';
+import '../../farmer/models/harvest_batch.dart';
 import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
+import '../models/distributor_acquisition_transaction.dart';
 import '../models/distributor_profile.dart';
 import '../widgets/distributor_drawer.dart';
 import 'distributor_acquisition_verify_screen.dart';
@@ -108,12 +110,42 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
     );
   }
 
+  Future<void> _openFarmerValidation(HarvestBatch batch) async {
+    final transaction = _repo.initiateFarmerAcquisition(batch.code);
+    if (transaction == null) return;
+
+    await DistributorRoutes.push<bool>(
+      context,
+      DistributorAcquisitionVerifyScreen(transactionId: transaction.id),
+    );
+  }
+
+  Future<void> _openPendingValidation(
+    DistributorAcquisitionTransaction transaction,
+  ) async {
+    await DistributorRoutes.push<bool>(
+      context,
+      DistributorAcquisitionVerifyScreen(transactionId: transaction.id),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = _repo.profile;
-    final readyShipments = _repo.readyToPickShipments;
+    final pending = _repo.pendingAcquisitionTransactions;
+    final pendingCodes = pending.map((item) => item.itemCode).toSet();
+    final readyShipments = _repo.readyToPickShipments
+        .where((shipment) => !pendingCodes.contains(shipment.code))
+        .toList();
     final receiptShipments = _repo.activeShipments;
-    final stockInCount = readyShipments.length + receiptShipments.length;
+    final farmerBatches = _repo.availableFarmerAcquisitionBatches
+        .where((batch) => !pendingCodes.contains(batch.code))
+        .toList();
+    final stockInCount =
+        pending.length +
+        readyShipments.length +
+        receiptShipments.length +
+        farmerBatches.length;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -179,27 +211,62 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
                             SliverPadding(
                               padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                               sliver: SliverList(
-                                delegate: SliverChildBuilderDelegate((
-                                  context,
-                                  i,
-                                ) {
-                                  final isReady = i < readyShipments.length;
-                                  final s = isReady
-                                      ? readyShipments[i]
-                                      : receiptShipments[i -
-                                            readyShipments.length];
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: _ShipmentCard(
-                                      shipment: s,
-                                      isReady: isReady,
-                                      onDetail: () => _openShipmentDetail(s),
-                                      onArrive: () => isReady
-                                          ? _openCollectorValidation(s)
-                                          : _markAsArrived(s),
+                                delegate: SliverChildListDelegate([
+                                  ...pending.map(
+                                    (transaction) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: _PendingAcquisitionHomeCard(
+                                        transaction: transaction,
+                                        onValidate: () =>
+                                            _openPendingValidation(transaction),
+                                      ),
                                     ),
-                                  );
-                                }, childCount: stockInCount),
+                                  ),
+                                  ...readyShipments.map(
+                                    (shipment) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: _ShipmentCard(
+                                        shipment: shipment,
+                                        isReady: true,
+                                        onDetail: () =>
+                                            _openShipmentDetail(shipment),
+                                        onArrive: () =>
+                                            _openCollectorValidation(shipment),
+                                      ),
+                                    ),
+                                  ),
+                                  ...receiptShipments.map(
+                                    (shipment) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: _ShipmentCard(
+                                        shipment: shipment,
+                                        isReady: false,
+                                        onDetail: () =>
+                                            _openShipmentDetail(shipment),
+                                        onArrive: () =>
+                                            _markAsArrived(shipment),
+                                      ),
+                                    ),
+                                  ),
+                                  ...farmerBatches.map(
+                                    (batch) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: _FarmerBatchHomeCard(
+                                        batch: batch,
+                                        onValidate: () =>
+                                            _openFarmerValidation(batch),
+                                      ),
+                                    ),
+                                  ),
+                                ]),
                               ),
                             ),
                         ],
@@ -715,6 +782,232 @@ class _ShipmentCard extends StatelessWidget {
   }
 }
 // ── Empty State ──────────────────────────────────────────────────────────────
+
+class _PendingAcquisitionHomeCard extends StatelessWidget {
+  const _PendingAcquisitionHomeCard({
+    required this.transaction,
+    required this.onValidate,
+  });
+
+  final DistributorAcquisitionTransaction transaction;
+  final VoidCallback onValidate;
+
+  @override
+  Widget build(BuildContext context) {
+    final isFarmer = transaction.source == DistributorAcquisitionSource.farmer;
+
+    return _StockInSimpleCard(
+      icon: isFarmer ? Icons.agriculture_outlined : Icons.inventory_2_outlined,
+      code: transaction.itemCode,
+      badge: 'T1 Aktif',
+      title: '${transaction.source.label}: ${transaction.supplierLabel}',
+      subtitle:
+          '${transaction.expectedWeightKg.toStringAsFixed(0)} kg / ${transaction.expectedFruitCount} butir',
+      helperText: 'Lanjutkan validasi T2 sebelum stok masuk dicatat.',
+      buttonLabel: 'Lanjut Validasi T2',
+      onValidate: onValidate,
+    );
+  }
+}
+
+class _FarmerBatchHomeCard extends StatelessWidget {
+  const _FarmerBatchHomeCard({required this.batch, required this.onValidate});
+
+  final HarvestBatch batch;
+  final VoidCallback onValidate;
+
+  @override
+  Widget build(BuildContext context) {
+    return _StockInSimpleCard(
+      icon: Icons.agriculture_outlined,
+      code: batch.code,
+      badge: 'DRN Siap',
+      title: 'Petani ${batch.farmerId} / ${batch.farmName}',
+      subtitle:
+          'Durian ${batch.variety} / ${batch.quantity.toStringAsFixed(0)} kg / ${batch.fruitCount ?? 0} butir',
+      helperText: 'Scan DRN petani lalu validasi kondisi dan jumlah aktual.',
+      buttonLabel: 'Validasi Terima',
+      onValidate: onValidate,
+    );
+  }
+}
+
+class _StockInSimpleCard extends StatelessWidget {
+  const _StockInSimpleCard({
+    required this.icon,
+    required this.code,
+    required this.badge,
+    required this.title,
+    required this.subtitle,
+    required this.helperText,
+    required this.buttonLabel,
+    required this.onValidate,
+  });
+
+  final IconData icon;
+  final String code;
+  final String badge;
+  final String title;
+  final String subtitle;
+  final String helperText;
+  final String buttonLabel;
+  final VoidCallback onValidate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryContainer.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: AppColors.primary, size: 24),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              code,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.black,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: Text(
+                              badge,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.subtitle,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFF0F0F0)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 9, 14, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.timer_outlined,
+                      size: 14,
+                      color: AppColors.placeholder,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        helperText,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 9),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color.fromARGB(255, 88, 168, 53),
+                      foregroundColor: AppColors.white,
+                      elevation: 0,
+                      minimumSize: const Size.fromHeight(38),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    onPressed: onValidate,
+                    icon: const Icon(Icons.fact_check_outlined, size: 15),
+                    label: Text(
+                      buttonLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState();

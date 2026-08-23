@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/product_media_tile.dart';
-import '../../../shared/widgets/top_notification_banner.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_product.dart';
 import '../widgets/collector_drawer.dart';
+import 'add_transaction_screen.dart';
 import 'collector_profile_screen.dart';
 import 'collector_scan_qr_screen.dart';
 import 'collector_stock_screen.dart';
@@ -18,7 +18,7 @@ import 'collector_stock_screen.dart';
 /// Mengikuti gaya visual prototype "Beranda — Pengepul Durian" (header,
 /// greeting, CTA hijau "Tambah Transaksi", search pill, chip kategori,
 /// kartu produk, bottom navigation) namun dirender dengan token desain
-/// aplikasi (AppColors, transisi fade, TopNotification) agar menyatu dengan
+/// aplikasi (AppColors dan transisi fade) agar menyatu dengan
 /// layar lain.
 ///
 /// Catatan peran (Role Permission Matrix): pengepul TIDAK membuat data panen.
@@ -36,7 +36,6 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
   final _repo = CollectorRepository.instance;
   final TextEditingController _searchController = TextEditingController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final TopNotification _notif = TopNotification();
 
   ProductCategory _activeCategory = ProductCategory.durianSegar;
   String _query = '';
@@ -75,7 +74,6 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
   @override
   void dispose() {
     _repo.removeListener(_onRepoChanged);
-    _notif.dispose();
     _animController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -149,11 +147,22 @@ class _CollectorHomeScreenState extends State<CollectorHomeScreen>
     await CollectorRoutes.push(context, const CollectorStockScreen());
   }
 
-  void _onProductTap(CollectorProduct product) {
-    _notif.show(
+  Future<void> _onProductTap(CollectorProduct product) async {
+    if (product.category != ProductCategory.durianSegar) return;
+
+    final transaction = _repo.initiatePurchaseTransaction(product.code);
+    if (transaction == null) return;
+
+    final completed = await CollectorRoutes.push<bool>(
       context,
-      'Detail & transaksi untuk ${product.name} akan segera hadir.',
+      AddTransactionScreen(
+        initialBatchCode: product.code,
+        initialTransactionId: transaction.id,
+      ),
     );
+    if (completed == true && mounted) {
+      await CollectorRoutes.push(context, const CollectorStockScreen());
+    }
   }
 
   @override

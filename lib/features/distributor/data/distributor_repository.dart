@@ -403,6 +403,12 @@ class DistributorRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
+  List<DistributorHorizontalSale> get allHorizontalSales {
+    final items = List<DistributorHorizontalSale>.from(_horizontalSales);
+    items.sort((a, b) => b.initiatedAt.compareTo(a.initiatedAt));
+    return List.unmodifiable(items);
+  }
+
   List<DistributorHorizontalSale> get pendingHorizontalSales {
     return List.unmodifiable(
       horizontalSales.where(

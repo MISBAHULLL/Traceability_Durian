@@ -7,6 +7,7 @@ import '../../../shared/widgets/osm_map_preview.dart';
 import '../../collector/data/collector_repository.dart';
 import '../../collector/models/collector_shipment_batch.dart';
 import '../../distributor/data/distributor_repository.dart';
+import '../../distributor/models/distributor_horizontal_sale.dart';
 import '../../farmer/data/cahyadsn_region_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/batch_event.dart';
@@ -197,6 +198,26 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
         ),
       );
     }
+    final horizontalSales = _horizontalSalesForTrace(
+      batchCode: batch.code,
+      shipment: shipment,
+    );
+    for (final sale in horizontalSales) {
+      final destinationAddress = sale.destinationLocation.trim();
+      stops.add(
+        _TraceStop(
+          title: 'Distributor',
+          actorLabel: '${sale.sellerName} - ${sale.buyerName}',
+          locationName: sale.buyerName,
+          address: destinationAddress.isEmpty
+              ? 'Alamat distributor tujuan belum dicatat'
+              : _publicAddressLabel(destinationAddress),
+          timestamp: sale.verifiedAt ?? sale.initiatedAt,
+          description: _horizontalSaleDescription(sale),
+          point: await _publicPointForAddress(destinationAddress),
+        ),
+      );
+    }
 
     for (final event in events.where(
       (event) => timelineOnlyTypes.contains(event.type),
@@ -233,6 +254,24 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     } catch (_) {
       return null;
     }
+  }
+
+  List<DistributorHorizontalSale> _horizontalSalesForTrace({
+    required String batchCode,
+    CollectorShipmentBatch? shipment,
+  }) {
+    final sourceCodes = <String>{batchCode.trim().toUpperCase()};
+    if (shipment != null) {
+      sourceCodes.add(shipment.code.trim().toUpperCase());
+    }
+
+    final sales = _distributorRepo.allHorizontalSales
+        .where(
+          (sale) => sourceCodes.contains(sale.itemCode.trim().toUpperCase()),
+        )
+        .toList();
+    sales.sort((a, b) => a.initiatedAt.compareTo(b.initiatedAt));
+    return sales;
   }
 
   _ReceiverInfo _directReceiverInfo(HarvestBatch batch) {
@@ -317,6 +356,17 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
         'Batch sudah diterima di tujuan berikutnya.',
       CollectorShipmentStatus.rejected =>
         'Batch ditolak saat validasi penerimaan.',
+    };
+  }
+
+  String _horizontalSaleDescription(DistributorHorizontalSale sale) {
+    return switch (sale.status) {
+      DistributorHorizontalSaleStatus.initiated =>
+        'Stok dialihkan dari ${sale.sellerName} ke ${sale.buyerName} dan menunggu validasi penerima.',
+      DistributorHorizontalSaleStatus.verified =>
+        'Stok diterima dan divalidasi oleh distributor tujuan.',
+      DistributorHorizontalSaleStatus.rejected =>
+        'Stok ditolak oleh distributor tujuan saat validasi penerimaan.',
     };
   }
 

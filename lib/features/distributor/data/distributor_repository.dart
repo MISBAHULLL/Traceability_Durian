@@ -533,6 +533,22 @@ class DistributorRepository extends ChangeNotifier {
       note: note?.trim().isEmpty == true ? null : note?.trim(),
     );
     _warehouseTransfers.add(transfer);
+    final cleanNote = transfer.note?.trim();
+    TraceabilityRepository.instance.recordWarehouseTransfer(
+      batchCode: transfer.itemCode,
+      actorId: _currentDistributorId,
+      actorRole: TraceActorRole.distributor,
+      actorName: _distributorActorName,
+      fromLocationLabel: warehouseLabel(transfer.fromWarehouseId),
+      toLocationLabel: warehouseLabel(transfer.toWarehouseId),
+      quantity: transfer.weightKg,
+      unit: 'kg',
+      fruitCount: transfer.fruitCount,
+      relatedObjectId: transfer.id,
+      reason: cleanNote?.isNotEmpty == true
+          ? cleanNote!
+          : 'Transfer internal distributor',
+    );
     _recordAudit(
       type: DistributorAuditEventType.transfer,
       action: 'Transfer gudang',
@@ -540,8 +556,11 @@ class DistributorRepository extends ChangeNotifier {
       description:
           'Transfer internal ${transfer.itemCode} dari ${warehouseLabel(transfer.fromWarehouseId)} ke ${warehouseLabel(transfer.toWarehouseId)}.',
       metadata: {
+        'Gudang asal': warehouseLabel(transfer.fromWarehouseId),
+        'Gudang tujuan': warehouseLabel(transfer.toWarehouseId),
         'Berat': '${transfer.weightKg} kg',
         'Jumlah': '${transfer.fruitCount} butir',
+        if (cleanNote?.isNotEmpty == true) 'Catatan': cleanNote!,
       },
     );
     _saveToLocal();
@@ -599,9 +618,13 @@ class DistributorRepository extends ChangeNotifier {
       description:
           '${sale.itemCode} dijual dari ${sale.sourceWarehouseName} ke ${sale.buyerName}.',
       metadata: {
+        'Pembeli': sale.buyerName,
+        'Gudang asal': sale.sourceWarehouseName,
         'Tujuan': sale.destinationLocation,
-        'Berat': '${sale.expectedWeightKg} kg',
-        'Jumlah': '${sale.expectedFruitCount} butir',
+        'Berat dikirim': '${sale.expectedWeightKg} kg',
+        'Jumlah dikirim': '${sale.expectedFruitCount} butir',
+        if (sale.qualityNote?.isNotEmpty == true)
+          'Catatan mutu': sale.qualityNote!,
       },
     );
     _saveToLocal();
@@ -673,9 +696,18 @@ class DistributorRepository extends ChangeNotifier {
       description:
           '${sale.itemCode} diterima ${sale.buyerName} di ${sale.destinationLocation}.',
       metadata: {
+        'Pembeli': sale.buyerName,
         'Kondisi': condition.label,
+        'Berat dikirim': '${sale.expectedWeightKg} kg',
         'Berat diterima': '$receivedWeightKg kg',
+        'Selisih berat': '${receivedWeightKg - sale.expectedWeightKg} kg',
+        'Jumlah dikirim': '${sale.expectedFruitCount} butir',
         'Jumlah diterima': '$receivedFruitCount butir',
+        'Selisih jumlah':
+            '${receivedFruitCount - sale.expectedFruitCount} butir',
+        if (cleanDiscrepancy?.isNotEmpty == true)
+          'Catatan selisih': cleanDiscrepancy!,
+        if (cleanQuality?.isNotEmpty == true) 'Catatan mutu': cleanQuality!,
       },
     );
     _saveToLocal();
@@ -699,12 +731,30 @@ class DistributorRepository extends ChangeNotifier {
       verifiedAt: DateTime.now(),
       rejectionNote: cleanNote,
     );
+    TraceabilityRepository.instance.recordReceiptRejection(
+      batchCode: sale.itemCode,
+      actorId: sale.buyerDistributorId,
+      actorRole: TraceActorRole.distributor,
+      actorName: sale.buyerName,
+      expectedQuantity: sale.expectedWeightKg,
+      unit: 'kg',
+      expectedFruitCount: sale.expectedFruitCount,
+      locationLabel: sale.destinationLocation,
+      relatedObjectId: sale.id,
+      reason: cleanNote,
+    );
     _recordAudit(
-      type: DistributorAuditEventType.sale,
+      type: DistributorAuditEventType.rejection,
       action: 'Tolak jual distributor',
       objectCode: sale.id,
       description: '${sale.itemCode} ke ${sale.buyerName} ditolak.',
-      metadata: {'Alasan': cleanNote},
+      metadata: {
+        'Pembeli': sale.buyerName,
+        'Tujuan': sale.destinationLocation,
+        'Berat dikirim': '${sale.expectedWeightKg} kg',
+        'Jumlah dikirim': '${sale.expectedFruitCount} butir',
+        'Alasan': cleanNote,
+      },
     );
     _saveToLocal();
     notifyListeners();
@@ -781,15 +831,18 @@ class DistributorRepository extends ChangeNotifier {
     );
     _acquisitionTransactions.add(transaction);
     _recordAudit(
-      type: DistributorAuditEventType.acquisition,
+      type: DistributorAuditEventType.scan,
       action: 'Mulai akuisisi PGL',
       objectCode: transaction.itemCode,
       description:
           'Scan/validasi awal manifest ${transaction.itemCode} dari pengepul ${transaction.supplierLabel}.',
       metadata: {
         'Transaksi': transaction.id,
-        'Berat': '${transaction.expectedWeightKg} kg',
-        'Jumlah': '${transaction.expectedFruitCount} butir',
+        'Sumber': transaction.source.label,
+        'Supplier': transaction.supplierLabel,
+        'Asal': transaction.originLabel,
+        'Berat dikirim': '${transaction.expectedWeightKg} kg',
+        'Jumlah dikirim': '${transaction.expectedFruitCount} butir',
       },
     );
     _saveToLocal();
@@ -834,15 +887,18 @@ class DistributorRepository extends ChangeNotifier {
       locationLabel: defaultWarehouse?.location ?? _profile.location,
     );
     _recordAudit(
-      type: DistributorAuditEventType.acquisition,
+      type: DistributorAuditEventType.scan,
       action: 'Mulai akuisisi DRN',
       objectCode: transaction.itemCode,
       description:
           'Scan/validasi awal batch ${transaction.itemCode} dari ${transaction.supplierLabel}.',
       metadata: {
         'Transaksi': transaction.id,
+        'Sumber': transaction.source.label,
+        'Supplier': transaction.supplierLabel,
         'Kebun': transaction.originLabel,
-        'Berat': '${transaction.expectedWeightKg} kg',
+        'Berat dikirim': '${transaction.expectedWeightKg} kg',
+        'Jumlah dikirim': '${transaction.expectedFruitCount} butir',
       },
     );
     _saveToLocal();
@@ -954,11 +1010,15 @@ class DistributorRepository extends ChangeNotifier {
       final success = CollectorRepository.instance.markShipmentSent(code);
       if (success) {
         _recordAudit(
-          type: DistributorAuditEventType.acquisition,
-          action: 'Tandai PGL perlu receipt',
+          type: DistributorAuditEventType.scan,
+          action: 'Scan PGL / mulai T1',
           objectCode: code,
           description:
               'Manifest $code ditandai siap masuk receipt penerimaan distributor.',
+          metadata: {
+            'Status': 'Menunggu T2 penerimaan',
+            'Tujuan': defaultWarehouse?.location ?? _profile.location,
+          },
         );
         _saveToLocal();
         notifyListeners();
@@ -1022,9 +1082,19 @@ class DistributorRepository extends ChangeNotifier {
           'Manifest ${transaction.itemCode} selesai divalidasi ke ${receipt.destinationLocation}.',
       metadata: {
         'Transaksi': transaction.id,
+        'Supplier': transaction.supplierLabel,
+        'Tujuan': receipt.destinationLocation,
         'Kondisi': receipt.condition.label,
+        'Berat dikirim': '${receipt.expectedWeightKg} kg',
         'Berat diterima': '${receipt.receivedWeightKg} kg',
+        'Selisih berat': '${receipt.weightDifferenceKg} kg',
+        'Jumlah dikirim': '${receipt.expectedFruitCount} butir',
         'Jumlah diterima': '${receipt.receivedFruitCount} butir',
+        'Selisih jumlah': '${receipt.fruitDifference} butir',
+        if (receipt.discrepancyNote?.isNotEmpty == true)
+          'Catatan selisih': receipt.discrepancyNote!,
+        if (receipt.qualityNote?.isNotEmpty == true)
+          'Catatan mutu': receipt.qualityNote!,
       },
     );
     _saveToLocal();
@@ -1121,7 +1191,34 @@ class DistributorRepository extends ChangeNotifier {
           'Batch ${transaction.itemCode} selesai divalidasi ke $cleanDestination.',
       metadata: {
         'Transaksi': transaction.id,
+        'Supplier': transaction.supplierLabel,
+        'Tujuan': cleanDestination,
+        'Berat dikirim': '${transaction.expectedWeightKg} kg',
         'Berat diterima': '$receivedWeightKg kg',
+        'Selisih berat':
+            '${receivedWeightKg - transaction.expectedWeightKg} kg',
+        'Jumlah dikirim': '${transaction.expectedFruitCount} butir',
+        'Jumlah diterima': '$receivedFruitCount butir',
+        'Selisih jumlah':
+            '${receivedFruitCount - transaction.expectedFruitCount} butir',
+        if (qualityNote?.trim().isNotEmpty == true)
+          'Catatan mutu': qualityNote!.trim(),
+      },
+    );
+    _recordAudit(
+      type: DistributorAuditEventType.receipt,
+      action: 'Receipt DRN langsung',
+      objectCode: transaction.itemCode,
+      description:
+          'Receipt langsung ${transaction.itemCode} dari petani dicatat di $cleanDestination.',
+      metadata: {
+        'Transaksi': transaction.id,
+        'Sumber': transaction.source.label,
+        'Supplier': transaction.supplierLabel,
+        'Tujuan': cleanDestination,
+        'Berat dikirim': '${transaction.expectedWeightKg} kg',
+        'Berat diterima': '$receivedWeightKg kg',
+        'Jumlah dikirim': '${transaction.expectedFruitCount} butir',
         'Jumlah diterima': '$receivedFruitCount butir',
       },
     );
@@ -1148,9 +1245,45 @@ class DistributorRepository extends ChangeNotifier {
         code: transaction.itemCode,
         reason: cleanNote,
         receiverRole: BatchReceiverRole.distributor,
-        rejectedBy: _profile.fullName,
+        rejectedBy: _distributorActorName,
       );
       if (!ok) return false;
+      TraceabilityRepository.instance.recordReceiptRejection(
+        batchCode: transaction.itemCode,
+        actorId: _currentDistributorId,
+        actorRole: TraceActorRole.distributor,
+        actorName: _distributorActorName,
+        expectedQuantity: transaction.expectedWeightKg,
+        unit: 'kg',
+        expectedFruitCount: transaction.expectedFruitCount,
+        locationLabel: defaultWarehouse?.location ?? _profile.location,
+        relatedObjectId: transaction.id,
+        reason: cleanNote,
+      );
+    } else {
+      final shipment = findShipment(transaction.itemCode);
+      if (shipment == null ||
+          shipment.status == CollectorShipmentStatus.completed ||
+          shipment.status == CollectorShipmentStatus.rejected) {
+        return false;
+      }
+      final rejected = CollectorRepository.instance.rejectShipment(
+        shipment.code,
+        reason: cleanNote,
+      );
+      if (!rejected) return false;
+      TraceabilityRepository.instance.recordReceiptRejection(
+        batchCode: shipment.code,
+        actorId: _currentDistributorId,
+        actorRole: TraceActorRole.distributor,
+        actorName: _distributorActorName,
+        expectedQuantity: shipment.totalWeightKg,
+        unit: 'kg',
+        expectedFruitCount: shipment.totalFruitCount,
+        locationLabel: defaultWarehouse?.location ?? _profile.location,
+        relatedObjectId: transaction.id,
+        reason: cleanNote,
+      );
     }
 
     _closeAcquisitionTransaction(
@@ -1159,11 +1292,18 @@ class DistributorRepository extends ChangeNotifier {
       note: cleanNote,
     );
     _recordAudit(
-      type: DistributorAuditEventType.acquisition,
+      type: DistributorAuditEventType.rejection,
       action: 'Tolak akuisisi',
       objectCode: transaction.itemCode,
       description: 'Akuisisi ${transaction.itemCode} ditolak.',
-      metadata: {'Transaksi': transaction.id, 'Alasan': cleanNote},
+      metadata: {
+        'Transaksi': transaction.id,
+        'Sumber': transaction.source.label,
+        'Supplier': transaction.supplierLabel,
+        'Berat dikirim': '${transaction.expectedWeightKg} kg',
+        'Jumlah dikirim': '${transaction.expectedFruitCount} butir',
+        'Alasan': cleanNote,
+      },
     );
     _saveToLocal();
     notifyListeners();
@@ -1253,9 +1393,18 @@ class DistributorRepository extends ChangeNotifier {
       description:
           'Receipt ${receipt.shipmentCode} dibuat di ${receipt.destinationLocation}.',
       metadata: {
+        'Tujuan': receipt.destinationLocation,
         'Kondisi': receipt.condition.label,
+        'Berat dikirim': '${receipt.expectedWeightKg} kg',
         'Berat diterima': '${receipt.receivedWeightKg} kg',
+        'Selisih berat': '${receipt.weightDifferenceKg} kg',
+        'Jumlah dikirim': '${receipt.expectedFruitCount} butir',
         'Jumlah diterima': '${receipt.receivedFruitCount} butir',
+        'Selisih jumlah': '${receipt.fruitDifference} butir',
+        if (receipt.discrepancyNote?.isNotEmpty == true)
+          'Catatan selisih': receipt.discrepancyNote!,
+        if (receipt.qualityNote?.isNotEmpty == true)
+          'Catatan mutu': receipt.qualityNote!,
       },
     );
     _saveToLocal();
@@ -1284,6 +1433,10 @@ class DistributorRepository extends ChangeNotifier {
     final seq = _warehouseCounter.toString().padLeft(4, '0');
     return 'WH-DST-$_currentDistributorId-$seq';
   }
+
+  String get _distributorActorName => _profile.businessName.trim().isEmpty
+      ? _profile.fullName
+      : _profile.businessName;
 
   void _recordAudit({
     required DistributorAuditEventType type,
@@ -1399,8 +1552,11 @@ class DistributorRepository extends ChangeNotifier {
               'Transfer internal ${transfer.itemCode} dari ${warehouseLabel(transfer.fromWarehouseId)} ke ${warehouseLabel(transfer.toWarehouseId)}.',
           occurredAt: transfer.transferredAt,
           metadata: {
+            'Gudang asal': warehouseLabel(transfer.fromWarehouseId),
+            'Gudang tujuan': warehouseLabel(transfer.toWarehouseId),
             'Berat': '${transfer.weightKg} kg',
             'Jumlah': '${transfer.fruitCount} butir',
+            if (transfer.note?.isNotEmpty == true) 'Catatan': transfer.note!,
           },
         ),
       );
@@ -1409,9 +1565,15 @@ class DistributorRepository extends ChangeNotifier {
     for (final transaction in _acquisitionTransactions) {
       events.add(
         event(
-          type: DistributorAuditEventType.acquisition,
+          type: transaction.status == DistributorAcquisitionStatus.rejected
+              ? DistributorAuditEventType.rejection
+              : transaction.status == DistributorAcquisitionStatus.initiated
+              ? DistributorAuditEventType.scan
+              : DistributorAuditEventType.acquisition,
           action: transaction.status == DistributorAcquisitionStatus.initiated
-              ? 'Validasi belum disimpan'
+              ? 'Mulai akuisisi ${transaction.source.label}'
+              : transaction.status == DistributorAcquisitionStatus.rejected
+              ? 'Tolak akuisisi'
               : 'Akuisisi ${transaction.status.label}',
           objectCode: transaction.itemCode,
           description:
@@ -1419,7 +1581,20 @@ class DistributorRepository extends ChangeNotifier {
           occurredAt: transaction.closedAt ?? transaction.initiatedAt,
           metadata: {
             'Transaksi': transaction.id,
+            'Sumber': transaction.source.label,
             'Supplier': transaction.supplierLabel,
+            'Berat dikirim': '${transaction.expectedWeightKg} kg',
+            'Jumlah dikirim': '${transaction.expectedFruitCount} butir',
+            if (transaction.destinationLocation?.isNotEmpty == true)
+              'Tujuan': transaction.destinationLocation!,
+            ...transaction.note?.isNotEmpty == true
+                ? {
+                    transaction.status == DistributorAcquisitionStatus.rejected
+                            ? 'Alasan'
+                            : 'Catatan':
+                        transaction.note!,
+                  }
+                : <String, String>{},
           },
         ),
       );
@@ -1428,18 +1603,31 @@ class DistributorRepository extends ChangeNotifier {
     for (final sale in _horizontalSales) {
       events.add(
         event(
-          type: DistributorAuditEventType.sale,
+          type: sale.status == DistributorHorizontalSaleStatus.rejected
+              ? DistributorAuditEventType.rejection
+              : DistributorAuditEventType.sale,
           action: sale.status == DistributorHorizontalSaleStatus.initiated
               ? 'T1 jual distributor'
+              : sale.status == DistributorHorizontalSaleStatus.rejected
+              ? 'Tolak jual distributor'
               : 'Jual distributor ${sale.status.label}',
           objectCode: sale.id,
           description:
               '${sale.itemCode} dari ${sale.sourceWarehouseName} ke ${sale.buyerName}.',
           occurredAt: sale.verifiedAt ?? sale.initiatedAt,
           metadata: {
+            'Pembeli': sale.buyerName,
+            'Gudang asal': sale.sourceWarehouseName,
             'Tujuan': sale.destinationLocation,
-            'Berat': '${sale.expectedWeightKg} kg',
-            'Jumlah': '${sale.expectedFruitCount} butir',
+            'Berat dikirim': '${sale.expectedWeightKg} kg',
+            'Jumlah dikirim': '${sale.expectedFruitCount} butir',
+            if (sale.receivedWeightKg != null)
+              'Berat diterima': '${sale.receivedWeightKg} kg',
+            if (sale.receivedFruitCount != null)
+              'Jumlah diterima': '${sale.receivedFruitCount} butir',
+            if (sale.condition != null) 'Kondisi': sale.condition!.label,
+            if (sale.rejectionNote?.isNotEmpty == true)
+              'Alasan': sale.rejectionNote!,
           },
         ),
       );
@@ -1455,9 +1643,14 @@ class DistributorRepository extends ChangeNotifier {
               'Receipt ${receipt.shipmentCode} dibuat di ${receipt.destinationLocation}.',
           occurredAt: receipt.receivedAt,
           metadata: {
+            'Tujuan': receipt.destinationLocation,
             'Kondisi': receipt.condition.label,
+            'Berat dikirim': '${receipt.expectedWeightKg} kg',
             'Berat diterima': '${receipt.receivedWeightKg} kg',
+            'Selisih berat': '${receipt.weightDifferenceKg} kg',
+            'Jumlah dikirim': '${receipt.expectedFruitCount} butir',
             'Jumlah diterima': '${receipt.receivedFruitCount} butir',
+            'Selisih jumlah': '${receipt.fruitDifference} butir',
           },
         ),
       );

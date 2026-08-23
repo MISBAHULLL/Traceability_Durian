@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 enum DistributorAuditEventType {
+  scan,
   acquisition,
   receipt,
+  rejection,
   warehouse,
   transfer,
   sale,
@@ -13,10 +15,14 @@ enum DistributorAuditEventType {
 extension DistributorAuditEventTypeX on DistributorAuditEventType {
   String get label {
     switch (this) {
+      case DistributorAuditEventType.scan:
+        return 'Scan / T1';
       case DistributorAuditEventType.acquisition:
         return 'Akuisisi';
       case DistributorAuditEventType.receipt:
         return 'Penerimaan';
+      case DistributorAuditEventType.rejection:
+        return 'Penolakan';
       case DistributorAuditEventType.warehouse:
         return 'Gudang';
       case DistributorAuditEventType.transfer:
@@ -32,10 +38,14 @@ extension DistributorAuditEventTypeX on DistributorAuditEventType {
 
   IconData get icon {
     switch (this) {
+      case DistributorAuditEventType.scan:
+        return Icons.qr_code_scanner_rounded;
       case DistributorAuditEventType.acquisition:
         return Icons.assignment_turned_in_outlined;
       case DistributorAuditEventType.receipt:
         return Icons.fact_check_outlined;
+      case DistributorAuditEventType.rejection:
+        return Icons.cancel_outlined;
       case DistributorAuditEventType.warehouse:
         return Icons.warehouse_outlined;
       case DistributorAuditEventType.transfer:

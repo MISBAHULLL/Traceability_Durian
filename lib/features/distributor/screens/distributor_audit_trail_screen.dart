@@ -52,6 +52,8 @@ class DistributorAuditTrailScreen extends StatefulWidget {
 class _DistributorAuditTrailScreenState
     extends State<DistributorAuditTrailScreen> {
   final _repo = DistributorRepository.instance;
+  late final TextEditingController _searchController;
+  String _searchQuery = '';
   String? _actorFilter;
   DistributorAuditEventType? _typeFilter;
   _AuditPeriod _period = _AuditPeriod.all;
@@ -59,12 +61,14 @@ class _DistributorAuditTrailScreenState
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
     _repo.addListener(_onRepoChanged);
   }
 
   @override
   void dispose() {
     _repo.removeListener(_onRepoChanged);
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -73,12 +77,32 @@ class _DistributorAuditTrailScreenState
   }
 
   List<DistributorAuditEvent> _filteredEvents() {
+    final query = _searchQuery.trim().toLowerCase();
     return _repo.auditEvents.where((event) {
       final actorMatches =
           _actorFilter == null || event.actorName == _actorFilter;
       final typeMatches = _typeFilter == null || event.type == _typeFilter;
-      return actorMatches && typeMatches && _period.matches(event.occurredAt);
+      final searchMatches = query.isEmpty || _eventMatchesQuery(event, query);
+      return actorMatches &&
+          typeMatches &&
+          _period.matches(event.occurredAt) &&
+          searchMatches;
     }).toList();
+  }
+
+  bool _eventMatchesQuery(DistributorAuditEvent event, String query) {
+    final metadataText = event.metadata.entries
+        .map((entry) => '${entry.key} ${entry.value}')
+        .join(' ');
+    final searchable = [
+      event.objectCode,
+      event.action,
+      event.description,
+      event.actorName,
+      event.type.label,
+      metadataText,
+    ].join(' ').toLowerCase();
+    return searchable.contains(query);
   }
 
   @override
@@ -107,10 +131,14 @@ class _DistributorAuditTrailScreenState
                   ),
                   const SizedBox(height: 14),
                   _AuditFilterPanel(
+                    searchController: _searchController,
                     actors: actors,
+                    searchQuery: _searchQuery,
                     selectedActor: _actorFilter,
                     selectedType: _typeFilter,
                     selectedPeriod: _period,
+                    onSearchChanged: (value) =>
+                        setState(() => _searchQuery = value),
                     onActorChanged: (value) =>
                         setState(() => _actorFilter = value),
                     onTypeChanged: (value) =>
@@ -118,6 +146,8 @@ class _DistributorAuditTrailScreenState
                     onPeriodChanged: (value) => setState(() => _period = value),
                     onReset: () {
                       setState(() {
+                        _searchController.clear();
+                        _searchQuery = '';
                         _actorFilter = null;
                         _typeFilter = null;
                         _period = _AuditPeriod.all;
@@ -217,20 +247,26 @@ class _SummaryMetric extends StatelessWidget {
 
 class _AuditFilterPanel extends StatelessWidget {
   const _AuditFilterPanel({
+    required this.searchController,
     required this.actors,
+    required this.searchQuery,
     required this.selectedActor,
     required this.selectedType,
     required this.selectedPeriod,
+    required this.onSearchChanged,
     required this.onActorChanged,
     required this.onTypeChanged,
     required this.onPeriodChanged,
     required this.onReset,
   });
 
+  final TextEditingController searchController;
   final List<String> actors;
+  final String searchQuery;
   final String? selectedActor;
   final DistributorAuditEventType? selectedType;
   final _AuditPeriod selectedPeriod;
+  final ValueChanged<String> onSearchChanged;
   final ValueChanged<String?> onActorChanged;
   final ValueChanged<DistributorAuditEventType?> onTypeChanged;
   final ValueChanged<_AuditPeriod> onPeriodChanged;
@@ -273,6 +309,28 @@ class _AuditFilterPanel extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: searchController,
+            onChanged: onSearchChanged,
+            textInputAction: TextInputAction.search,
+            decoration:
+                _filterDecoration(
+                  'Cari kode batch/PGL, aksi, atau catatan',
+                ).copyWith(
+                  prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                  suffixIcon: searchQuery.trim().isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Bersihkan pencarian',
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          onPressed: () {
+                            searchController.clear();
+                            onSearchChanged('');
+                          },
+                        ),
+                ),
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String?>(

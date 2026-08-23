@@ -806,7 +806,8 @@ class DistributorRepository extends ChangeNotifier {
   ) {
     final shipment = findShipment(shipmentCode);
     if (shipment == null ||
-        shipment.status == CollectorShipmentStatus.completed) {
+        shipment.status == CollectorShipmentStatus.completed ||
+        shipment.status == CollectorShipmentStatus.rejected) {
       return null;
     }
 
@@ -814,7 +815,24 @@ class DistributorRepository extends ChangeNotifier {
       source: DistributorAcquisitionSource.collector,
       itemCode: shipment.code,
     );
-    if (existing != null) return existing;
+    if (existing != null) {
+      _recordAudit(
+        type: DistributorAuditEventType.scan,
+        action: 'Scan ulang akuisisi PGL',
+        objectCode: existing.itemCode,
+        description:
+            'Manifest ${existing.itemCode} discan ulang dan diarahkan ke T1 ${existing.id}.',
+        metadata: {
+          'Transaksi': existing.id,
+          'Status': existing.status.label,
+          'Sumber': existing.source.label,
+          'Supplier': existing.supplierLabel,
+        },
+      );
+      _saveToLocal();
+      notifyListeners();
+      return existing;
+    }
 
     final transaction = DistributorAcquisitionTransaction(
       id: _generateAcquisitionTransactionId(),
@@ -862,7 +880,30 @@ class DistributorRepository extends ChangeNotifier {
       source: DistributorAcquisitionSource.farmer,
       itemCode: batch.code,
     );
-    if (existing != null) return existing;
+    if (existing != null) {
+      FarmerRepository.instance.recordBatchQrScan(
+        code: batch.code,
+        receiverRole: BatchReceiverRole.distributor,
+        actorName: _distributorActorName,
+        locationLabel: defaultWarehouse?.location ?? _profile.location,
+      );
+      _recordAudit(
+        type: DistributorAuditEventType.scan,
+        action: 'Scan ulang akuisisi DRN',
+        objectCode: existing.itemCode,
+        description:
+            'Batch ${existing.itemCode} discan ulang dan diarahkan ke T1 ${existing.id}.',
+        metadata: {
+          'Transaksi': existing.id,
+          'Status': existing.status.label,
+          'Sumber': existing.source.label,
+          'Supplier': existing.supplierLabel,
+        },
+      );
+      _saveToLocal();
+      notifyListeners();
+      return existing;
+    }
 
     final transaction = DistributorAcquisitionTransaction(
       id: _generateAcquisitionTransactionId(),

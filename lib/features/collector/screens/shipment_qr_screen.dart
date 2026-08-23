@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
-import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/qr_preview.dart';
-import '../../../shared/widgets/top_notification_banner.dart';
 import '../../traceability/data/traceability_repository.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_shipment_batch.dart';
 
 // [FE - Component Rendering] Screen ini menampilkan QR batch pengiriman PGL
-// dan simulasi konfirmasi distributor pada fase FE-only.
+// untuk discan role penerima saat handover fisik.
 class ShipmentQrScreen extends StatefulWidget {
   const ShipmentQrScreen({super.key, required this.shipmentCode});
 
@@ -22,8 +20,6 @@ class ShipmentQrScreen extends StatefulWidget {
 
 class _ShipmentQrScreenState extends State<ShipmentQrScreen> {
   final _repo = CollectorRepository.instance;
-  final _notification = TopNotification();
-  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -34,50 +30,11 @@ class _ShipmentQrScreenState extends State<ShipmentQrScreen> {
   @override
   void dispose() {
     _repo.removeListener(_onRepoChanged);
-    _notification.dispose();
     super.dispose();
   }
 
   void _onRepoChanged() {
     if (mounted) setState(() {});
-  }
-
-  // [FE - Event Handler] Handler ini mensimulasikan pihak tujuan berhasil
-  // scan QR lalu mengonfirmasi pengiriman mulai berjalan.
-  Future<void> _markSent() async {
-    setState(() => _isSubmitting = true);
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-
-    final ok = _repo.markShipmentSent(widget.shipmentCode);
-    setState(() => _isSubmitting = false);
-    final shipment = _repo.findShipmentBatch(widget.shipmentCode);
-    final receiver = shipment?.destinationType.label ?? 'Penerima';
-    _notification.show(
-      context,
-      ok
-          ? '$receiver mengonfirmasi batch dikirim.'
-          : 'Status batch tidak bisa diubah.',
-      isError: !ok,
-    );
-  }
-
-  // [FE - Event Handler] Handler ini mensimulasikan konfirmasi akhir dari
-  // distributor bahwa batch pengiriman selesai diterima.
-  Future<void> _completeShipment() async {
-    setState(() => _isSubmitting = true);
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-
-    final ok = _repo.completeShipment(widget.shipmentCode);
-    setState(() => _isSubmitting = false);
-    _notification.show(
-      context,
-      ok
-          ? 'Pengiriman selesai dikonfirmasi.'
-          : 'Status batch tidak bisa diubah.',
-      isError: !ok,
-    );
   }
 
   @override
@@ -101,23 +58,7 @@ class _ShipmentQrScreenState extends State<ShipmentQrScreen> {
                         const SizedBox(height: 16),
                         _ShipmentInfoCard(shipment: shipment),
                         const SizedBox(height: 20),
-                        if (shipment.status ==
-                            CollectorShipmentStatus.readyToShip)
-                          PrimaryPillButton(
-                            label:
-                                'SIMULASI ${shipment.destinationType.label.toUpperCase()} KONFIRMASI',
-                            onPressed: _isSubmitting ? null : _markSent,
-                            isLoading: _isSubmitting,
-                          )
-                        else if (shipment.status ==
-                            CollectorShipmentStatus.sent)
-                          PrimaryPillButton(
-                            label: 'TANDAI SELESAI',
-                            onPressed: _isSubmitting ? null : _completeShipment,
-                            isLoading: _isSubmitting,
-                          )
-                        else
-                          const _CompletedNotice(),
+                        _ShipmentStatusNotice(shipment: shipment),
                       ],
                     ),
             ),
@@ -309,8 +250,49 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-class _CompletedNotice extends StatelessWidget {
-  const _CompletedNotice();
+class _ShipmentStatusNotice extends StatelessWidget {
+  const _ShipmentStatusNotice({required this.shipment});
+
+  final CollectorShipmentBatch shipment;
+
+  Color get _color {
+    switch (shipment.status) {
+      case CollectorShipmentStatus.readyToShip:
+        return AppColors.primary;
+      case CollectorShipmentStatus.sent:
+        return const Color(0xFFB45309);
+      case CollectorShipmentStatus.completed:
+        return const Color(0xFF1D6FA4);
+      case CollectorShipmentStatus.rejected:
+        return const Color(0xFFD64545);
+    }
+  }
+
+  IconData get _icon {
+    switch (shipment.status) {
+      case CollectorShipmentStatus.readyToShip:
+        return Icons.qr_code_scanner_rounded;
+      case CollectorShipmentStatus.sent:
+        return Icons.local_shipping_outlined;
+      case CollectorShipmentStatus.completed:
+        return Icons.verified_rounded;
+      case CollectorShipmentStatus.rejected:
+        return Icons.cancel_rounded;
+    }
+  }
+
+  String get _message {
+    switch (shipment.status) {
+      case CollectorShipmentStatus.readyToShip:
+        return 'Menunggu QR discan oleh ${shipment.destinationType.label}. Status berikutnya berubah dari aksi penerima.';
+      case CollectorShipmentStatus.sent:
+        return 'PGL sedang menunggu validasi penerima. Pengepul tidak dapat menandai selesai sendiri.';
+      case CollectorShipmentStatus.completed:
+        return 'PGL sudah diterima dan divalidasi oleh penerima.';
+      case CollectorShipmentStatus.rejected:
+        return 'PGL ditolak saat validasi penerimaan.';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -318,17 +300,27 @@ class _CompletedNotice extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.primaryContainer.withValues(alpha: 0.1),
+        color: _color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _color.withValues(alpha: 0.22)),
       ),
-      child: const Text(
-        'Batch pengiriman sudah selesai.',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w800,
-          color: AppColors.primary,
-        ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(_icon, size: 20, color: _color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _message,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.35,
+                fontWeight: FontWeight.w800,
+                color: _color,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1074,8 +1074,8 @@ class CollectorRepository extends ChangeNotifier {
     return receipt;
   }
 
-  // [FE - Event Handler] Mutasi ini mensimulasikan distributor men-scan QR
-  // dan mengonfirmasi bahwa batch pengiriman mulai dibawa/diserahkan.
+  // [FE - Event Handler] Mutasi ini dipanggil dari flow scan role penerima
+  // saat QR PGL pertama kali dibaca pada handover fisik.
   bool markShipmentSent(String code) {
     final index = _shipmentBatches.indexWhere(
       (shipment) => shipment.code == code,
@@ -1100,8 +1100,8 @@ class CollectorRepository extends ChangeNotifier {
     return true;
   }
 
-  // [FE - Event Handler] Mutasi ini mensimulasikan konfirmasi final dari
-  // distributor bahwa batch pengiriman sudah diterima/selesai.
+  // [FE - Event Handler] Mutasi final ini hanya dipakai flow validasi penerima
+  // setelah T2 menyimpan hasil timbang, kondisi, lokasi, dan catatan.
   bool completeShipment(String code, {String? warehouseNote}) {
     final index = _shipmentBatches.indexWhere(
       (shipment) => shipment.code == code,

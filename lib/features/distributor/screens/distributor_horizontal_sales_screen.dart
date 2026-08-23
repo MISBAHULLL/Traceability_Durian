@@ -78,57 +78,6 @@ class _DistributorHorizontalSalesScreenState
     );
   }
 
-  Future<void> _openVerifyForm(DistributorHorizontalSale sale) async {
-    final result = await showModalBottomSheet<_VerifySaleResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (_) => _VerifySaleSheet(sale: sale),
-    );
-    if (result == null) return;
-
-    final ok = _repo.verifyHorizontalSale(
-      saleId: sale.id,
-      receivedWeightKg: result.receivedWeightKg,
-      receivedFruitCount: result.receivedFruitCount,
-      condition: result.condition,
-      discrepancyNote: result.discrepancyNote,
-      qualityNote: result.qualityNote,
-    );
-    if (!mounted) return;
-    _notification.show(
-      context,
-      ok
-          ? 'T2 ${sale.id} berhasil diverifikasi.'
-          : 'T2 gagal disimpan. Periksa selisih dan catatan.',
-      isError: !ok,
-    );
-  }
-
-  Future<void> _openRejectForm(DistributorHorizontalSale sale) async {
-    final note = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (_) => const _RejectSaleSheet(),
-    );
-    if (note == null) return;
-
-    final ok = _repo.rejectHorizontalSale(saleId: sale.id, note: note);
-    if (!mounted) return;
-    _notification.show(
-      context,
-      ok ? '${sale.id} ditolak.' : 'Penolakan gagal disimpan.',
-      isError: !ok,
-    );
-  }
-
   String _defaultItemCode() {
     final receipts = _repo.receiptHistory;
     if (receipts.isNotEmpty) return receipts.first.shipmentCode;
@@ -190,11 +139,7 @@ class _DistributorHorizontalSalesScreenState
                     ...pending.map(
                       (sale) => Padding(
                         padding: const EdgeInsets.only(bottom: 10),
-                        child: _SaleCard(
-                          sale: sale,
-                          onVerify: () => _openVerifyForm(sale),
-                          onReject: () => _openRejectForm(sale),
-                        ),
+                        child: _SaleCard(sale: sale),
                       ),
                     ),
                   const SizedBox(height: 16),
@@ -352,11 +297,9 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _SaleCard extends StatelessWidget {
-  const _SaleCard({required this.sale, this.onVerify, this.onReject});
+  const _SaleCard({required this.sale});
 
   final DistributorHorizontalSale sale;
-  final VoidCallback? onVerify;
-  final VoidCallback? onReject;
 
   @override
   Widget build(BuildContext context) {
@@ -460,49 +403,40 @@ class _SaleCard extends StatelessWidget {
                   label: 'Tanggal',
                   value: _formatDateTime(sale.initiatedAt),
                 ),
-                if (isPending && onVerify != null && onReject != null) ...[
+                if (isPending) ...[
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: onReject,
-                          icon: const Icon(Icons.close_rounded, size: 16),
-                          label: const Text('Tolak'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFD64545),
-                            side: const BorderSide(color: Color(0xFFD64545)),
-                            minimumSize: const Size.fromHeight(38),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF9A6700).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFF9A6700).withValues(alpha: 0.22),
+                      ),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.qr_code_scanner_rounded,
+                          size: 18,
+                          color: Color(0xFF9A6700),
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Menunggu distributor penerima scan QR dan menyimpan validasi T2.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              height: 1.35,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF9A6700),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton.icon(
-                          onPressed: onVerify,
-                          icon: const Icon(Icons.fact_check_outlined, size: 16),
-                          label: const Text('Validasi T2'),
-                          style: ElevatedButton.styleFrom(
-                            elevation: 0,
-                            backgroundColor: const Color.fromARGB(
-                              255,
-                              88,
-                              168,
-                              53,
-                            ),
-                            foregroundColor: AppColors.white,
-                            minimumSize: const Size.fromHeight(38),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ],
@@ -757,259 +691,6 @@ class _SaleFormSheetState extends State<_SaleFormSheet> {
   }
 }
 
-class _VerifySaleSheet extends StatefulWidget {
-  const _VerifySaleSheet({required this.sale});
-
-  final DistributorHorizontalSale sale;
-
-  @override
-  State<_VerifySaleSheet> createState() => _VerifySaleSheetState();
-}
-
-class _VerifySaleSheetState extends State<_VerifySaleSheet> {
-  late final _weightCtrl = TextEditingController(
-    text: _formatNumber(widget.sale.expectedWeightKg),
-  );
-  late final _fruitCtrl = TextEditingController(
-    text: widget.sale.expectedFruitCount.toString(),
-  );
-  final _discrepancyCtrl = TextEditingController();
-  final _qualityCtrl = TextEditingController();
-  DistributorReceiptCondition? _condition;
-
-  @override
-  void dispose() {
-    _weightCtrl.dispose();
-    _fruitCtrl.dispose();
-    _discrepancyCtrl.dispose();
-    _qualityCtrl.dispose();
-    super.dispose();
-  }
-
-  bool get _hasDiscrepancy {
-    final weight = double.tryParse(
-      _weightCtrl.text.trim().replaceAll(',', '.'),
-    );
-    final fruit = int.tryParse(_fruitCtrl.text.trim());
-    if (weight == null || fruit == null) return false;
-    return (weight - widget.sale.expectedWeightKg).abs() > 0.01 ||
-        fruit != widget.sale.expectedFruitCount;
-  }
-
-  void _submit() {
-    final weight = double.tryParse(
-      _weightCtrl.text.trim().replaceAll(',', '.'),
-    );
-    final fruit = int.tryParse(_fruitCtrl.text.trim());
-    final condition = _condition;
-    if (weight == null ||
-        weight <= 0 ||
-        fruit == null ||
-        fruit <= 0 ||
-        condition == null ||
-        (_hasDiscrepancy && _discrepancyCtrl.text.trim().isEmpty)) {
-      return;
-    }
-
-    Navigator.pop(
-      context,
-      _VerifySaleResult(
-        receivedWeightKg: weight,
-        receivedFruitCount: fruit,
-        condition: condition,
-        discrepancyNote: _discrepancyCtrl.text,
-        qualityNote: _qualityCtrl.text,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 18),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _SheetTitle(
-              title: 'Validasi T2',
-              subtitle:
-                  '${widget.sale.itemCode} diterima oleh ${widget.sale.buyerName}.',
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _NumberField(
-                    controller: _weightCtrl,
-                    label: 'Berat Diterima',
-                    suffix: 'kg',
-                    decimal: true,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _NumberField(
-                    controller: _fruitCtrl,
-                    label: 'Jumlah',
-                    suffix: 'butir',
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-              ],
-            ),
-            if (_hasDiscrepancy) ...[
-              const SizedBox(height: 10),
-              _TextArea(
-                controller: _discrepancyCtrl,
-                label: 'Alasan Selisih',
-                hint: 'Contoh: susut timbang atau selisih hitung penerima',
-              ),
-            ],
-            const SizedBox(height: 12),
-            const Text(
-              'Kondisi Fisik',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                color: AppColors.black,
-              ),
-            ),
-            const SizedBox(height: 8),
-            _ConditionSelector(
-              selected: _condition,
-              onChanged: (condition) => setState(() => _condition = condition),
-            ),
-            const SizedBox(height: 10),
-            _TextArea(
-              controller: _qualityCtrl,
-              label: 'Catatan Pemeriksaan',
-              hint: 'Contoh: diterima baik di gudang tujuan',
-            ),
-            const SizedBox(height: 16),
-            PrimaryPillButton(label: 'SIMPAN T2', onPressed: _submit),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RejectSaleSheet extends StatefulWidget {
-  const _RejectSaleSheet();
-
-  @override
-  State<_RejectSaleSheet> createState() => _RejectSaleSheetState();
-}
-
-class _RejectSaleSheetState extends State<_RejectSaleSheet> {
-  final _noteCtrl = TextEditingController();
-
-  @override
-  void dispose() {
-    _noteCtrl.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final note = _noteCtrl.text.trim();
-    if (note.isEmpty) return;
-    Navigator.pop(context, note);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 18),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SheetTitle(
-            title: 'Tolak Penjualan',
-            subtitle: 'Catat alasan agar audit trail tetap lengkap.',
-          ),
-          const SizedBox(height: 14),
-          _TextArea(
-            controller: _noteCtrl,
-            label: 'Alasan Penolakan',
-            hint: 'Contoh: pembeli membatalkan kebutuhan stok',
-          ),
-          const SizedBox(height: 16),
-          PrimaryPillButton(label: 'SIMPAN PENOLAKAN', onPressed: _submit),
-        ],
-      ),
-    );
-  }
-}
-
-class _ConditionSelector extends StatelessWidget {
-  const _ConditionSelector({required this.selected, required this.onChanged});
-
-  final DistributorReceiptCondition? selected;
-  final ValueChanged<DistributorReceiptCondition> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: DistributorReceiptCondition.values.map((condition) {
-        final isSelected = selected == condition;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: InkWell(
-            onTap: () => onChanged(condition),
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.primaryContainer.withValues(alpha: 0.08)
-                    : AppColors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: isSelected ? AppColors.primaryContainer : _borderColor,
-                  width: isSelected ? 2 : 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    isSelected
-                        ? Icons.check_circle_rounded
-                        : Icons.radio_button_unchecked_rounded,
-                    size: 21,
-                    color: isSelected
-                        ? AppColors.primary
-                        : AppColors.placeholder,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      condition.label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: isSelected
-                            ? AppColors.primary
-                            : AppColors.subtitle,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
 class _SheetTitle extends StatelessWidget {
   const _SheetTitle({required this.title, required this.subtitle});
 
@@ -1070,14 +751,12 @@ class _NumberField extends StatelessWidget {
     required this.label,
     required this.suffix,
     this.decimal = false,
-    this.onChanged,
   });
 
   final TextEditingController controller;
   final String label;
   final String suffix;
   final bool decimal;
-  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1090,7 +769,6 @@ class _NumberField extends StatelessWidget {
         else
           FilteringTextInputFormatter.digitsOnly,
       ],
-      onChanged: onChanged,
       decoration: _inputDecoration(label).copyWith(suffixText: suffix),
     );
   }
@@ -1154,22 +832,6 @@ class _SaleFormResult {
   final String note;
 }
 
-class _VerifySaleResult {
-  const _VerifySaleResult({
-    required this.receivedWeightKg,
-    required this.receivedFruitCount,
-    required this.condition,
-    required this.discrepancyNote,
-    required this.qualityNote,
-  });
-
-  final double receivedWeightKg;
-  final int receivedFruitCount;
-  final DistributorReceiptCondition condition;
-  final String discrepancyNote;
-  final String qualityNote;
-}
-
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.message});
 
@@ -1197,10 +859,6 @@ String _formatWeight(double value) {
   return value % 1 == 0
       ? '${value.toStringAsFixed(0)} kg'
       : '${value.toStringAsFixed(2)} kg';
-}
-
-String _formatNumber(double value) {
-  return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
 }
 
 String _formatDateTime(DateTime date) {

@@ -5,7 +5,9 @@ import '../../../shared/widgets/app_top_bar.dart';
 import '../../collector/models/collector_shipment_batch.dart';
 import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
+import '../models/distributor_acquisition_transaction.dart';
 import '../models/distributor_receipt.dart';
+import '../models/distributor_rejection_receipt.dart';
 import 'distributor_shipment_detail_screen.dart';
 
 const _pageBackground = Color(0xFFF4F6F3);
@@ -58,6 +60,8 @@ class _DistributorHistoryScreenState extends State<DistributorHistoryScreen> {
     final receiptsByCode = {
       for (final receipt in _repo.receiptHistory) receipt.shipmentCode: receipt,
     };
+    final rejectionReceipts = _repo.rejectionReceiptHistory;
+    final receiptCount = completedInbound.length + rejectionReceipts.length;
 
     return Scaffold(
       backgroundColor: _pageBackground,
@@ -70,7 +74,7 @@ class _DistributorHistoryScreenState extends State<DistributorHistoryScreen> {
             ),
             _ActivityTabBar(
               activeTab: _activeTab,
-              receiptCount: completedInbound.length,
+              receiptCount: receiptCount,
               shipmentCount: 0,
               onChanged: (tab) => setState(() => _activeTab = tab),
             ),
@@ -79,6 +83,7 @@ class _DistributorHistoryScreenState extends State<DistributorHistoryScreen> {
                   ? _ReceiptList(
                       shipments: completedInbound,
                       receiptsByCode: receiptsByCode,
+                      rejectionReceipts: rejectionReceipts,
                       onDetail: _openDetail,
                     )
                   : const _OutboundEmptyState(),
@@ -183,16 +188,18 @@ class _ReceiptList extends StatelessWidget {
   const _ReceiptList({
     required this.shipments,
     required this.receiptsByCode,
+    required this.rejectionReceipts,
     required this.onDetail,
   });
 
   final List<CollectorShipmentBatch> shipments;
   final Map<String, DistributorReceipt> receiptsByCode;
+  final List<DistributorRejectionReceipt> rejectionReceipts;
   final ValueChanged<String> onDetail;
 
   @override
   Widget build(BuildContext context) {
-    if (shipments.isEmpty) {
+    if (shipments.isEmpty && rejectionReceipts.isEmpty) {
       return const _EmptyState(
         icon: Icons.inventory_2_outlined,
         title: 'Belum ada riwayat penerimaan',
@@ -201,18 +208,53 @@ class _ReceiptList extends StatelessWidget {
       );
     }
 
-    return ListView.separated(
+    return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-      itemCount: shipments.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final shipment = shipments[index];
-        return _ReceiptHistoryCard(
-          shipment: shipment,
-          receipt: receiptsByCode[shipment.code],
-          onTap: () => onDetail(shipment.code),
-        );
-      },
+      children: [
+        if (shipments.isNotEmpty) ...[
+          const _HistorySectionHeader(title: 'Diterima'),
+          const SizedBox(height: 8),
+          ...shipments.map(
+            (shipment) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _ReceiptHistoryCard(
+                shipment: shipment,
+                receipt: receiptsByCode[shipment.code],
+                onTap: () => onDetail(shipment.code),
+              ),
+            ),
+          ),
+        ],
+        if (rejectionReceipts.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const _HistorySectionHeader(title: 'Ditolak'),
+          const SizedBox(height: 8),
+          ...rejectionReceipts.map(
+            (receipt) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _RejectionReceiptHistoryCard(receipt: receipt),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _HistorySectionHeader extends StatelessWidget {
+  const _HistorySectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w900,
+        color: AppColors.black,
+      ),
     );
   }
 }
@@ -364,6 +406,127 @@ class _ReceiptHistoryCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RejectionReceiptHistoryCard extends StatelessWidget {
+  const _RejectionReceiptHistoryCard({required this.receipt});
+
+  final DistributorRejectionReceipt receipt;
+
+  @override
+  Widget build(BuildContext context) {
+    const statusColor = Color(0xFFD64545);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.cancel_outlined,
+                    size: 21,
+                    color: statusColor,
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        receipt.itemCode,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${receipt.id} Â· ${_formatDateTime(receipt.rejectedAt)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const _StatusBadge(label: 'Ditolak', color: statusColor),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: _borderColor),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
+            child: Column(
+              children: [
+                _InfoRow(
+                  label: 'Sumber',
+                  value: '${receipt.source.label} - ${receipt.supplierLabel}',
+                ),
+                _InfoRow(
+                  label: 'Manifest',
+                  value:
+                      '${_formatWeight(receipt.expectedWeightKg)} Â· ${receipt.expectedFruitCount} butir',
+                ),
+                _InfoRow(label: 'Lokasi', value: receipt.rejectionLocation),
+                _InfoRow(
+                  label: 'Ditolak oleh',
+                  value: receipt.rejectedBy,
+                  isLast: true,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 9, 14, 11),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFF6F6),
+              border: Border(top: BorderSide(color: _borderColor)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Alasan Penolakan',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: statusColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  receipt.reason,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    height: 1.35,
+                    color: AppColors.subtitle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

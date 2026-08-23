@@ -11,6 +11,7 @@ import '../models/distributor_audit_event.dart';
 import '../models/distributor_horizontal_sale.dart';
 import '../models/distributor_profile.dart';
 import '../models/distributor_receipt.dart';
+import '../models/distributor_rejection_receipt.dart';
 import '../models/distributor_warehouse.dart';
 
 // [FE - State Management] DistributorRepository mengelola profil distributor,
@@ -43,6 +44,7 @@ class DistributorRepository extends ChangeNotifier {
 
   late DistributorProfile _profile;
   late List<DistributorReceipt> _receipts;
+  late List<DistributorRejectionReceipt> _rejectionReceipts;
   late List<DistributorAcquisitionTransaction> _acquisitionTransactions;
   late List<DistributorWarehouse> _warehouses;
   late List<DistributorWarehouseTransfer> _warehouseTransfers;
@@ -53,6 +55,7 @@ class DistributorRepository extends ChangeNotifier {
   late int _warehouseTransferCounter;
   late int _horizontalSaleCounter;
   late int _auditEventCounter;
+  late int _rejectionReceiptCounter;
   String _currentDistributorId = _kSeedDistributorId;
 
   DistributorProfile get profile => _profile;
@@ -91,6 +94,18 @@ class DistributorRepository extends ChangeNotifier {
     );
     _receipts =
         receiptJsonList?.map(DistributorReceipt.fromJson).toList() ?? [];
+
+    final rejectionReceiptJsonList = LocalStorageService.loadJsonList(
+      'distributor_rejection_receipts',
+    );
+    _rejectionReceipts =
+        rejectionReceiptJsonList
+            ?.map(DistributorRejectionReceipt.fromJson)
+            .toList() ??
+        [];
+    _rejectionReceiptCounter =
+        LocalStorageService.loadInt('distributor_rejection_receipt_counter') ??
+        _rejectionReceipts.length;
 
     final acquisitionJsonList = LocalStorageService.loadJsonList(
       'distributor_acquisition_transactions',
@@ -162,6 +177,14 @@ class DistributorRepository extends ChangeNotifier {
     LocalStorageService.saveJsonList(
       'distributor_receipts',
       _receipts.map((receipt) => receipt.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      'distributor_rejection_receipts',
+      _rejectionReceipts.map((receipt) => receipt.toJson()).toList(),
+    );
+    LocalStorageService.saveInt(
+      'distributor_rejection_receipt_counter',
+      _rejectionReceiptCounter,
     );
     LocalStorageService.saveJsonList(
       'distributor_acquisition_transactions',
@@ -1002,6 +1025,28 @@ class DistributorRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
+  DistributorRejectionReceipt? rejectionReceiptForTransaction(
+    String transactionId,
+  ) {
+    try {
+      return _rejectionReceipts.firstWhere(
+        (receipt) =>
+            receipt.transactionId == transactionId &&
+            receipt.distributorId == _currentDistributorId,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<DistributorRejectionReceipt> get rejectionReceiptHistory {
+    final items = _rejectionReceipts
+        .where((receipt) => receipt.distributorId == _currentDistributorId)
+        .toList();
+    items.sort((a, b) => b.rejectedAt.compareTo(a.rejectedAt));
+    return List.unmodifiable(items);
+  }
+
   /// Metrik 1: Total Kirim (Transit + Tiba)
   int get totalKirim => allShipments
       .where(
@@ -1327,23 +1372,43 @@ class DistributorRepository extends ChangeNotifier {
       );
     }
 
+    final rejectionLocation = defaultWarehouse?.location ?? _profile.location;
+    final rejectionReceipt = DistributorRejectionReceipt(
+      id: _generateRejectionReceiptId(),
+      transactionId: transaction.id,
+      itemCode: transaction.itemCode,
+      distributorId: _currentDistributorId,
+      source: transaction.source,
+      supplierLabel: transaction.supplierLabel,
+      expectedWeightKg: transaction.expectedWeightKg,
+      expectedFruitCount: transaction.expectedFruitCount,
+      rejectedAt: DateTime.now(),
+      rejectedBy: _distributorActorName,
+      rejectionLocation: rejectionLocation,
+      reason: cleanNote,
+    );
+    _rejectionReceipts.add(rejectionReceipt);
     _closeAcquisitionTransaction(
       transactionId: transaction.id,
       status: DistributorAcquisitionStatus.rejected,
       note: cleanNote,
+      destinationLocation: rejectionLocation,
     );
     _recordAudit(
       type: DistributorAuditEventType.rejection,
       action: 'Tolak akuisisi',
       objectCode: transaction.itemCode,
-      description: 'Akuisisi ${transaction.itemCode} ditolak.',
+      description:
+          'Receipt penolakan ${rejectionReceipt.id} dibuat untuk ${transaction.itemCode}.',
       metadata: {
-        'Transaksi': transaction.id,
-        'Sumber': transaction.source.label,
-        'Supplier': transaction.supplierLabel,
-        'Berat dikirim': '${transaction.expectedWeightKg} kg',
-        'Jumlah dikirim': '${transaction.expectedFruitCount} butir',
-        'Alasan': cleanNote,
+        'Receipt': rejectionReceipt.id,
+        'Transaksi': rejectionReceipt.transactionId,
+        'Sumber': rejectionReceipt.source.label,
+        'Supplier': rejectionReceipt.supplierLabel,
+        'Lokasi': rejectionReceipt.rejectionLocation,
+        'Berat dikirim': '${rejectionReceipt.expectedWeightKg} kg',
+        'Jumlah dikirim': '${rejectionReceipt.expectedFruitCount} butir',
+        'Alasan': rejectionReceipt.reason,
       },
     );
     _saveToLocal();
@@ -1473,6 +1538,13 @@ class DistributorRepository extends ChangeNotifier {
     _warehouseCounter++;
     final seq = _warehouseCounter.toString().padLeft(4, '0');
     return 'WH-DST-$_currentDistributorId-$seq';
+  }
+
+  String _generateRejectionReceiptId() {
+    _rejectionReceiptCounter++;
+    final year = DateTime.now().year;
+    final seq = _rejectionReceiptCounter.toString().padLeft(6, '0');
+    return 'RJT-DST-$year-$seq';
   }
 
   String get _distributorActorName => _profile.businessName.trim().isEmpty

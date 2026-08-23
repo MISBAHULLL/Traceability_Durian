@@ -8,6 +8,7 @@ import '../../farmer/models/harvest_batch.dart';
 import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
 import '../models/distributor_receipt.dart';
+import '../../trace/screens/public_trace_screen.dart';
 import 'distributor_receipt_screen.dart';
 
 // [FE - Component Rendering] Screen ini menampilkan detail batch pengiriman
@@ -56,6 +57,13 @@ class _DistributorShipmentDetailScreenState
     );
   }
 
+  Future<void> _openTraceMap(String batchCode) async {
+    await DistributorRoutes.push(
+      context,
+      PublicTraceScreen(batchCode: batchCode),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final shipment = _repo.findShipment(widget.shipmentCode);
@@ -74,6 +82,7 @@ class _DistributorShipmentDetailScreenState
                       shipment: shipment,
                       receipt: receipt,
                       sourceBatches: _repo.sourceBatchesForShipment(shipment),
+                      onOpenTraceMap: _openTraceMap,
                       onConfirmArrived:
                           shipment.status == CollectorShipmentStatus.sent
                           ? () => _openReceipt(shipment)
@@ -94,12 +103,14 @@ class _ShipmentDetailContent extends StatelessWidget {
     required this.shipment,
     required this.receipt,
     required this.sourceBatches,
+    required this.onOpenTraceMap,
     required this.onConfirmArrived,
   });
 
   final CollectorShipmentBatch shipment;
   final DistributorReceipt? receipt;
   final List<HarvestBatch> sourceBatches;
+  final ValueChanged<String> onOpenTraceMap;
   final VoidCallback? onConfirmArrived;
 
   @override
@@ -107,7 +118,12 @@ class _ShipmentDetailContent extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
       children: [
-        _HeaderPanel(shipment: shipment),
+        _HeaderPanel(
+          shipment: shipment,
+          onOpenTraceMap: shipment.sourceBatchCodes.isEmpty
+              ? null
+              : () => onOpenTraceMap(shipment.sourceBatchCodes.first),
+        ),
         const SizedBox(height: 16),
         _SummaryGrid(shipment: shipment),
         if (receipt != null) ...[
@@ -142,7 +158,11 @@ class _ShipmentDetailContent extends StatelessWidget {
           title: 'Provenance Tree',
         ),
         const SizedBox(height: 10),
-        _ProvenanceList(shipment: shipment, sourceBatches: sourceBatches),
+        _ProvenanceList(
+          shipment: shipment,
+          sourceBatches: sourceBatches,
+          onOpenTraceMap: onOpenTraceMap,
+        ),
         const SizedBox(height: 20),
         _SectionTitle(icon: Icons.timeline_rounded, title: 'Timeline'),
         const SizedBox(height: 10),
@@ -187,9 +207,10 @@ class _ShipmentDetailContent extends StatelessWidget {
 }
 
 class _HeaderPanel extends StatelessWidget {
-  const _HeaderPanel({required this.shipment});
+  const _HeaderPanel({required this.shipment, required this.onOpenTraceMap});
 
   final CollectorShipmentBatch shipment;
+  final VoidCallback? onOpenTraceMap;
 
   @override
   Widget build(BuildContext context) {
@@ -242,6 +263,27 @@ class _HeaderPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 _StatusPill(status: shipment.status),
+                if (onOpenTraceMap != null) ...[
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: onOpenTraceMap,
+                    icon: const Icon(Icons.route_outlined, size: 16),
+                    label: const Text('Trace Map'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                      minimumSize: const Size.fromHeight(38),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -729,10 +771,15 @@ class _BreakdownRow extends StatelessWidget {
 }
 
 class _ProvenanceList extends StatelessWidget {
-  const _ProvenanceList({required this.shipment, required this.sourceBatches});
+  const _ProvenanceList({
+    required this.shipment,
+    required this.sourceBatches,
+    required this.onOpenTraceMap,
+  });
 
   final CollectorShipmentBatch shipment;
   final List<HarvestBatch> sourceBatches;
+  final ValueChanged<String> onOpenTraceMap;
 
   @override
   Widget build(BuildContext context) {
@@ -742,7 +789,11 @@ class _ProvenanceList extends StatelessWidget {
         final batch = sourceByCode[code];
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
-          child: _ProvenanceItem(code: code, batch: batch),
+          child: _ProvenanceItem(
+            code: code,
+            batch: batch,
+            onOpenTraceMap: () => onOpenTraceMap(code),
+          ),
         );
       }).toList(),
     );
@@ -750,10 +801,15 @@ class _ProvenanceList extends StatelessWidget {
 }
 
 class _ProvenanceItem extends StatelessWidget {
-  const _ProvenanceItem({required this.code, required this.batch});
+  const _ProvenanceItem({
+    required this.code,
+    required this.batch,
+    required this.onOpenTraceMap,
+  });
 
   final String code;
   final HarvestBatch? batch;
+  final VoidCallback onOpenTraceMap;
 
   @override
   Widget build(BuildContext context) {
@@ -828,11 +884,41 @@ class _ProvenanceItem extends StatelessWidget {
                       // [FE - Component Rendering] Detail provenance ini
                       // menampilkan warisan data dari petani dan validasi
                       // pengepul di dalam satu source batch DRN.
+                      _TraceMapAction(onPressed: onOpenTraceMap),
+                      const SizedBox(height: 10),
                       _SourceTraceDetails(batch: resolvedBatch),
                     ],
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TraceMapAction extends StatelessWidget {
+  const _TraceMapAction({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.route_outlined, size: 16),
+        label: const Text('Trace Map'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: Color(0xFFDCE8D7)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+        ),
       ),
     );
   }

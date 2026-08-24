@@ -11,6 +11,7 @@ import '../../distributor/data/distributor_repository.dart';
 import '../../distributor/models/distributor_horizontal_sale.dart';
 import '../../distributor/models/distributor_receipt.dart';
 import '../models/umkm_order.dart';
+import '../models/umkm_production_record.dart';
 import '../models/umkm_product.dart';
 import '../models/umkm_profile.dart';
 import '../models/umkm_purchase.dart';
@@ -45,6 +46,7 @@ class UmkmRepository extends ChangeNotifier {
   List<UmkmProduct>? _products;
   List<UmkmOrder>? _orders;
   List<UmkmPurchase>? _purchases;
+  List<UmkmProductionRecord>? _productionRecords;
   List<UmkmStockOffer>? _stockOffers;
   List<UmkmStockOrder>? _stockOrders;
   final List<CollectorDeliveryReceipt> _collectorDeliveryReceipts = [];
@@ -56,6 +58,8 @@ class UmkmRepository extends ChangeNotifier {
       List.unmodifiable(_orders ??= _buildSeedOrders());
   List<UmkmPurchase> get purchases =>
       List.unmodifiable(_purchases ??= _buildSeedPurchases());
+  List<UmkmProductionRecord> get productionRecords =>
+      List.unmodifiable(_productionRecords ??= <UmkmProductionRecord>[]);
   List<UmkmStockOffer> get stockOffers {
     final offers = _stockOffers ??= _buildSeedStockOffers();
     if (!_isValidStockOffers(offers)) {
@@ -70,6 +74,8 @@ class UmkmRepository extends ChangeNotifier {
   List<UmkmProduct> _productsOrCreate() => _products ??= <UmkmProduct>[];
   List<UmkmOrder> _ordersOrCreate() => _orders ??= <UmkmOrder>[];
   List<UmkmPurchase> _purchasesOrCreate() => _purchases ??= <UmkmPurchase>[];
+  List<UmkmProductionRecord> _productionRecordsOrCreate() =>
+      _productionRecords ??= <UmkmProductionRecord>[];
   List<UmkmStockOffer> _stockOffersOrCreate() =>
       _stockOffers ??= <UmkmStockOffer>[];
   List<UmkmStockOrder> _stockOrdersOrCreate() =>
@@ -165,13 +171,32 @@ class UmkmRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addProduct(UmkmProduct product) {
+  UmkmProductionRecord? productionRecordForProduct(String productCode) {
+    try {
+      return (_productionRecords ?? <UmkmProductionRecord>[]).firstWhere(
+        (record) => record.productCode == productCode,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void addProduct(
+    UmkmProduct product, {
+    UmkmProductionRecord? productionRecord,
+  }) {
     _productsOrCreate().insert(0, product);
-    _recordProductProcessing(product);
+    if (productionRecord != null) {
+      _productionRecordsOrCreate().insert(0, productionRecord);
+    }
+    _recordProductProcessing(product, productionRecord: productionRecord);
     notifyListeners();
   }
 
-  void _recordProductProcessing(UmkmProduct product) {
+  void _recordProductProcessing(
+    UmkmProduct product, {
+    UmkmProductionRecord? productionRecord,
+  }) {
     final materials = product.sourceMaterials
         .where(
           (material) =>
@@ -219,8 +244,46 @@ class UmkmRepository extends ChangeNotifier {
         'Stok produk': product.stockLabel,
         'QR Produk': product.qrCodeData,
         'Bahan baku': product.sourceMaterialLabel,
+        if (productionRecord != null) ...{
+          'Lot Produksi': productionRecord.lotNumber,
+          'Metode Proses': productionRecord.processMethod,
+          'Tanggal Produksi': _formatDateTime(productionRecord.producedAt),
+          if (productionRecord.expiryDate != null)
+            'Kedaluwarsa': _formatDate(productionRecord.expiryDate!),
+          'Hasil Produksi': productionRecord.outputLabel,
+          'Input bahan baku': productionRecord.inputWeightLabel,
+          'Loss/Waste': productionRecord.lossWeightLabel,
+          'Yield': productionRecord.yieldWeightLabel,
+          if (productionRecord.note != null &&
+              productionRecord.note!.trim().isNotEmpty)
+            'Catatan Produksi': productionRecord.note!.trim(),
+        },
       },
     );
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  String _formatDateTime(DateTime date) {
+    final h = date.hour.toString().padLeft(2, '0');
+    final m = date.minute.toString().padLeft(2, '0');
+    return '${_formatDate(date)}, $h:$m';
   }
 
   void addOrder(UmkmOrder order) {

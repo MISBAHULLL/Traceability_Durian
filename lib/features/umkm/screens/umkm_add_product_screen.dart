@@ -10,6 +10,7 @@ import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/qr_preview.dart';
 import '../data/umkm_repository.dart';
+import '../models/umkm_production_record.dart';
 import '../models/umkm_product.dart';
 
 class UmkmAddProductScreen extends StatefulWidget {
@@ -24,6 +25,15 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
   final _priceCtrl = TextEditingController();
   final _stockCtrl = TextEditingController(text: '0');
   final _descriptionCtrl = TextEditingController();
+  final _lotCtrl = TextEditingController(
+    text:
+        'LOT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+  );
+  final _methodCtrl = TextEditingController(text: 'Kupas dan olah');
+  final _outputQtyCtrl = TextEditingController(text: '0');
+  final _outputUnitCtrl = TextEditingController(text: 'unit');
+  final _lossCtrl = TextEditingController(text: '0');
+  final _productionNoteCtrl = TextEditingController();
   final _repo = UmkmRepository.instance;
   final _imagePicker = ImagePicker();
 
@@ -32,6 +42,8 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
   int _stock = 0;
   String _category = 'Olahan';
   String? _selectedImagePath;
+  DateTime _producedAt = DateTime.now();
+  DateTime? _expiryDate = DateTime.now().add(const Duration(days: 3));
   final Map<String, double> _materialQuantities = {};
   UmkmProduct? _createdProduct;
 
@@ -48,6 +60,12 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
     _priceCtrl.dispose();
     _stockCtrl.dispose();
     _descriptionCtrl.dispose();
+    _lotCtrl.dispose();
+    _methodCtrl.dispose();
+    _outputQtyCtrl.dispose();
+    _outputUnitCtrl.dispose();
+    _lossCtrl.dispose();
+    _productionNoteCtrl.dispose();
     super.dispose();
   }
 
@@ -189,6 +207,50 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
     });
   }
 
+  Future<void> _pickProducedAt() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _producedAt,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _producedAt = picked);
+  }
+
+  Future<void> _pickExpiryDate() async {
+    final initialDate =
+        _expiryDate != null && !_expiryDate!.isBefore(_producedAt)
+        ? _expiryDate!
+        : _producedAt;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: _producedAt,
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _expiryDate = picked);
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
   Future<void> _submit() async {
     if (_nameCtrl.text.trim().isEmpty || _priceCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -204,6 +266,31 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
       );
       return;
     }
+    if (_lotCtrl.text.trim().isEmpty || _methodCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nomor lot dan metode proses wajib diisi.'),
+        ),
+      );
+      return;
+    }
+    final outputQuantity = int.tryParse(_outputQtyCtrl.text.trim()) ?? 0;
+    if (outputQuantity <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Jumlah hasil produksi wajib diisi.')),
+      );
+      return;
+    }
+    final lossWeight =
+        double.tryParse(_lossCtrl.text.trim().replaceAll(',', '.')) ?? 0;
+    if (lossWeight < 0 || lossWeight > _selectedMaterialWeightKg) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Loss/waste tidak boleh melebihi bahan baku dipakai.'),
+        ),
+      );
+      return;
+    }
 
     setState(() => _isSaving = true);
     final now = DateTime.now();
@@ -213,6 +300,18 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
     final stockLabel = stockValue > 0
         ? 'Stok $stockValue unit'
         : 'Stok belum ditentukan';
+
+    final sourceMaterials = _selectedMaterials
+        .map(
+          (material) => UmkmProductMaterial(
+            purchaseId: material.id,
+            traceCode: material.traceCode.trim().toUpperCase(),
+            supplierName: material.supplierName,
+            productName: material.productName,
+            quantityKg: _materialQuantities[material.traceCode] ?? 0,
+          ),
+        )
+        .toList();
 
     final product = UmkmProduct(
       id: id,
@@ -229,21 +328,30 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
           : UmkmProductStatus.aktif,
       qrCodeData: code,
       imagePath: _selectedImagePath,
-      sourceMaterials: _selectedMaterials
-          .map(
-            (material) => UmkmProductMaterial(
-              purchaseId: material.id,
-              traceCode: material.traceCode.trim().toUpperCase(),
-              supplierName: material.supplierName,
-              productName: material.productName,
-              quantityKg: _materialQuantities[material.traceCode] ?? 0,
-            ),
-          )
-          .toList(),
+      sourceMaterials: sourceMaterials,
+    );
+    final productionRecord = UmkmProductionRecord(
+      id: 'PRD-${now.millisecondsSinceEpoch}',
+      productCode: code,
+      productName: product.name,
+      lotNumber: _lotCtrl.text.trim(),
+      processMethod: _methodCtrl.text.trim(),
+      producedAt: _producedAt,
+      expiryDate: _expiryDate,
+      outputQuantity: outputQuantity,
+      outputUnit: _outputUnitCtrl.text.trim().isEmpty
+          ? 'unit'
+          : _outputUnitCtrl.text.trim(),
+      inputWeightKg: _selectedMaterialWeightKg,
+      lossWeightKg: lossWeight,
+      sourceMaterials: sourceMaterials,
+      note: _productionNoteCtrl.text.trim().isEmpty
+          ? null
+          : _productionNoteCtrl.text.trim(),
     );
 
     await Future.delayed(const Duration(milliseconds: 500));
-    _repo.addProduct(product);
+    _repo.addProduct(product, productionRecord: productionRecord);
     if (!mounted) return;
 
     setState(() {
@@ -332,6 +440,90 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
                           selectedWeightKg: _selectedMaterialWeightKg,
                           onToggle: _toggleMaterial,
                           onQuantityChanged: _setMaterialQuantity,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _SectionCard(
+                      title: 'Catatan Produksi',
+                      children: [
+                        _buildField(
+                          label: 'Nomor Lot',
+                          controller: _lotCtrl,
+                          hintText: 'Contoh: LOT-2026-001',
+                        ),
+                        const SizedBox(height: 14),
+                        _buildField(
+                          label: 'Metode Proses',
+                          controller: _methodCtrl,
+                          hintText: 'Contoh: Kupas, sortasi, bekukan',
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildDateSelector(
+                                label: 'Tanggal Produksi',
+                                value: _formatDate(_producedAt),
+                                onTap: _pickProducedAt,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildDateSelector(
+                                label: 'Kedaluwarsa',
+                                value: _expiryDate == null
+                                    ? 'Belum diisi'
+                                    : _formatDate(_expiryDate!),
+                                onTap: _pickExpiryDate,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildField(
+                                label: 'Hasil Produksi',
+                                controller: _outputQtyCtrl,
+                                hintText: 'Contoh: 24',
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildField(
+                                label: 'Satuan',
+                                controller: _outputUnitCtrl,
+                                hintText: 'paket / botol / unit',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        _buildField(
+                          label: 'Loss/Waste',
+                          controller: _lossCtrl,
+                          hintText: 'Contoh: 1.5',
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d*[,.]?\d{0,2}'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        _buildField(
+                          label: 'Catatan Produksi',
+                          controller: _productionNoteCtrl,
+                          hintText: 'Contoh: Daging durian matang, aroma kuat',
+                          maxLines: 3,
                         ),
                       ],
                     ),
@@ -498,6 +690,61 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateSelector({
+    required String label,
+    required String value,
+    required VoidCallback onTap,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.black,
+          ),
+        ),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.calendar_today_outlined,
+                  size: 16,
+                  color: AppColors.placeholder,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.black,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

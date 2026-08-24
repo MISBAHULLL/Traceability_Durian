@@ -879,9 +879,32 @@ class _TraceProductContent extends StatelessWidget {
         : origins;
   }
 
+  List<MapEntry<String, String>> get _productionRows {
+    const keys = [
+      'Lot Produksi',
+      'Metode Proses',
+      'Tanggal Produksi',
+      'Kedaluwarsa',
+      'Hasil Produksi',
+      'Input bahan baku',
+      'Loss/Waste',
+      'Yield',
+      'Catatan Produksi',
+    ];
+    return keys
+        .where(
+          (key) =>
+              batch.metadata.containsKey(key) &&
+              batch.metadata[key]!.trim().isNotEmpty,
+        )
+        .map((key) => MapEntry(key, batch.metadata[key]!))
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final originBatches = _originBatches;
+    final productionRows = _productionRows;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
@@ -914,6 +937,18 @@ class _TraceProductContent extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
+          if (productionRows.isNotEmpty) ...[
+            _TraceSection(
+              title: 'Catatan Produksi',
+              children: productionRows
+                  .map(
+                    (entry) =>
+                        _TraceInfoRow(label: entry.key, value: entry.value),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(height: 16),
+          ],
           _TraceSection(
             title: 'Bahan Baku Trace',
             children: sourceRelations.isEmpty

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../data/umkm_repository.dart';
+import '../models/umkm_production_record.dart';
 import '../models/umkm_product.dart';
 
 class UmkmProductDetailScreen extends StatelessWidget {
@@ -12,6 +14,9 @@ class UmkmProductDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imagePath = product.imagePath ?? 'assets/images/durian.png';
+    final production = UmkmRepository.instance.productionRecordForProduct(
+      product.code,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -57,6 +62,10 @@ class UmkmProductDetailScreen extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (production != null) ...[
+                      const SizedBox(height: 16),
+                      _ProductionRecordSection(production: production),
+                    ],
                     if (product.sourceMaterials.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       _SectionCard(
@@ -73,6 +82,53 @@ class UmkmProductDetailScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ProductionRecordSection extends StatelessWidget {
+  const _ProductionRecordSection({required this.production});
+
+  final UmkmProductionRecord production;
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      title: 'Catatan Produksi',
+      children: [
+        _InfoRow(label: 'Nomor Lot', value: production.lotNumber),
+        _InfoRow(label: 'Metode', value: production.processMethod),
+        _InfoRow(label: 'Produksi', value: _formatDate(production.producedAt)),
+        if (production.expiryDate != null)
+          _InfoRow(
+            label: 'Kedaluwarsa',
+            value: _formatDate(production.expiryDate!),
+          ),
+        _InfoRow(label: 'Hasil', value: production.outputLabel),
+        _InfoRow(label: 'Input', value: production.inputWeightLabel),
+        _InfoRow(label: 'Loss/Waste', value: production.lossWeightLabel),
+        _InfoRow(label: 'Yield', value: production.yieldWeightLabel),
+        if (production.note != null && production.note!.trim().isNotEmpty)
+          _InfoRow(label: 'Catatan', value: production.note!.trim()),
+      ],
     );
   }
 }

@@ -13,6 +13,8 @@ import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/batch_event.dart';
 import '../../farmer/models/farm.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../../traceability/data/traceability_repository.dart';
+import '../../traceability/models/traceability_models.dart';
 import '../../umkm/data/umkm_repository.dart';
 
 // [FE - Component Rendering] Screen ini menjadi halaman trace publik yang
@@ -31,6 +33,7 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
   final _collectorRepo = CollectorRepository.instance;
   final _distributorRepo = DistributorRepository.instance;
   final _umkmRepo = UmkmRepository.instance;
+  final _traceRepo = TraceabilityRepository.instance;
   final _regionService = CahyadsnRegionService.instance;
   var _routeLoadSerial = 0;
   var _routeLoading = true;
@@ -43,6 +46,7 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     _collectorRepo.addListener(_onRepoChanged);
     _distributorRepo.addListener(_onRepoChanged);
     _umkmRepo.addListener(_onRepoChanged);
+    _traceRepo.addListener(_onRepoChanged);
     _loadRouteStops();
   }
 
@@ -52,6 +56,7 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     _collectorRepo.removeListener(_onRepoChanged);
     _distributorRepo.removeListener(_onRepoChanged);
     _umkmRepo.removeListener(_onRepoChanged);
+    _traceRepo.removeListener(_onRepoChanged);
     super.dispose();
   }
 
@@ -64,8 +69,14 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     final serial = ++_routeLoadSerial;
     if (mounted) setState(() => _routeLoading = true);
 
-    final batch = _repo.findPublicBatch(widget.batchCode);
+    final cleanCode = _extractTraceCode(widget.batchCode);
+    final batch = _repo.findPublicBatch(cleanCode);
     if (batch == null) {
+      final traceBatch = _traceRepo.findBatch(cleanCode);
+      if (traceBatch != null) {
+        await _loadTraceBatchRouteStops(traceBatch, serial);
+        return;
+      }
       if (!mounted || serial != _routeLoadSerial) return;
       setState(() {
         _routeStops = const [];
@@ -246,6 +257,96 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     return null;
   }
 
+  String _extractTraceCode(String raw) {
+    final text = raw.trim();
+    final match = RegExp(
+      r'(UMKM-P-\d+|DRN-\d{4}-\d{6}|PGL-\d{3,4}-\d{3,6}|JDL-DST-\d{4}-\d{6})',
+      caseSensitive: false,
+    ).firstMatch(text);
+    return (match?.group(0) ?? text).trim().toUpperCase();
+  }
+
+  List<TraceBatch> _traceLineageBatches(String batchCode) {
+    final result = <TraceBatch>[];
+    final visited = <String>{};
+
+    void visit(String code) {
+      final cleanCode = code.trim().toUpperCase();
+      if (cleanCode.isEmpty || visited.contains(cleanCode)) return;
+      visited.add(cleanCode);
+
+      for (final relation in _traceRepo.parentsOf(cleanCode)) {
+        visit(relation.sourceBatchCode);
+      }
+
+      final batch = _traceRepo.findBatch(cleanCode);
+      if (batch != null) result.add(batch);
+    }
+
+    visit(batchCode);
+    result.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return result;
+  }
+
+  bool _isPublicCoreEvent(TraceBatchEvent event) {
+    return switch (event.type) {
+      TraceEventType.harvestCreated ||
+      TraceEventType.handoverReceived ||
+      TraceEventType.receiptDisputed ||
+      TraceEventType.splitCreated ||
+      TraceEventType.consolidated ||
+      TraceEventType.processed ||
+      TraceEventType.consumerReleased => true,
+      _ => false,
+    };
+  }
+
+  Future<_TraceStop> _traceStopForBatch(
+    TraceBatch batch,
+    TraceBatchEvent? event,
+  ) async {
+    final location = event?.locationLabel?.trim().isNotEmpty == true
+        ? event!.locationLabel!.trim()
+        : batch.publicLocationLabel?.trim().isNotEmpty == true
+        ? batch.publicLocationLabel!.trim()
+        : batch.locationLabel?.trim() ?? '';
+    final actorRole = event?.actorRole ?? batch.currentHolderRole;
+    final actorName = event?.actorName.trim().isNotEmpty == true
+        ? event!.actorName.trim()
+        : batch.currentHolderName;
+
+    return _TraceStop(
+      title: _traceStopTitle(batch, event),
+      actorLabel: '${actorRole.label} - $actorName',
+      locationName: actorName,
+      address: location.isEmpty
+          ? 'Wilayah belum dicatat'
+          : _publicAddressLabel(location),
+      timestamp: event?.occurredAt ?? batch.createdAt,
+      description: _traceStopDescription(batch, event),
+      point: await _publicPointForAddress(location),
+    );
+  }
+
+  String _traceStopTitle(TraceBatch batch, TraceBatchEvent? event) {
+    if (batch.productForm == 'processed_product') return 'Produk UMKM';
+    return event?.actorRole.label ?? batch.currentHolderRole.label;
+  }
+
+  String _traceStopDescription(TraceBatch batch, TraceBatchEvent? event) {
+    if (batch.productForm == 'processed_product') {
+      final sources = _traceRepo
+          .parentsOf(batch.code)
+          .map((relation) => relation.sourceBatchCode)
+          .join(', ');
+      return sources.isEmpty
+          ? 'Produk UMKM dibuat dan QR trace diterbitkan.'
+          : 'Produk UMKM dibuat dari bahan baku $sources.';
+    }
+    if (event != null) return event.description;
+    return '${batch.productName} tercatat di rantai traceability.';
+  }
+
   CollectorShipmentBatch? _shipmentForBatch(String batchCode) {
     try {
       return _collectorRepo.allShipmentBatches.firstWhere(
@@ -254,6 +355,65 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<void> _loadTraceBatchRouteStops(
+    TraceBatch targetBatch,
+    int serial,
+  ) async {
+    await _regionService.load();
+    final stops = <_TraceStop>[];
+    final seenStops = <String>{};
+
+    Future<void> addStop(_TraceStop stop) async {
+      final key =
+          '${stop.title}|${stop.actorLabel}|${stop.timestamp.toIso8601String()}';
+      if (seenStops.contains(key)) return;
+      seenStops.add(key);
+      stops.add(stop);
+    }
+
+    for (final batch in _traceLineageBatches(targetBatch.code)) {
+      final farmerBatch = _repo.findPublicBatch(batch.code);
+      if (farmerBatch != null) {
+        final createdEvent = _eventForStatus(
+          _repo.publicEventsFor(farmerBatch.code),
+          BatchStatus.created,
+        );
+        final farm = _repo.findPublicFarm(farmerBatch.farmId);
+        await addStop(
+          _TraceStop(
+            title: 'Petani',
+            actorLabel: createdEvent?.actorLabel ?? 'Petani',
+            locationName: farmerBatch.farmName,
+            address: _publicFarmAddress(farm),
+            timestamp:
+                createdEvent?.timestamp ??
+                farmerBatch.createdAt ??
+                farmerBatch.harvestDate,
+            description: 'Batch dibuat dan QR trace diterbitkan.',
+            point: await _publicPointForFarm(farm),
+          ),
+        );
+      }
+
+      final events = _traceRepo.eventsForBatch(batch.code);
+      final notableEvents = events.where(_isPublicCoreEvent).toList();
+      if (notableEvents.isEmpty) {
+        await addStop(await _traceStopForBatch(batch, null));
+      } else {
+        for (final event in notableEvents) {
+          await addStop(await _traceStopForBatch(batch, event));
+        }
+      }
+    }
+
+    stops.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    if (!mounted || serial != _routeLoadSerial) return;
+    setState(() {
+      _routeStops = List.unmodifiable(stops);
+      _routeLoading = false;
+    });
   }
 
   List<DistributorHorizontalSale> _horizontalSalesForTrace({
@@ -454,7 +614,9 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final batch = _repo.findPublicBatch(widget.batchCode);
+    final cleanCode = _extractTraceCode(widget.batchCode);
+    final batch = _repo.findPublicBatch(cleanCode);
+    final traceBatch = batch == null ? _traceRepo.findBatch(cleanCode) : null;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -464,7 +626,19 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
             const AppTopBar(title: 'Trace Durian'),
             Expanded(
               child: batch == null
-                  ? _TraceNotFound(batchCode: widget.batchCode)
+                  ? traceBatch == null
+                        ? _TraceNotFound(batchCode: cleanCode)
+                        : _TraceProductContent(
+                            batch: traceBatch,
+                            lineageBatches: _traceLineageBatches(
+                              traceBatch.code,
+                            ),
+                            sourceRelations: _traceRepo.parentsOf(
+                              traceBatch.code,
+                            ),
+                            routeStops: _routeStops,
+                            routeLoading: _routeLoading,
+                          )
                   : _TraceContent(
                       batch: batch,
                       routeStops: _routeStops,
@@ -651,6 +825,196 @@ class _TraceContent extends StatelessWidget {
             batch.storageSuggestion!.isNotEmpty) ||
         (batch.notes != null && batch.notes!.isNotEmpty) ||
         (batch.qualityNotes != null && batch.qualityNotes!.isNotEmpty);
+  }
+}
+
+class _TraceProductContent extends StatelessWidget {
+  const _TraceProductContent({
+    required this.batch,
+    required this.lineageBatches,
+    required this.sourceRelations,
+    required this.routeStops,
+    required this.routeLoading,
+  });
+
+  final TraceBatch batch;
+  final List<TraceBatch> lineageBatches;
+  final List<TraceBatchRelation> sourceRelations;
+  final List<_TraceStop> routeStops;
+  final bool routeLoading;
+
+  String _formatDateTime(DateTime dt) {
+    const months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}, $h:$m';
+  }
+
+  String _formatQuantity(double value, String unit) {
+    final text = value % 1 == 0
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return '$text $unit';
+  }
+
+  List<TraceBatch> get _originBatches {
+    final origins = lineageBatches
+        .where((item) => item.code.startsWith('DRN-'))
+        .toList();
+    return origins.isEmpty
+        ? lineageBatches.where((item) => item.code != batch.code).toList()
+        : origins;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final originBatches = _originBatches;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _TraceProductHeader(batch: batch),
+          const SizedBox(height: 16),
+          _TraceRouteMap(stops: routeStops, loading: routeLoading),
+          const SizedBox(height: 16),
+          _TraceSection(
+            title: 'Informasi Produk',
+            children: [
+              _TraceInfoRow(label: 'Kode Produk', value: batch.code),
+              _TraceInfoRow(label: 'Nama Produk', value: batch.productName),
+              _TraceInfoRow(label: 'Status', value: batch.status.label),
+              _TraceInfoRow(
+                label: 'Jumlah Awal',
+                value: _formatQuantity(batch.quantityInitial, batch.unit),
+              ),
+              _TraceInfoRow(
+                label: 'Sisa Batch',
+                value: _formatQuantity(batch.quantityCurrent, batch.unit),
+              ),
+              _TraceInfoRow(label: 'Pelaku', value: batch.currentHolderName),
+              _TraceInfoRow(
+                label: 'Dibuat',
+                value: _formatDateTime(batch.createdAt),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _TraceSection(
+            title: 'Bahan Baku Trace',
+            children: sourceRelations.isEmpty
+                ? [
+                    _TraceInfoRow(
+                      label: 'Sumber',
+                      value: batch.sourceReference ?? 'Belum tercatat',
+                    ),
+                  ]
+                : sourceRelations
+                      .map(
+                        (relation) => _TraceInfoRow(
+                          label: relation.sourceBatchCode,
+                          value:
+                              '${relation.type.label} / ${_formatQuantity(relation.quantity, relation.unit)}',
+                        ),
+                      )
+                      .toList(),
+          ),
+          const SizedBox(height: 16),
+          _TraceSection(
+            title: 'Asal Durian',
+            children: originBatches.isEmpty
+                ? const [
+                    _TraceInfoRow(
+                      label: 'Asal',
+                      value: 'Asal durian belum ditemukan di lineage.',
+                    ),
+                  ]
+                : originBatches
+                      .map(
+                        (origin) => _TraceInfoRow(
+                          label: origin.code,
+                          value:
+                              '${origin.productName} / ${origin.originActorName}',
+                        ),
+                      )
+                      .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TraceProductHeader extends StatelessWidget {
+  const _TraceProductHeader({required this.batch});
+
+  final TraceBatch batch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.verified_outlined, color: AppColors.primary, size: 20),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Produk UMKM Traceable',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            batch.productName,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: AppColors.black,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            batch.code,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.subtitle,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

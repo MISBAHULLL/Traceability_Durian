@@ -7,6 +7,7 @@ import '../../../shared/widgets/mobile_scanner_feedback.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../../collector/models/collector_shipment_batch.dart';
+import '../../trace/screens/public_trace_screen.dart';
 import '../consumer_routes.dart';
 import '../data/consumer_repository.dart';
 import '../models/consumer_product.dart';
@@ -43,7 +44,10 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
 
   String _extractProductCode(String raw) {
     final text = raw.trim();
-    final match = RegExp(r'UMKM-\d{3}', caseSensitive: false).firstMatch(text);
+    final match = RegExp(
+      r'(UMKM-P-\d+|UMKM-\d{3})',
+      caseSensitive: false,
+    ).firstMatch(text);
     return (match?.group(0) ?? text).toUpperCase();
   }
 
@@ -92,6 +96,10 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
 
     final product = _repo.findProduct(productCode);
     if (product == null) {
+      if (productCode.startsWith('UMKM-P-')) {
+        await _openPublicTrace(productCode);
+        return;
+      }
       _notification.show(
         context,
         'QR tidak valid atau produk belum tersedia.',
@@ -149,6 +157,10 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
     final code = _extractProductCode(rawValue);
     final product = _repo.findProduct(code);
     if (product == null) {
+      if (code.startsWith('UMKM-P-')) {
+        await _openPublicTrace(code);
+        return;
+      }
       if (!mounted) return;
       _notification.show(
         context,
@@ -163,6 +175,16 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
     }
 
     await _openProductDetail(product);
+  }
+
+  Future<void> _openPublicTrace(String batchCode) async {
+    await ConsumerRoutes.push(context, PublicTraceScreen(batchCode: batchCode));
+
+    if (!mounted) return;
+    setState(() => _isHandlingScan = false);
+    if (_isCameraMode) {
+      await _scannerController.start();
+    }
   }
 
   Future<void> _openProductDetail(ConsumerProduct product) async {

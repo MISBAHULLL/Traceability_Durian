@@ -48,11 +48,24 @@ class UmkmProductDetailScreen extends StatelessWidget {
                         _InfoRow(label: 'Harga', value: product.priceLabel),
                         _InfoRow(label: 'Stok', value: product.stockLabel),
                         _InfoRow(
+                          label: 'Bahan Baku',
+                          value: product.sourceMaterialLabel,
+                        ),
+                        _InfoRow(
                           label: 'Deskripsi',
                           value: product.description,
                         ),
                       ],
                     ),
+                    if (product.sourceMaterials.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _SectionCard(
+                        title: 'Trace Bahan Baku',
+                        children: product.sourceMaterials
+                            .map((material) => _MaterialTraceRow(material))
+                            .toList(),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -184,6 +197,69 @@ class _InfoRow extends StatelessWidget {
                 color: AppColors.black,
                 height: 1.4,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MaterialTraceRow extends StatelessWidget {
+  const _MaterialTraceRow(this.material);
+
+  final UmkmProductMaterial material;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.account_tree_outlined,
+            size: 20,
+            color: AppColors.primary,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  material.traceCode,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${material.productName} / ${material.supplierName}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.black,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  material.quantityLabel,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.placeholder,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

@@ -75,6 +75,74 @@ class UmkmRepository extends ChangeNotifier {
   List<UmkmStockOrder> _stockOrdersOrCreate() =>
       _stockOrders ??= <UmkmStockOrder>[];
 
+  List<UmkmTraceMaterialStock> get traceableMaterialStocks =>
+      _materialStocks(availableOnly: true);
+
+  List<UmkmTraceMaterialStock> get materialStockLedger =>
+      _materialStocks(availableOnly: false);
+
+  List<UmkmTraceMaterialStock> _materialStocks({required bool availableOnly}) {
+    final purchaseByCode = {
+      for (final purchase in purchases)
+        purchase.qrCodeData.trim().toUpperCase(): purchase,
+    };
+    final items = <UmkmTraceMaterialStock>[];
+    final seenCodes = <String>{};
+    for (final batch in TraceabilityRepository.instance.batches) {
+      final code = batch.code.trim().toUpperCase();
+      if (seenCodes.contains(code) ||
+          batch.productForm == 'processed_product') {
+        continue;
+      }
+      if (availableOnly &&
+          (batch.quantityCurrent <= 0 ||
+              batch.status != TraceBatchStatus.active)) {
+        continue;
+      }
+
+      final purchase = purchaseByCode[code];
+      final isHeldByUmkm =
+          batch.currentHolderRole == TraceActorRole.umkm &&
+          (batch.currentHolderId == profile.umkmId ||
+              batch.currentHolderName == profile.name);
+      if (purchase == null && !isHeldByUmkm) continue;
+
+      final parentCodes = TraceabilityRepository.instance
+          .parentsOf(code)
+          .map((relation) => relation.sourceBatchCode.trim().toUpperCase())
+          .where((parentCode) => parentCode.isNotEmpty)
+          .toList();
+      final publicTraceCode = code.startsWith('DRN-')
+          ? code
+          : parentCodes.firstWhere(
+              (parentCode) => parentCode.startsWith('DRN-'),
+              orElse: () => code,
+            );
+      seenCodes.add(code);
+      items.add(
+        UmkmTraceMaterialStock(
+          id: purchase?.id ?? code,
+          traceCode: code,
+          publicTraceCode: publicTraceCode,
+          sourceTraceCodes: parentCodes,
+          productName: purchase?.productName ?? batch.productName,
+          supplierName:
+              purchase?.supplierName ??
+              (batch.originActorName.isEmpty
+                  ? batch.currentHolderName
+                  : batch.originActorName),
+          initialQuantity: batch.quantityInitial,
+          remainingQuantity: batch.quantityCurrent,
+          unit: batch.unit,
+          status: batch.status,
+          createdAt: purchase?.createdAt ?? batch.createdAt,
+        ),
+      );
+    }
+    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return List.unmodifiable(items);
+  }
+
   bool _isValidStockOffers(List<UmkmStockOffer> offers) {
     try {
       for (final offer in offers) {
@@ -99,7 +167,60 @@ class UmkmRepository extends ChangeNotifier {
 
   void addProduct(UmkmProduct product) {
     _productsOrCreate().insert(0, product);
+    _recordProductProcessing(product);
     notifyListeners();
+  }
+
+  void _recordProductProcessing(UmkmProduct product) {
+    final materials = product.sourceMaterials
+        .where(
+          (material) =>
+              material.traceCode.trim().isNotEmpty && material.quantityKg > 0,
+        )
+        .toList();
+    if (materials.isEmpty) return;
+
+    final contributions = <TraceLineageContribution>[];
+    for (final material in materials) {
+      final code = material.traceCode.trim().toUpperCase();
+      final sourceBatch = TraceabilityRepository.instance.findBatch(code);
+      if (sourceBatch == null || sourceBatch.quantityCurrent <= 0) continue;
+      final usableQuantity = material.quantityKg > sourceBatch.quantityCurrent
+          ? sourceBatch.quantityCurrent
+          : material.quantityKg;
+      if (usableQuantity <= 0) continue;
+      contributions.add(
+        TraceLineageContribution(
+          sourceBatchCode: sourceBatch.code,
+          quantity: usableQuantity,
+          unit: sourceBatch.unit,
+          fruitCount: null,
+          note: '${material.productName} dari ${material.supplierName}',
+        ),
+      );
+    }
+    if (contributions.isEmpty) return;
+
+    TraceabilityRepository.instance.recordConsolidatedBatch(
+      targetBatchCode: product.code,
+      holderId: profile.umkmId,
+      holderRole: TraceActorRole.umkm,
+      holderName: profile.name,
+      contributions: contributions,
+      productName: product.name,
+      productForm: product.category.toLowerCase() == 'segar'
+          ? 'whole_fruit'
+          : 'processed_product',
+      createdAt: DateTime.now(),
+      locationLabel: profile.location,
+      relationType: TraceBatchRelationType.processedFrom,
+      metadata: {
+        'Kategori': product.category,
+        'Stok produk': product.stockLabel,
+        'QR Produk': product.qrCodeData,
+        'Bahan baku': product.sourceMaterialLabel,
+      },
+    );
   }
 
   void addOrder(UmkmOrder order) {
@@ -686,4 +807,64 @@ class UmkmRepository extends ChangeNotifier {
       ),
     ];
   }
+}
+
+class UmkmTraceMaterialStock {
+  const UmkmTraceMaterialStock({
+    required this.id,
+    required this.traceCode,
+    required this.publicTraceCode,
+    required this.sourceTraceCodes,
+    required this.productName,
+    required this.supplierName,
+    required this.initialQuantity,
+    required this.remainingQuantity,
+    required this.unit,
+    required this.status,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String traceCode;
+  final String publicTraceCode;
+  final List<String> sourceTraceCodes;
+  final String productName;
+  final String supplierName;
+  final double initialQuantity;
+  final double remainingQuantity;
+  final String unit;
+  final TraceBatchStatus status;
+  final DateTime createdAt;
+
+  double get usedQuantity {
+    final used = initialQuantity - remainingQuantity;
+    return used < 0 ? 0 : used;
+  }
+
+  bool get isAvailable =>
+      remainingQuantity > 0 && status == TraceBatchStatus.active;
+
+  String get remainingLabel {
+    final value = remainingQuantity % 1 == 0
+        ? remainingQuantity.toStringAsFixed(0)
+        : remainingQuantity.toStringAsFixed(1);
+    return '$value $unit tersisa';
+  }
+
+  String get usedLabel {
+    final value = usedQuantity % 1 == 0
+        ? usedQuantity.toStringAsFixed(0)
+        : usedQuantity.toStringAsFixed(1);
+    return '$value $unit dipakai';
+  }
+
+  String get initialLabel {
+    final value = initialQuantity % 1 == 0
+        ? initialQuantity.toStringAsFixed(0)
+        : initialQuantity.toStringAsFixed(1);
+    return '$value $unit awal';
+  }
+
+  String get sourceLabel =>
+      sourceTraceCodes.isEmpty ? traceCode : sourceTraceCodes.join(', ');
 }

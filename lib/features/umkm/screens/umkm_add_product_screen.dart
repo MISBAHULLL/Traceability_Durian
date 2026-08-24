@@ -32,6 +32,7 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
   int _stock = 0;
   String _category = 'Olahan';
   String? _selectedImagePath;
+  final Map<String, double> _materialQuantities = {};
   UmkmProduct? _createdProduct;
 
   @override
@@ -153,10 +154,53 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
     }
   }
 
+  List<UmkmTraceMaterialStock> get _availableMaterials =>
+      _repo.traceableMaterialStocks;
+
+  List<UmkmTraceMaterialStock> get _selectedMaterials => _availableMaterials
+      .where((material) => _materialQuantities.containsKey(material.traceCode))
+      .toList();
+
+  double get _selectedMaterialWeightKg => _selectedMaterials.fold<double>(
+    0,
+    (total, material) => total + (_materialQuantities[material.traceCode] ?? 0),
+  );
+
+  void _toggleMaterial(UmkmTraceMaterialStock material) {
+    setState(() {
+      if (_materialQuantities.containsKey(material.traceCode)) {
+        _materialQuantities.remove(material.traceCode);
+      } else {
+        _materialQuantities[material.traceCode] = material.remainingQuantity;
+      }
+    });
+  }
+
+  void _setMaterialQuantity(UmkmTraceMaterialStock material, String value) {
+    final parsed = double.tryParse(value.trim().replaceAll(',', '.'));
+    if (parsed == null) return;
+    final next = parsed.clamp(0.0, material.remainingQuantity).toDouble();
+    setState(() {
+      if (next <= 0) {
+        _materialQuantities.remove(material.traceCode);
+      } else {
+        _materialQuantities[material.traceCode] = next;
+      }
+    });
+  }
+
   Future<void> _submit() async {
     if (_nameCtrl.text.trim().isEmpty || _priceCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Nama produk dan harga wajib diisi.')),
+      );
+      return;
+    }
+    if (_selectedMaterials.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pilih minimal satu bahan baku traceable.'),
+        ),
       );
       return;
     }
@@ -185,6 +229,17 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
           : UmkmProductStatus.aktif,
       qrCodeData: code,
       imagePath: _selectedImagePath,
+      sourceMaterials: _selectedMaterials
+          .map(
+            (material) => UmkmProductMaterial(
+              purchaseId: material.id,
+              traceCode: material.traceCode.trim().toUpperCase(),
+              supplierName: material.supplierName,
+              productName: material.productName,
+              quantityKg: _materialQuantities[material.traceCode] ?? 0,
+            ),
+          )
+          .toList(),
     );
 
     await Future.delayed(const Duration(milliseconds: 500));
@@ -264,6 +319,19 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
                           hintText:
                               'Jelaskan produk secara singkat dan menarik',
                           maxLines: 4,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _SectionCard(
+                      title: 'Bahan Baku Trace',
+                      children: [
+                        _MaterialSelector(
+                          materials: _availableMaterials,
+                          quantitiesByTraceCode: _materialQuantities,
+                          selectedWeightKg: _selectedMaterialWeightKg,
+                          onToggle: _toggleMaterial,
+                          onQuantityChanged: _setMaterialQuantity,
                         ),
                       ],
                     ),
@@ -435,6 +503,317 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
         ),
       ],
     );
+  }
+}
+
+class _MaterialSelector extends StatelessWidget {
+  const _MaterialSelector({
+    required this.materials,
+    required this.quantitiesByTraceCode,
+    required this.selectedWeightKg,
+    required this.onToggle,
+    required this.onQuantityChanged,
+  });
+
+  final List<UmkmTraceMaterialStock> materials;
+  final Map<String, double> quantitiesByTraceCode;
+  final double selectedWeightKg;
+  final ValueChanged<UmkmTraceMaterialStock> onToggle;
+  final void Function(UmkmTraceMaterialStock material, String value)
+  onQuantityChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (materials.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFBEB),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFFDE68A)),
+        ),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.info_outline_rounded,
+              size: 18,
+              color: Color(0xFFB45309),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Belum ada saldo bahan baku traceable yang tersisa. Stok lama akan tampil di sini selama saldonya belum habis.',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF92400E),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            quantitiesByTraceCode.isEmpty
+                ? 'Belum ada bahan baku dipilih'
+                : '${quantitiesByTraceCode.length} bahan baku dipilih / ${_formatWeight(selectedWeightKg)} dipakai',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        ...materials.map(
+          (purchase) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _MaterialTile(
+              material: purchase,
+              selectedQuantity: quantitiesByTraceCode[purchase.traceCode],
+              onTap: () => onToggle(purchase),
+              onQuantityChanged: (value) => onQuantityChanged(purchase, value),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatWeight(double value) {
+    if (value % 1 == 0) return '${value.toStringAsFixed(0)} kg';
+    return '${value.toStringAsFixed(1)} kg';
+  }
+}
+
+class _MaterialTile extends StatelessWidget {
+  const _MaterialTile({
+    required this.material,
+    required this.selectedQuantity,
+    required this.onTap,
+    required this.onQuantityChanged,
+  });
+
+  final UmkmTraceMaterialStock material;
+  final double? selectedQuantity;
+  final VoidCallback onTap;
+  final ValueChanged<String> onQuantityChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = selectedQuantity != null;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.primary.withValues(alpha: 0.08)
+              : AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppColors.primary : const Color(0xFFE5E7EB),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              selected
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              size: 22,
+              color: selected ? AppColors.primary : AppColors.placeholder,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    material.productName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.25,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    material.supplierName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _MaterialChip(label: material.traceCode),
+                      _MaterialChip(label: material.remainingLabel),
+                    ],
+                  ),
+                  if (selected) ...[
+                    const SizedBox(height: 10),
+                    _MaterialQuantityInput(
+                      initialValue: selectedQuantity!,
+                      unit: material.unit,
+                      maxQuantity: material.remainingQuantity,
+                      onChanged: onQuantityChanged,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MaterialChip extends StatelessWidget {
+  const _MaterialChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: AppColors.subtitle,
+        ),
+      ),
+    );
+  }
+}
+
+class _MaterialQuantityInput extends StatefulWidget {
+  const _MaterialQuantityInput({
+    required this.initialValue,
+    required this.unit,
+    required this.maxQuantity,
+    required this.onChanged,
+  });
+
+  final double initialValue;
+  final String unit;
+  final double maxQuantity;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_MaterialQuantityInput> createState() => _MaterialQuantityInputState();
+}
+
+class _MaterialQuantityInputState extends State<_MaterialQuantityInput> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: _formatNumber(widget.initialValue),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _MaterialQuantityInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialValue != widget.initialValue &&
+        _controller.text != _formatNumber(widget.initialValue)) {
+      _controller.text = _formatNumber(widget.initialValue);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Dipakai dari stok ini, maksimal ${_formatNumber(widget.maxQuantity)} ${widget.unit}',
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: AppColors.placeholder,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*[,.]?\d{0,2}')),
+          ],
+          decoration: InputDecoration(
+            suffixText: widget.unit,
+            filled: true,
+            fillColor: AppColors.white,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.primary),
+            ),
+          ),
+          onChanged: widget.onChanged,
+        ),
+      ],
+    );
+  }
+
+  String _formatNumber(double value) {
+    if (value % 1 == 0) return value.toStringAsFixed(0);
+    return value.toStringAsFixed(1);
   }
 }
 

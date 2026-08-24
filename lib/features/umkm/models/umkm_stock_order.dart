@@ -13,6 +13,13 @@ extension UmkmStockOrderStatusLabel on UmkmStockOrderStatus {
   }
 }
 
+UmkmStockOrderStatus umkmStockOrderStatusFromJson(Object? value) {
+  return UmkmStockOrderStatus.values.firstWhere(
+    (status) => status.name == value,
+    orElse: () => UmkmStockOrderStatus.diproses,
+  );
+}
+
 enum UmkmStockPaymentMethod { cod, transfer }
 
 extension UmkmStockPaymentMethodLabel on UmkmStockPaymentMethod {
@@ -24,6 +31,13 @@ extension UmkmStockPaymentMethodLabel on UmkmStockPaymentMethod {
         return 'Transfer Bank';
     }
   }
+}
+
+UmkmStockPaymentMethod umkmStockPaymentMethodFromJson(Object? value) {
+  return UmkmStockPaymentMethod.values.firstWhere(
+    (method) => method.name == value,
+    orElse: () => UmkmStockPaymentMethod.cod,
+  );
 }
 
 class UmkmStockOrder {
@@ -80,6 +94,46 @@ class UmkmStockOrder {
       bankName: bankName,
       accountNumber: accountNumber,
       note: note ?? this.note,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'offerId': offerId,
+    'offerName': offerName,
+    'supplierName': supplierName,
+    'supplierType': supplierType.name,
+    'traceCode': traceCode,
+    'quantityKg': quantityKg,
+    'pricePerKg': pricePerKg,
+    'totalAmount': totalAmount,
+    'paymentMethod': paymentMethod.name,
+    'status': status.name,
+    'createdAt': createdAt.toIso8601String(),
+    'bankName': bankName,
+    'accountNumber': accountNumber,
+    'note': note,
+  };
+
+  factory UmkmStockOrder.fromJson(Map<String, dynamic> json) {
+    return UmkmStockOrder(
+      id: json['id'] as String? ?? '',
+      offerId: json['offerId'] as String? ?? '',
+      offerName: json['offerName'] as String? ?? 'Durian',
+      supplierName: json['supplierName'] as String? ?? '-',
+      supplierType: umkmSupplierTypeFromJson(json['supplierType']),
+      traceCode: json['traceCode'] as String? ?? '',
+      quantityKg: (json['quantityKg'] as num?)?.toInt() ?? 0,
+      pricePerKg: (json['pricePerKg'] as num?)?.toInt() ?? 0,
+      totalAmount: (json['totalAmount'] as num?)?.toInt() ?? 0,
+      paymentMethod: umkmStockPaymentMethodFromJson(json['paymentMethod']),
+      status: umkmStockOrderStatusFromJson(json['status']),
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      bankName: json['bankName'] as String?,
+      accountNumber: json['accountNumber'] as String?,
+      note: json['note'] as String?,
     );
   }
 }

@@ -49,4 +49,35 @@ class UmkmProfile {
           : imageBytes as Uint8List?,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'umkmId': umkmId,
+    'name': name,
+    'ownerName': ownerName,
+    'contact': contact,
+    'email': email,
+    'location': location,
+    'about': about,
+    'imagePath': imagePath,
+    'imageBytes': imageBytes?.toList(),
+  };
+
+  factory UmkmProfile.fromJson(Map<String, dynamic> json) {
+    final rawBytes = json['imageBytes'];
+    return UmkmProfile(
+      umkmId: json['umkmId'] as String? ?? 'umkm-001',
+      name: json['name'] as String? ?? 'UMKM Durian',
+      ownerName: json['ownerName'] as String? ?? '-',
+      contact: json['contact'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      location: json['location'] as String? ?? '',
+      about: json['about'] as String? ?? '',
+      imagePath: json['imagePath'] as String?,
+      imageBytes: rawBytes is List
+          ? Uint8List.fromList(
+              rawBytes.whereType<num>().map((item) => item.toInt()).toList(),
+            )
+          : null,
+    );
+  }
 }

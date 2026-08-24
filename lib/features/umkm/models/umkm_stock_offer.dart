@@ -13,6 +13,13 @@ extension UmkmSupplierTypeLabel on UmkmSupplierType {
   }
 }
 
+UmkmSupplierType umkmSupplierTypeFromJson(Object? value) {
+  return UmkmSupplierType.values.firstWhere(
+    (type) => type.name == value,
+    orElse: () => UmkmSupplierType.pengepul,
+  );
+}
+
 enum UmkmStockOfferStatus { aktif, habis }
 
 extension UmkmStockOfferStatusLabel on UmkmStockOfferStatus {
@@ -24,6 +31,13 @@ extension UmkmStockOfferStatusLabel on UmkmStockOfferStatus {
         return 'Habis';
     }
   }
+}
+
+UmkmStockOfferStatus umkmStockOfferStatusFromJson(Object? value) {
+  return UmkmStockOfferStatus.values.firstWhere(
+    (status) => status.name == value,
+    orElse: () => UmkmStockOfferStatus.aktif,
+  );
 }
 
 class UmkmStockOffer {
@@ -69,6 +83,38 @@ class UmkmStockOffer {
       status: status ?? this.status,
       createdAt: createdAt,
       imagePath: imagePath,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'traceCode': traceCode,
+    'name': name,
+    'supplierName': supplierName,
+    'supplierType': supplierType.name,
+    'pricePerKg': pricePerKg,
+    'stockKg': stockKg,
+    'description': description,
+    'status': status.name,
+    'createdAt': createdAt.toIso8601String(),
+    'imagePath': imagePath,
+  };
+
+  factory UmkmStockOffer.fromJson(Map<String, dynamic> json) {
+    return UmkmStockOffer(
+      id: json['id'] as String? ?? '',
+      traceCode: json['traceCode'] as String? ?? '',
+      name: json['name'] as String? ?? 'Durian',
+      supplierName: json['supplierName'] as String? ?? '-',
+      supplierType: umkmSupplierTypeFromJson(json['supplierType']),
+      pricePerKg: (json['pricePerKg'] as num?)?.toInt() ?? 0,
+      stockKg: (json['stockKg'] as num?)?.toInt() ?? 0,
+      description: json['description'] as String? ?? '',
+      status: umkmStockOfferStatusFromJson(json['status']),
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      imagePath: json['imagePath'] as String?,
     );
   }
 }

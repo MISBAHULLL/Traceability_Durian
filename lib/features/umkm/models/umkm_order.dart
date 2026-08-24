@@ -11,6 +11,13 @@ extension UmkmOrderStatusLabel on UmkmOrderStatus {
   }
 }
 
+UmkmOrderStatus umkmOrderStatusFromJson(Object? value) {
+  return UmkmOrderStatus.values.firstWhere(
+    (status) => status.name == value,
+    orElse: () => UmkmOrderStatus.diproses,
+  );
+}
+
 class UmkmOrder {
   const UmkmOrder({
     required this.id,
@@ -56,6 +63,38 @@ class UmkmOrder {
       productCode: productCode ?? this.productCode,
       completedAt: completedAt ?? this.completedAt,
       note: note ?? this.note,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'productName': productName,
+    'buyerName': buyerName,
+    'quantity': quantity,
+    'totalLabel': totalLabel,
+    'status': status.name,
+    'createdAt': createdAt.toIso8601String(),
+    'qrCodeData': qrCodeData,
+    'productCode': productCode,
+    'completedAt': completedAt?.toIso8601String(),
+    'note': note,
+  };
+
+  factory UmkmOrder.fromJson(Map<String, dynamic> json) {
+    return UmkmOrder(
+      id: json['id'] as String? ?? '',
+      productName: json['productName'] as String? ?? 'Produk UMKM',
+      buyerName: json['buyerName'] as String? ?? 'Konsumen',
+      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+      totalLabel: json['totalLabel'] as String? ?? '-',
+      status: umkmOrderStatusFromJson(json['status']),
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      qrCodeData: json['qrCodeData'] as String? ?? '',
+      productCode: json['productCode'] as String?,
+      completedAt: DateTime.tryParse(json['completedAt'] as String? ?? ''),
+      note: json['note'] as String?,
     );
   }
 }

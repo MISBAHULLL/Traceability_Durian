@@ -11,6 +11,13 @@ extension UmkmMaterialInventoryStatusLabel on UmkmMaterialInventoryStatus {
   }
 }
 
+UmkmMaterialInventoryStatus umkmMaterialInventoryStatusFromJson(Object? value) {
+  return UmkmMaterialInventoryStatus.values.firstWhere(
+    (status) => status.name == value,
+    orElse: () => UmkmMaterialInventoryStatus.tersedia,
+  );
+}
+
 enum UmkmMaterialMovementType { received, usedForProduction, waste, adjustment }
 
 extension UmkmMaterialMovementTypeLabel on UmkmMaterialMovementType {
@@ -26,6 +33,13 @@ extension UmkmMaterialMovementTypeLabel on UmkmMaterialMovementType {
         return 'Penyesuaian';
     }
   }
+}
+
+UmkmMaterialMovementType umkmMaterialMovementTypeFromJson(Object? value) {
+  return UmkmMaterialMovementType.values.firstWhere(
+    (type) => type.name == value,
+    orElse: () => UmkmMaterialMovementType.received,
+  );
 }
 
 class UmkmMaterialInventory {
@@ -89,6 +103,44 @@ class UmkmMaterialInventory {
       note: note ?? this.note,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'traceCode': traceCode,
+    'publicTraceCode': publicTraceCode,
+    'sourceTraceCodes': sourceTraceCodes,
+    'productName': productName,
+    'supplierName': supplierName,
+    'receivedQuantity': receivedQuantity,
+    'availableQuantity': availableQuantity,
+    'unit': unit,
+    'status': status.name,
+    'receivedAt': receivedAt.toIso8601String(),
+    'relatedPurchaseId': relatedPurchaseId,
+    'note': note,
+  };
+
+  factory UmkmMaterialInventory.fromJson(Map<String, dynamic> json) {
+    return UmkmMaterialInventory(
+      id: json['id'] as String? ?? '',
+      traceCode: json['traceCode'] as String? ?? '',
+      publicTraceCode: json['publicTraceCode'] as String? ?? '',
+      sourceTraceCodes: ((json['sourceTraceCodes'] as List<dynamic>?) ?? [])
+          .map((item) => item.toString())
+          .toList(),
+      productName: json['productName'] as String? ?? 'Durian',
+      supplierName: json['supplierName'] as String? ?? '-',
+      receivedQuantity: (json['receivedQuantity'] as num?)?.toDouble() ?? 0,
+      availableQuantity: (json['availableQuantity'] as num?)?.toDouble() ?? 0,
+      unit: json['unit'] as String? ?? 'kg',
+      status: umkmMaterialInventoryStatusFromJson(json['status']),
+      receivedAt:
+          DateTime.tryParse(json['receivedAt'] as String? ?? '') ??
+          DateTime.now(),
+      relatedPurchaseId: json['relatedPurchaseId'] as String?,
+      note: json['note'] as String?,
+    );
+  }
 }
 
 class UmkmMaterialMovement {
@@ -115,4 +167,34 @@ class UmkmMaterialMovement {
   final String actorName;
   final String? relatedObjectId;
   final String? note;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'inventoryId': inventoryId,
+    'traceCode': traceCode,
+    'type': type.name,
+    'quantity': quantity,
+    'unit': unit,
+    'occurredAt': occurredAt.toIso8601String(),
+    'actorName': actorName,
+    'relatedObjectId': relatedObjectId,
+    'note': note,
+  };
+
+  factory UmkmMaterialMovement.fromJson(Map<String, dynamic> json) {
+    return UmkmMaterialMovement(
+      id: json['id'] as String? ?? '',
+      inventoryId: json['inventoryId'] as String? ?? '',
+      traceCode: json['traceCode'] as String? ?? '',
+      type: umkmMaterialMovementTypeFromJson(json['type']),
+      quantity: (json['quantity'] as num?)?.toDouble() ?? 0,
+      unit: json['unit'] as String? ?? 'kg',
+      occurredAt:
+          DateTime.tryParse(json['occurredAt'] as String? ?? '') ??
+          DateTime.now(),
+      actorName: json['actorName'] as String? ?? '-',
+      relatedObjectId: json['relatedObjectId'] as String?,
+      note: json['note'] as String?,
+    );
+  }
 }

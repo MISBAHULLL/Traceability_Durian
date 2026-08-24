@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../../traceability/data/traceability_repository.dart';
@@ -22,12 +23,7 @@ import '../models/umkm_stock_order.dart';
 
 class UmkmRepository extends ChangeNotifier {
   UmkmRepository._seed() {
-    _profile = _seedProfile;
-    _products = _buildSeedProducts();
-    _orders = _buildSeedOrders();
-    _purchases = _buildSeedPurchases();
-    _stockOffers = _buildSeedStockOffers();
-    _stockOrders = _buildSeedStockOrders();
+    _loadFromLocal();
   }
 
   static final UmkmRepository instance = UmkmRepository._seed();
@@ -54,6 +50,18 @@ class UmkmRepository extends ChangeNotifier {
   List<UmkmStockOffer>? _stockOffers;
   List<UmkmStockOrder>? _stockOrders;
   final List<CollectorDeliveryReceipt> _collectorDeliveryReceipts = [];
+
+  static const _profileKey = 'umkm_profile';
+  static const _productsKey = 'umkm_products';
+  static const _ordersKey = 'umkm_orders';
+  static const _purchasesKey = 'umkm_purchases';
+  static const _materialInventoriesKey = 'umkm_material_inventories';
+  static const _materialMovementsKey = 'umkm_material_movements';
+  static const _productionRecordsKey = 'umkm_production_records';
+  static const _stockOffersKey = 'umkm_stock_offers';
+  static const _stockOrdersKey = 'umkm_stock_orders';
+  static const _collectorDeliveryReceiptsKey =
+      'umkm_collector_delivery_receipts';
 
   UmkmProfile get profile => _profile ??= _seedProfile;
   List<UmkmProduct> get products =>
@@ -101,6 +109,106 @@ class UmkmRepository extends ChangeNotifier {
 
   List<UmkmTraceMaterialStock> get materialStockLedger =>
       _materialStocks(availableOnly: false);
+
+  void _loadFromLocal() {
+    _profile = _loadObject(_profileKey, UmkmProfile.fromJson) ?? _seedProfile;
+    _products = _loadList(_productsKey, UmkmProduct.fromJson);
+    _orders = _loadList(_ordersKey, UmkmOrder.fromJson);
+    _purchases = _loadList(_purchasesKey, UmkmPurchase.fromJson);
+    _materialInventories = _loadList(
+      _materialInventoriesKey,
+      UmkmMaterialInventory.fromJson,
+    );
+    _materialMovements = _loadList(
+      _materialMovementsKey,
+      UmkmMaterialMovement.fromJson,
+    );
+    _productionRecords = _loadList(
+      _productionRecordsKey,
+      UmkmProductionRecord.fromJson,
+    );
+    _stockOffers = _loadList(_stockOffersKey, UmkmStockOffer.fromJson);
+    _stockOrders = _loadList(_stockOrdersKey, UmkmStockOrder.fromJson);
+    _collectorDeliveryReceipts
+      ..clear()
+      ..addAll(
+        _loadList(
+              _collectorDeliveryReceiptsKey,
+              CollectorDeliveryReceipt.fromJson,
+            ) ??
+            const <CollectorDeliveryReceipt>[],
+      );
+  }
+
+  T? _loadObject<T>(
+    String key,
+    T Function(Map<String, dynamic> json) fromJson,
+  ) {
+    final json = LocalStorageService.loadJson(key);
+    if (json == null) return null;
+    try {
+      return fromJson(json);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<T>? _loadList<T>(
+    String key,
+    T Function(Map<String, dynamic> json) fromJson,
+  ) {
+    final raw = LocalStorageService.loadJsonList(key);
+    if (raw == null) return null;
+    final items = <T>[];
+    for (final item in raw) {
+      try {
+        items.add(fromJson(item));
+      } catch (_) {
+        return null;
+      }
+    }
+    return items;
+  }
+
+  void _saveToLocal() {
+    LocalStorageService.saveJson(_profileKey, profile.toJson());
+    LocalStorageService.saveJsonList(
+      _productsKey,
+      products.map((item) => item.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      _ordersKey,
+      orders.map((item) => item.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      _purchasesKey,
+      purchases.map((item) => item.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      _materialInventoriesKey,
+      materialInventories.map((item) => item.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      _materialMovementsKey,
+      materialMovements.map((item) => item.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      _productionRecordsKey,
+      productionRecords.map((item) => item.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      _stockOffersKey,
+      stockOffers.map((item) => item.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      _stockOrdersKey,
+      stockOrders.map((item) => item.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      _collectorDeliveryReceiptsKey,
+      _collectorDeliveryReceipts.map((item) => item.toJson()).toList(),
+    );
+  }
 
   List<UmkmTraceMaterialStock> _materialStocks({required bool availableOnly}) {
     final purchaseByCode = {
@@ -383,6 +491,7 @@ class UmkmRepository extends ChangeNotifier {
 
   void updateProfile(UmkmProfile profile) {
     _profile = profile;
+    _saveToLocal();
     notifyListeners();
   }
 
@@ -421,6 +530,7 @@ class UmkmRepository extends ChangeNotifier {
         productionRecord: productionRecord,
       );
     }
+    _saveToLocal();
     notifyListeners();
   }
 
@@ -539,6 +649,7 @@ class UmkmRepository extends ChangeNotifier {
 
   void addOrder(UmkmOrder order) {
     _ordersOrCreate().insert(0, order);
+    _saveToLocal();
     notifyListeners();
   }
 
@@ -552,6 +663,7 @@ class UmkmRepository extends ChangeNotifier {
         updatedOrder.status == UmkmOrderStatus.selesai) {
       _recordConsumerReleaseForOrder(updatedOrder);
     }
+    _saveToLocal();
     notifyListeners();
   }
 
@@ -598,11 +710,13 @@ class UmkmRepository extends ChangeNotifier {
     final beforeLength = orders.length;
     orders.removeWhere((order) => order.id == orderId);
     if (orders.length == beforeLength) return;
+    _saveToLocal();
     notifyListeners();
   }
 
   void addPurchase(UmkmPurchase purchase) {
     _purchasesOrCreate().insert(0, purchase);
+    _saveToLocal();
     notifyListeners();
   }
 
@@ -779,6 +893,7 @@ class UmkmRepository extends ChangeNotifier {
 
   void addStockOrder(UmkmStockOrder order) {
     _stockOrdersOrCreate().insert(0, order);
+    _saveToLocal();
     notifyListeners();
   }
 
@@ -919,6 +1034,7 @@ class UmkmRepository extends ChangeNotifier {
       relatedPurchaseId: purchase.id,
       note: purchase.note,
     );
+    _saveToLocal();
     notifyListeners();
     return true;
   }
@@ -941,7 +1057,10 @@ class UmkmRepository extends ChangeNotifier {
       destinationLocation: destinationLocation,
       note: reason,
     );
-    if (ok) notifyListeners();
+    if (ok) {
+      _saveToLocal();
+      notifyListeners();
+    }
     return ok;
   }
 
@@ -1046,6 +1165,7 @@ class UmkmRepository extends ChangeNotifier {
       relatedPurchaseId: purchase.id,
       note: cleanQualityNote,
     );
+    _saveToLocal();
     notifyListeners();
     return receipt;
   }
@@ -1099,6 +1219,7 @@ class UmkmRepository extends ChangeNotifier {
       relatedObjectId: receipt.id,
       reason: cleanReason,
     );
+    _saveToLocal();
     notifyListeners();
     return receipt;
   }
@@ -1167,6 +1288,7 @@ class UmkmRepository extends ChangeNotifier {
       relatedPurchaseId: purchase.id,
       note: conditionNote,
     );
+    _saveToLocal();
     notifyListeners();
     return true;
   }
@@ -1178,7 +1300,10 @@ class UmkmRepository extends ChangeNotifier {
       receiverRole: BatchReceiverRole.umkm,
       rejectedBy: profile.name,
     );
-    if (ok) notifyListeners();
+    if (ok) {
+      _saveToLocal();
+      notifyListeners();
+    }
     return ok;
   }
 
@@ -1189,6 +1314,7 @@ class UmkmRepository extends ChangeNotifier {
     );
     if (index == -1) return;
     stockOrders[index] = updatedOrder;
+    _saveToLocal();
     notifyListeners();
   }
 
@@ -1197,6 +1323,7 @@ class UmkmRepository extends ChangeNotifier {
     final index = stockOffers.indexWhere((offer) => offer.id == offerId);
     if (index == -1) return;
     stockOffers[index] = updatedOffer;
+    _saveToLocal();
     notifyListeners();
   }
 

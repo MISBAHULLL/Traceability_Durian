@@ -15,6 +15,7 @@ import '../../trace/screens/public_trace_screen.dart';
 import 'umkm_add_product_screen.dart';
 import 'umkm_add_purchase_screen.dart';
 import 'umkm_data_screen.dart';
+import 'umkm_material_movement_screen.dart';
 import 'umkm_order_detail_screen.dart';
 import 'umkm_order_list_screen.dart';
 import 'umkm_product_detail_screen.dart';
@@ -90,6 +91,13 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const UmkmAddPurchaseScreen()),
+    );
+  }
+
+  Future<void> _openMaterialMovements() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const UmkmMaterialMovementScreen()),
     );
   }
 
@@ -191,6 +199,8 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
                                 _DashboardActions(
                                   onAddProduct: _openAddProduct,
                                   onAddPurchase: _openAddPurchase,
+                                  onViewMaterialMovements:
+                                      _openMaterialMovements,
                                   onViewOrders: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -426,11 +436,13 @@ class _DashboardActions extends StatelessWidget {
   const _DashboardActions({
     required this.onAddProduct,
     required this.onAddPurchase,
+    required this.onViewMaterialMovements,
     required this.onViewOrders,
   });
 
   final VoidCallback onAddProduct;
   final VoidCallback onAddPurchase;
+  final VoidCallback onViewMaterialMovements;
   final VoidCallback onViewOrders;
 
   @override
@@ -449,6 +461,13 @@ class _DashboardActions extends StatelessWidget {
           title: 'Beli Stok',
           subtitle: 'Rekam pemasukan durian dengan cepat',
           onTap: onAddPurchase,
+        ),
+        const SizedBox(height: 12),
+        _ActionTile(
+          icon: Icons.manage_history_rounded,
+          title: 'Riwayat Mutasi',
+          subtitle: 'Lihat stok masuk dan bahan baku terpakai',
+          onTap: onViewMaterialMovements,
         ),
         const SizedBox(height: 12),
         _ActionTile(

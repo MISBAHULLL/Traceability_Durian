@@ -375,8 +375,51 @@ class UmkmRepository extends ChangeNotifier {
     final orders = _ordersOrCreate();
     final index = orders.indexWhere((order) => order.id == updatedOrder.id);
     if (index == -1) return;
+    final previousOrder = orders[index];
     orders[index] = updatedOrder;
+    if (previousOrder.status != UmkmOrderStatus.selesai &&
+        updatedOrder.status == UmkmOrderStatus.selesai) {
+      _recordConsumerReleaseForOrder(updatedOrder);
+    }
     notifyListeners();
+  }
+
+  void _recordConsumerReleaseForOrder(UmkmOrder order) {
+    final product = _productForOrder(order);
+    if (product == null) return;
+    final releasedAt = order.completedAt ?? DateTime.now();
+    TraceabilityRepository.instance.recordConsumerRelease(
+      batchCode: product.code,
+      actorId: profile.umkmId,
+      actorRole: TraceActorRole.umkm,
+      actorName: profile.name,
+      orderId: order.id,
+      buyerName: order.buyerName,
+      quantity: order.quantity,
+      releasedAt: releasedAt,
+      locationLabel: profile.location,
+      note: order.note,
+    );
+  }
+
+  UmkmProduct? _productForOrder(UmkmOrder order) {
+    final cleanProductCode = order.productCode?.trim().toUpperCase();
+    if (cleanProductCode != null && cleanProductCode.isNotEmpty) {
+      try {
+        return products.firstWhere(
+          (product) => product.code.trim().toUpperCase() == cleanProductCode,
+        );
+      } catch (_) {
+        // Fallback ke nama produk untuk order lama yang belum menyimpan kode.
+      }
+    }
+    try {
+      return products.firstWhere(
+        (product) => product.name == order.productName,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   void deleteOrder(String orderId) {
@@ -1026,6 +1069,7 @@ class UmkmRepository extends ChangeNotifier {
         status: UmkmOrderStatus.diproses,
         createdAt: DateTime(2026, 6, 10, 10, 30),
         qrCodeData: 'ORD-2026-0001',
+        productCode: 'UMKM-P-001',
         note: 'Bayar di tempat.',
       ),
       UmkmOrder(
@@ -1037,6 +1081,8 @@ class UmkmRepository extends ChangeNotifier {
         status: UmkmOrderStatus.selesai,
         createdAt: DateTime(2026, 6, 8, 15, 45),
         qrCodeData: 'ORD-2026-0002',
+        productCode: 'UMKM-P-002',
+        completedAt: DateTime(2026, 6, 8, 16, 20),
         note: 'Sudah dikirim.',
       ),
     ];

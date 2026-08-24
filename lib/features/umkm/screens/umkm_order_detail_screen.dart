@@ -29,7 +29,12 @@ class _UmkmOrderDetailScreenState extends State<UmkmOrderDetailScreen> {
   Future<void> _updateStatus(UmkmOrderStatus status) async {
     setState(() => _isSaving = true);
     await Future.delayed(const Duration(milliseconds: 500));
-    _order = _order.copyWith(status: status);
+    final product = _findProductByName(_order.productName);
+    _order = _order.copyWith(
+      status: status,
+      productCode: product?.code,
+      completedAt: status == UmkmOrderStatus.selesai ? DateTime.now() : null,
+    );
     _repo.updateOrder(_order);
     if (!mounted) return;
     setState(() => _isSaving = false);
@@ -118,10 +123,17 @@ class _UmkmOrderDetailScreenState extends State<UmkmOrderDetailScreen> {
                       children: [
                         _InfoRow(label: 'Kode Pesanan', value: _order.id),
                         _InfoRow(label: 'Produk', value: _order.productName),
+                        if (product != null)
+                          _InfoRow(label: 'Kode Produk', value: product.code),
                         _InfoRow(label: 'Pembeli', value: _order.buyerName),
                         _InfoRow(label: 'Jumlah', value: '${_order.quantity}'),
                         _InfoRow(label: 'Total', value: _order.totalLabel),
                         _InfoRow(label: 'Status', value: _order.status.label),
+                        if (_order.completedAt != null)
+                          _InfoRow(
+                            label: 'Rilis Konsumen',
+                            value: _formatDateTime(_order.completedAt!),
+                          ),
                         _InfoRow(
                           label: 'Catatan',
                           value: _order.note ?? 'Tidak ada catatan',
@@ -212,6 +224,14 @@ class _UmkmOrderDetailScreenState extends State<UmkmOrderDetailScreen> {
     } catch (_) {
       return null;
     }
+  }
+
+  String _formatDateTime(DateTime date) {
+    final d = date.day.toString().padLeft(2, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final h = date.hour.toString().padLeft(2, '0');
+    final min = date.minute.toString().padLeft(2, '0');
+    return '$d/$m/${date.year} $h:$min';
   }
 }
 

@@ -233,6 +233,69 @@ class TraceabilityRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
+  bool recordConsumerRelease({
+    required String batchCode,
+    required String actorId,
+    required TraceActorRole actorRole,
+    required String actorName,
+    required String orderId,
+    required String buyerName,
+    required int quantity,
+    required DateTime releasedAt,
+    String? locationLabel,
+    String? note,
+  }) {
+    final cleanCode = batchCode.trim().toUpperCase();
+    final cleanOrderId = orderId.trim();
+    if (cleanCode.isEmpty || cleanOrderId.isEmpty || quantity <= 0) {
+      return false;
+    }
+    final batch = findBatch(cleanCode);
+    if (batch == null) return false;
+    final alreadyRecorded = _events.any(
+      (event) =>
+          event.batchCode == cleanCode &&
+          event.type == TraceEventType.consumerReleased &&
+          event.relatedObjectId == cleanOrderId,
+    );
+    if (alreadyRecorded) return true;
+
+    final event = _createEvent(
+      batchCode: cleanCode,
+      type: TraceEventType.consumerReleased,
+      actorId: actorId,
+      actorRole: actorRole,
+      actorName: actorName,
+      title: 'Produk dilepas ke konsumen',
+      description:
+          '${batch.productName} dilepas ke konsumen melalui order $cleanOrderId.',
+      occurredAt: releasedAt,
+      locationLabel: locationLabel,
+      relatedObjectId: cleanOrderId,
+      metadata: {
+        'Order': cleanOrderId,
+        'Pembeli': buyerName.trim().isEmpty ? 'Konsumen' : buyerName.trim(),
+        'Jumlah': '$quantity unit',
+        if (note != null && note.trim().isNotEmpty) 'Catatan': note.trim(),
+      },
+    );
+    _events.add(event);
+    _movements.add(
+      _createMovement(
+        batchCode: cleanCode,
+        type: TraceQuantityMovementType.consumed,
+        quantity: quantity.toDouble(),
+        unit: 'unit',
+        eventId: event.id,
+        occurredAt: releasedAt,
+        reason: 'Rilis ke konsumen $cleanOrderId',
+      ),
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
   bool recordHarvestBatch({
     required String batchCode,
     required String farmerId,

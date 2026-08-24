@@ -21,6 +21,8 @@ class UmkmOrder {
     required this.status,
     required this.createdAt,
     required this.qrCodeData,
+    this.productCode,
+    this.completedAt,
     this.note,
   });
 
@@ -32,9 +34,16 @@ class UmkmOrder {
   final UmkmOrderStatus status;
   final DateTime createdAt;
   final String qrCodeData;
+  final String? productCode;
+  final DateTime? completedAt;
   final String? note;
 
-  UmkmOrder copyWith({UmkmOrderStatus? status, String? note}) {
+  UmkmOrder copyWith({
+    UmkmOrderStatus? status,
+    String? productCode,
+    DateTime? completedAt,
+    String? note,
+  }) {
     return UmkmOrder(
       id: id,
       productName: productName,
@@ -44,6 +53,8 @@ class UmkmOrder {
       status: status ?? this.status,
       createdAt: createdAt,
       qrCodeData: qrCodeData,
+      productCode: productCode ?? this.productCode,
+      completedAt: completedAt ?? this.completedAt,
       note: note ?? this.note,
     );
   }

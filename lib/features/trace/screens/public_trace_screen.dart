@@ -693,6 +693,14 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
                             materialLineages: _traceMaterialLineages(
                               traceBatch.code,
                             ),
+                            consumerReleaseEvents: _traceRepo
+                                .eventsForBatch(traceBatch.code)
+                                .where(
+                                  (event) =>
+                                      event.type ==
+                                      TraceEventType.consumerReleased,
+                                )
+                                .toList(),
                             routeStops: _routeStops,
                             routeLoading: _routeLoading,
                           )
@@ -891,6 +899,7 @@ class _TraceProductContent extends StatelessWidget {
     required this.lineageBatches,
     required this.sourceRelations,
     required this.materialLineages,
+    required this.consumerReleaseEvents,
     required this.routeStops,
     required this.routeLoading,
   });
@@ -899,6 +908,7 @@ class _TraceProductContent extends StatelessWidget {
   final List<TraceBatch> lineageBatches;
   final List<TraceBatchRelation> sourceRelations;
   final List<_TraceMaterialLineage> materialLineages;
+  final List<TraceBatchEvent> consumerReleaseEvents;
   final List<_TraceStop> routeStops;
   final bool routeLoading;
 
@@ -1020,6 +1030,24 @@ class _TraceProductContent extends StatelessWidget {
                   .map(
                     (entry) =>
                         _TraceInfoRow(label: entry.key, value: entry.value),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (consumerReleaseEvents.isNotEmpty) ...[
+            _TraceSection(
+              title: 'Rilis Konsumen',
+              children: consumerReleaseEvents
+                  .map(
+                    (event) => _TraceInfoRow(
+                      label: event.metadata['Order'] ?? 'Order',
+                      value: [
+                        event.metadata['Jumlah'] ?? 'Jumlah belum dicatat',
+                        event.metadata['Pembeli'] ?? 'Konsumen',
+                        _formatDateTime(event.occurredAt),
+                      ].join(' / '),
+                    ),
                   )
                   .toList(),
             ),

@@ -14,6 +14,7 @@ import '../widgets/umkm_drawer.dart';
 import '../../trace/screens/public_trace_screen.dart';
 import 'umkm_add_product_screen.dart';
 import 'umkm_add_purchase_screen.dart';
+import 'umkm_audit_trail_screen.dart';
 import 'umkm_data_screen.dart';
 import 'umkm_material_movement_screen.dart';
 import 'umkm_order_detail_screen.dart';
@@ -98,6 +99,13 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const UmkmMaterialMovementScreen()),
+    );
+  }
+
+  Future<void> _openAuditTrail() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const UmkmAuditTrailScreen()),
     );
   }
 
@@ -199,6 +207,7 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
                                 _DashboardActions(
                                   onAddProduct: _openAddProduct,
                                   onAddPurchase: _openAddPurchase,
+                                  onViewAuditTrail: _openAuditTrail,
                                   onViewMaterialMovements:
                                       _openMaterialMovements,
                                   onViewOrders: () => Navigator.push(
@@ -436,12 +445,14 @@ class _DashboardActions extends StatelessWidget {
   const _DashboardActions({
     required this.onAddProduct,
     required this.onAddPurchase,
+    required this.onViewAuditTrail,
     required this.onViewMaterialMovements,
     required this.onViewOrders,
   });
 
   final VoidCallback onAddProduct;
   final VoidCallback onAddPurchase;
+  final VoidCallback onViewAuditTrail;
   final VoidCallback onViewMaterialMovements;
   final VoidCallback onViewOrders;
 
@@ -461,6 +472,13 @@ class _DashboardActions extends StatelessWidget {
           title: 'Beli Stok',
           subtitle: 'Rekam pemasukan durian dengan cepat',
           onTap: onAddPurchase,
+        ),
+        const SizedBox(height: 12),
+        _ActionTile(
+          icon: Icons.fact_check_outlined,
+          title: 'Audit Trail',
+          subtitle: 'Filter semua aksi UMKM yang tercatat',
+          onTap: onViewAuditTrail,
         ),
         const SizedBox(height: 12),
         _ActionTile(

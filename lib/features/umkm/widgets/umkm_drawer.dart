@@ -6,6 +6,7 @@ import '../data/umkm_repository.dart';
 import '../models/umkm_profile.dart';
 import '../screens/umkm_add_product_screen.dart';
 import '../screens/umkm_add_purchase_screen.dart';
+import '../screens/umkm_audit_trail_screen.dart';
 import '../screens/umkm_data_screen.dart';
 import '../screens/umkm_order_list_screen.dart';
 import '../screens/umkm_profile_screen.dart';
@@ -66,6 +67,11 @@ class UmkmDrawer extends StatelessWidget {
                   icon: Icons.receipt_long_outlined,
                   label: 'Daftar Pesanan',
                   onTap: () => _go(context, const UmkmOrderListScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.fact_check_outlined,
+                  label: 'Audit Trail',
+                  onTap: () => _go(context, const UmkmAuditTrailScreen()),
                 ),
               ],
             ),

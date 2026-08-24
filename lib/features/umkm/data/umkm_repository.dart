@@ -10,6 +10,7 @@ import '../../collector/models/collector_shipment_batch.dart';
 import '../../distributor/data/distributor_repository.dart';
 import '../../distributor/models/distributor_horizontal_sale.dart';
 import '../../distributor/models/distributor_receipt.dart';
+import '../models/umkm_audit_entry.dart';
 import '../models/umkm_material_inventory.dart';
 import '../models/umkm_order.dart';
 import '../models/umkm_production_record.dart';
@@ -67,6 +68,9 @@ class UmkmRepository extends ChangeNotifier {
       List.unmodifiable(_materialMovements ??= <UmkmMaterialMovement>[]);
   List<UmkmProductionRecord> get productionRecords =>
       List.unmodifiable(_productionRecords ??= <UmkmProductionRecord>[]);
+  List<CollectorDeliveryReceipt> get collectorDeliveryReceipts =>
+      List.unmodifiable(_collectorDeliveryReceipts);
+  List<UmkmAuditEntry> get auditEntries => _buildAuditEntries();
   List<UmkmStockOffer> get stockOffers {
     final offers = _stockOffers ??= _buildSeedStockOffers();
     if (!_isValidStockOffers(offers)) {
@@ -208,6 +212,173 @@ class UmkmRepository extends ChangeNotifier {
     } catch (_) {
       return false;
     }
+  }
+
+  List<UmkmAuditEntry> _buildAuditEntries() {
+    final entries = <UmkmAuditEntry>[];
+    final profileName = profile.name;
+
+    for (final event in TraceabilityRepository.instance.events.where(
+      (event) =>
+          event.actorRole == TraceActorRole.umkm ||
+          event.actorId == profile.umkmId ||
+          event.actorName == profileName,
+    )) {
+      entries.add(
+        UmkmAuditEntry(
+          id: event.id,
+          type: _auditTypeForTraceEvent(event.type),
+          title: event.title,
+          actorName: event.actorName,
+          occurredAt: event.occurredAt,
+          referenceCode: event.relatedObjectId,
+          batchCode: event.batchCode,
+          description: event.description,
+          metadata: {
+            'Tipe trace': event.type.label,
+            if (event.locationLabel != null &&
+                event.locationLabel!.trim().isNotEmpty)
+              'Lokasi': event.locationLabel!.trim(),
+            ...event.metadata,
+          },
+        ),
+      );
+    }
+
+    for (final movement in materialMovements) {
+      entries.add(
+        UmkmAuditEntry(
+          id: movement.id,
+          type: UmkmAuditEventType.materialMovement,
+          title: movement.type.label,
+          actorName: movement.actorName,
+          occurredAt: movement.occurredAt,
+          referenceCode: movement.relatedObjectId,
+          batchCode: movement.traceCode,
+          description: movement.note,
+          metadata: {
+            'Jumlah': _formatQuantity(movement.quantity, movement.unit),
+          },
+        ),
+      );
+    }
+
+    for (final record in productionRecords) {
+      entries.add(
+        UmkmAuditEntry(
+          id: record.id,
+          type: UmkmAuditEventType.production,
+          title: 'Produk dibuat',
+          actorName: profileName,
+          occurredAt: record.producedAt,
+          referenceCode: record.productCode,
+          batchCode: record.sourceMaterials
+              .map((material) => material.traceCode)
+              .join(', '),
+          description: '${record.productName} / ${record.lotNumber}',
+          metadata: {
+            'Metode': record.processMethod,
+            'Hasil': record.outputLabel,
+            'Input': record.inputWeightLabel,
+            'Loss/Waste': record.lossWeightLabel,
+          },
+        ),
+      );
+    }
+
+    for (final order in orders) {
+      entries.add(
+        UmkmAuditEntry(
+          id: order.id,
+          type: order.status == UmkmOrderStatus.selesai
+              ? UmkmAuditEventType.sale
+              : UmkmAuditEventType.order,
+          title: order.status == UmkmOrderStatus.selesai
+              ? 'Order selesai'
+              : 'Order dibuat',
+          actorName: profileName,
+          occurredAt: order.completedAt ?? order.createdAt,
+          referenceCode: order.id,
+          batchCode: order.productCode,
+          description: '${order.productName} / ${order.buyerName}',
+          metadata: {
+            'Jumlah': '${order.quantity} item',
+            'Total': order.totalLabel,
+            'Status': order.status.label,
+            if (order.note != null && order.note!.trim().isNotEmpty)
+              'Catatan': order.note!.trim(),
+          },
+        ),
+      );
+    }
+
+    for (final receipt in _collectorDeliveryReceipts) {
+      final accepted =
+          receipt.decision == CollectorDeliveryReceiptDecision.accepted;
+      entries.add(
+        UmkmAuditEntry(
+          id: receipt.id,
+          type: accepted
+              ? UmkmAuditEventType.receiptAccepted
+              : UmkmAuditEventType.receiptRejected,
+          title: accepted ? 'Stok diterima' : 'Stok ditolak',
+          actorName: receipt.receiverName,
+          occurredAt: receipt.checkedAt,
+          referenceCode: receipt.id,
+          batchCode: receipt.shipmentCode,
+          description: accepted
+              ? 'Penerimaan dari pengiriman pengepul.'
+              : receipt.rejectionReason,
+          metadata: {
+            'Ekspektasi':
+                '${receipt.expectedWeightKg.toStringAsFixed(0)} kg / ${receipt.expectedFruitCount} butir',
+            if (receipt.receivedWeightKg != null)
+              'Diterima':
+                  '${receipt.receivedWeightKg!.toStringAsFixed(0)} kg / ${receipt.receivedFruitCount ?? 0} butir',
+            if (receipt.condition != null) 'Kondisi': receipt.condition!.label,
+            if (receipt.destinationLocation.trim().isNotEmpty)
+              'Lokasi': receipt.destinationLocation.trim(),
+          },
+        ),
+      );
+    }
+
+    entries.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+    return List.unmodifiable(entries);
+  }
+
+  UmkmAuditEventType _auditTypeForTraceEvent(TraceEventType type) {
+    switch (type) {
+      case TraceEventType.handoverReceived:
+      case TraceEventType.receiptDisputed:
+        return UmkmAuditEventType.receiptAccepted;
+      case TraceEventType.handoverCancelled:
+      case TraceEventType.lossRecorded:
+      case TraceEventType.disposalRecorded:
+        return UmkmAuditEventType.receiptRejected;
+      case TraceEventType.processed:
+        return UmkmAuditEventType.production;
+      case TraceEventType.consumerReleased:
+        return UmkmAuditEventType.sale;
+      case TraceEventType.handoverProposed:
+      case TraceEventType.handoverConfirmed:
+      case TraceEventType.handoverDispatched:
+      case TraceEventType.handoverCompleted:
+      case TraceEventType.harvestCreated:
+      case TraceEventType.gradingRecorded:
+      case TraceEventType.splitCreated:
+      case TraceEventType.consolidated:
+      case TraceEventType.correctionRecorded:
+      case TraceEventType.warehouseTransferred:
+        return UmkmAuditEventType.traceEvent;
+    }
+  }
+
+  String _formatQuantity(double value, String unit) {
+    final text = value % 1 == 0
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return '$text $unit';
   }
 
   void updateProfile(UmkmProfile profile) {

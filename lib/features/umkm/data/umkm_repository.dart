@@ -10,6 +10,7 @@ import '../../collector/models/collector_shipment_batch.dart';
 import '../../distributor/data/distributor_repository.dart';
 import '../../distributor/models/distributor_horizontal_sale.dart';
 import '../../distributor/models/distributor_receipt.dart';
+import '../models/umkm_material_inventory.dart';
 import '../models/umkm_order.dart';
 import '../models/umkm_production_record.dart';
 import '../models/umkm_product.dart';
@@ -46,6 +47,8 @@ class UmkmRepository extends ChangeNotifier {
   List<UmkmProduct>? _products;
   List<UmkmOrder>? _orders;
   List<UmkmPurchase>? _purchases;
+  List<UmkmMaterialInventory>? _materialInventories;
+  List<UmkmMaterialMovement>? _materialMovements;
   List<UmkmProductionRecord>? _productionRecords;
   List<UmkmStockOffer>? _stockOffers;
   List<UmkmStockOrder>? _stockOrders;
@@ -58,6 +61,10 @@ class UmkmRepository extends ChangeNotifier {
       List.unmodifiable(_orders ??= _buildSeedOrders());
   List<UmkmPurchase> get purchases =>
       List.unmodifiable(_purchases ??= _buildSeedPurchases());
+  List<UmkmMaterialInventory> get materialInventories =>
+      List.unmodifiable(_materialInventories ??= <UmkmMaterialInventory>[]);
+  List<UmkmMaterialMovement> get materialMovements =>
+      List.unmodifiable(_materialMovements ??= <UmkmMaterialMovement>[]);
   List<UmkmProductionRecord> get productionRecords =>
       List.unmodifiable(_productionRecords ??= <UmkmProductionRecord>[]);
   List<UmkmStockOffer> get stockOffers {
@@ -74,6 +81,10 @@ class UmkmRepository extends ChangeNotifier {
   List<UmkmProduct> _productsOrCreate() => _products ??= <UmkmProduct>[];
   List<UmkmOrder> _ordersOrCreate() => _orders ??= <UmkmOrder>[];
   List<UmkmPurchase> _purchasesOrCreate() => _purchases ??= <UmkmPurchase>[];
+  List<UmkmMaterialInventory> _materialInventoriesOrCreate() =>
+      _materialInventories ??= <UmkmMaterialInventory>[];
+  List<UmkmMaterialMovement> _materialMovementsOrCreate() =>
+      _materialMovements ??= <UmkmMaterialMovement>[];
   List<UmkmProductionRecord> _productionRecordsOrCreate() =>
       _productionRecords ??= <UmkmProductionRecord>[];
   List<UmkmStockOffer> _stockOffersOrCreate() =>
@@ -92,8 +103,13 @@ class UmkmRepository extends ChangeNotifier {
       for (final purchase in purchases)
         purchase.qrCodeData.trim().toUpperCase(): purchase,
     };
-    final items = <UmkmTraceMaterialStock>[];
+    final items = <UmkmTraceMaterialStock>[
+      ..._materialInventoryStocks(availableOnly: availableOnly),
+    ];
     final seenCodes = <String>{};
+    for (final item in items) {
+      seenCodes.add(item.traceCode.trim().toUpperCase());
+    }
     for (final batch in TraceabilityRepository.instance.batches) {
       final code = batch.code.trim().toUpperCase();
       if (seenCodes.contains(code) ||
@@ -149,6 +165,34 @@ class UmkmRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
+  List<UmkmTraceMaterialStock> _materialInventoryStocks({
+    required bool availableOnly,
+  }) {
+    final items = <UmkmTraceMaterialStock>[];
+    for (final inventory in _materialInventories ?? <UmkmMaterialInventory>[]) {
+      if (availableOnly && !inventory.isAvailable) continue;
+      items.add(
+        UmkmTraceMaterialStock(
+          id: inventory.id,
+          traceCode: inventory.traceCode,
+          publicTraceCode: inventory.publicTraceCode,
+          sourceTraceCodes: inventory.sourceTraceCodes,
+          productName: inventory.productName,
+          supplierName: inventory.supplierName,
+          initialQuantity: inventory.receivedQuantity,
+          remainingQuantity: inventory.availableQuantity,
+          unit: inventory.unit,
+          status: inventory.isAvailable
+              ? TraceBatchStatus.active
+              : TraceBatchStatus.transformed,
+          createdAt: inventory.receivedAt,
+        ),
+      );
+    }
+    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return List.unmodifiable(items);
+  }
+
   bool _isValidStockOffers(List<UmkmStockOffer> offers) {
     try {
       for (final offer in offers) {
@@ -189,11 +233,27 @@ class UmkmRepository extends ChangeNotifier {
     if (productionRecord != null) {
       _productionRecordsOrCreate().insert(0, productionRecord);
     }
-    _recordProductProcessing(product, productionRecord: productionRecord);
+    for (final material in product.sourceMaterials) {
+      _ensureMaterialInventoryFromTraceCode(
+        material.traceCode,
+        fallbackProductName: material.productName,
+        fallbackSupplierName: material.supplierName,
+      );
+    }
+    final processingRecorded = _recordProductProcessing(
+      product,
+      productionRecord: productionRecord,
+    );
+    if (processingRecorded) {
+      _recordMaterialUsageForProduct(
+        product,
+        productionRecord: productionRecord,
+      );
+    }
     notifyListeners();
   }
 
-  void _recordProductProcessing(
+  bool _recordProductProcessing(
     UmkmProduct product, {
     UmkmProductionRecord? productionRecord,
   }) {
@@ -203,7 +263,7 @@ class UmkmRepository extends ChangeNotifier {
               material.traceCode.trim().isNotEmpty && material.quantityKg > 0,
         )
         .toList();
-    if (materials.isEmpty) return;
+    if (materials.isEmpty) return false;
 
     final contributions = <TraceLineageContribution>[];
     for (final material in materials) {
@@ -224,9 +284,9 @@ class UmkmRepository extends ChangeNotifier {
         ),
       );
     }
-    if (contributions.isEmpty) return;
+    if (contributions.isEmpty) return false;
 
-    TraceabilityRepository.instance.recordConsolidatedBatch(
+    return TraceabilityRepository.instance.recordConsolidatedBatch(
       targetBatchCode: product.code,
       holderId: profile.umkmId,
       holderRole: TraceActorRole.umkm,
@@ -260,6 +320,26 @@ class UmkmRepository extends ChangeNotifier {
         },
       },
     );
+  }
+
+  void _recordMaterialUsageForProduct(
+    UmkmProduct product, {
+    UmkmProductionRecord? productionRecord,
+  }) {
+    for (final material in product.sourceMaterials) {
+      final traceCode = material.traceCode.trim().toUpperCase();
+      if (traceCode.isEmpty || material.quantityKg <= 0) continue;
+      _recordMaterialMovement(
+        traceCode: traceCode,
+        type: UmkmMaterialMovementType.usedForProduction,
+        quantity: material.quantityKg,
+        unit: 'kg',
+        relatedObjectId: product.code,
+        note:
+            'Dipakai untuk ${product.name}'
+            '${productionRecord == null ? '' : ' / ${productionRecord.lotNumber}'}',
+      );
+    }
   }
 
   String _formatDate(DateTime date) {
@@ -310,6 +390,177 @@ class UmkmRepository extends ChangeNotifier {
   void addPurchase(UmkmPurchase purchase) {
     _purchasesOrCreate().insert(0, purchase);
     notifyListeners();
+  }
+
+  void _recordMaterialReceived({
+    required String traceCode,
+    required String productName,
+    required String supplierName,
+    required double quantity,
+    required String unit,
+    required DateTime receivedAt,
+    String? relatedPurchaseId,
+    String? note,
+  }) {
+    final cleanCode = traceCode.trim().toUpperCase();
+    if (cleanCode.isEmpty || quantity <= 0) return;
+
+    final inventories = _materialInventoriesOrCreate();
+    final index = inventories.indexWhere(
+      (inventory) => inventory.traceCode == cleanCode,
+    );
+    if (index == -1) {
+      inventories.insert(
+        0,
+        UmkmMaterialInventory(
+          id: 'UMKM-INV-${DateTime.now().millisecondsSinceEpoch}',
+          traceCode: cleanCode,
+          publicTraceCode: _publicTraceCodeFor(cleanCode),
+          sourceTraceCodes: _sourceTraceCodesFor(cleanCode),
+          productName: productName,
+          supplierName: supplierName,
+          receivedQuantity: quantity,
+          availableQuantity: quantity,
+          unit: unit,
+          status: UmkmMaterialInventoryStatus.tersedia,
+          receivedAt: receivedAt,
+          relatedPurchaseId: relatedPurchaseId,
+          note: note,
+        ),
+      );
+    } else {
+      final current = inventories[index];
+      final nextAvailable = current.availableQuantity + quantity;
+      inventories[index] = current.copyWith(
+        receivedQuantity: current.receivedQuantity + quantity,
+        availableQuantity: nextAvailable,
+        status: nextAvailable > 0
+            ? UmkmMaterialInventoryStatus.tersedia
+            : UmkmMaterialInventoryStatus.habis,
+        note: note?.trim().isNotEmpty == true ? note : current.note,
+      );
+    }
+
+    final inventory = inventories.firstWhere(
+      (item) => item.traceCode == cleanCode,
+    );
+    _materialMovementsOrCreate().insert(
+      0,
+      UmkmMaterialMovement(
+        id: 'UMKM-MOV-${DateTime.now().millisecondsSinceEpoch}',
+        inventoryId: inventory.id,
+        traceCode: cleanCode,
+        type: UmkmMaterialMovementType.received,
+        quantity: quantity,
+        unit: unit,
+        occurredAt: receivedAt,
+        actorName: profile.name,
+        relatedObjectId: relatedPurchaseId,
+        note: note,
+      ),
+    );
+  }
+
+  void _recordMaterialMovement({
+    required String traceCode,
+    required UmkmMaterialMovementType type,
+    required double quantity,
+    required String unit,
+    String? relatedObjectId,
+    String? note,
+  }) {
+    final cleanCode = traceCode.trim().toUpperCase();
+    if (cleanCode.isEmpty || quantity <= 0) return;
+    final inventories = _materialInventoriesOrCreate();
+    final index = inventories.indexWhere(
+      (inventory) => inventory.traceCode == cleanCode,
+    );
+    if (index == -1) return;
+
+    final current = inventories[index];
+    final nextAvailable = switch (type) {
+      UmkmMaterialMovementType.received => current.availableQuantity + quantity,
+      UmkmMaterialMovementType.usedForProduction ||
+      UmkmMaterialMovementType.waste => current.availableQuantity - quantity,
+      UmkmMaterialMovementType.adjustment => quantity,
+    };
+    final clampedAvailable = nextAvailable < 0 ? 0.0 : nextAvailable;
+    inventories[index] = current.copyWith(
+      availableQuantity: clampedAvailable,
+      status: clampedAvailable > 0
+          ? UmkmMaterialInventoryStatus.tersedia
+          : UmkmMaterialInventoryStatus.habis,
+    );
+    _materialMovementsOrCreate().insert(
+      0,
+      UmkmMaterialMovement(
+        id: 'UMKM-MOV-${DateTime.now().millisecondsSinceEpoch}',
+        inventoryId: current.id,
+        traceCode: cleanCode,
+        type: type,
+        quantity: quantity,
+        unit: unit,
+        occurredAt: DateTime.now(),
+        actorName: profile.name,
+        relatedObjectId: relatedObjectId,
+        note: note,
+      ),
+    );
+  }
+
+  void _ensureMaterialInventoryFromTraceCode(
+    String traceCode, {
+    required String fallbackProductName,
+    required String fallbackSupplierName,
+  }) {
+    final cleanCode = traceCode.trim().toUpperCase();
+    if (cleanCode.isEmpty ||
+        (_materialInventories ?? <UmkmMaterialInventory>[]).any(
+          (inventory) => inventory.traceCode == cleanCode,
+        )) {
+      return;
+    }
+    final batch = TraceabilityRepository.instance.findBatch(cleanCode);
+    if (batch == null || batch.productForm == 'processed_product') return;
+    _materialInventoriesOrCreate().insert(
+      0,
+      UmkmMaterialInventory(
+        id: 'UMKM-INV-${DateTime.now().millisecondsSinceEpoch}',
+        traceCode: cleanCode,
+        publicTraceCode: _publicTraceCodeFor(cleanCode),
+        sourceTraceCodes: _sourceTraceCodesFor(cleanCode),
+        productName: fallbackProductName.isEmpty
+            ? batch.productName
+            : fallbackProductName,
+        supplierName: fallbackSupplierName.isEmpty
+            ? batch.originActorName
+            : fallbackSupplierName,
+        receivedQuantity: batch.quantityInitial,
+        availableQuantity: batch.quantityCurrent,
+        unit: batch.unit,
+        status: batch.quantityCurrent > 0
+            ? UmkmMaterialInventoryStatus.tersedia
+            : UmkmMaterialInventoryStatus.habis,
+        receivedAt: batch.createdAt,
+        note: 'Dibentuk dari saldo trace batch lama.',
+      ),
+    );
+  }
+
+  List<String> _sourceTraceCodesFor(String traceCode) {
+    return TraceabilityRepository.instance
+        .parentsOf(traceCode.trim().toUpperCase())
+        .map((relation) => relation.sourceBatchCode.trim().toUpperCase())
+        .where((code) => code.isNotEmpty)
+        .toList();
+  }
+
+  String _publicTraceCodeFor(String traceCode) {
+    final cleanCode = traceCode.trim().toUpperCase();
+    if (cleanCode.startsWith('DRN-')) return cleanCode;
+    return _sourceTraceCodesFor(
+      cleanCode,
+    ).firstWhere((code) => code.startsWith('DRN-'), orElse: () => cleanCode);
   }
 
   void addStockOrder(UmkmStockOrder order) {
@@ -432,17 +683,27 @@ class UmkmRepository extends ChangeNotifier {
     );
     if (!ok) return false;
 
-    addPurchase(
-      UmkmPurchase(
-        id: 'PUR-${DateTime.now().millisecondsSinceEpoch}',
-        supplierName: sale.sellerName,
-        productName: 'Durian ${sale.itemCode}',
-        quantity: receivedWeightKg.round(),
-        totalLabel: '-',
-        createdAt: DateTime.now(),
-        qrCodeData: sale.itemCode,
-        note: qualityNote?.trim().isEmpty == true ? null : qualityNote?.trim(),
-      ),
+    final receivedAt = DateTime.now();
+    final purchase = UmkmPurchase(
+      id: 'PUR-${receivedAt.millisecondsSinceEpoch}',
+      supplierName: sale.sellerName,
+      productName: 'Durian ${sale.itemCode}',
+      quantity: receivedWeightKg.round(),
+      totalLabel: '-',
+      createdAt: receivedAt,
+      qrCodeData: sale.itemCode,
+      note: qualityNote?.trim().isEmpty == true ? null : qualityNote?.trim(),
+    );
+    addPurchase(purchase);
+    _recordMaterialReceived(
+      traceCode: sale.itemCode,
+      productName: purchase.productName,
+      supplierName: purchase.supplierName,
+      quantity: receivedWeightKg,
+      unit: 'kg',
+      receivedAt: receivedAt,
+      relatedPurchaseId: purchase.id,
+      note: purchase.note,
     );
     notifyListeners();
     return true;
@@ -549,17 +810,27 @@ class UmkmRepository extends ChangeNotifier {
           : cleanQualityNote,
     );
 
-    addPurchase(
-      UmkmPurchase(
-        id: 'PUR-${DateTime.now().millisecondsSinceEpoch}',
-        supplierName: shipment.destinationName ?? 'Pengepul',
-        productName: 'Durian PGL ${shipment.code}',
-        quantity: receivedWeightKg.round(),
-        totalLabel: '-',
-        createdAt: DateTime.now(),
-        qrCodeData: shipment.code,
-        note: cleanQualityNote,
-      ),
+    final receivedAt = DateTime.now();
+    final purchase = UmkmPurchase(
+      id: 'PUR-${receivedAt.millisecondsSinceEpoch}',
+      supplierName: 'Pengepul ${shipment.collectorId}',
+      productName: 'Durian PGL ${shipment.code}',
+      quantity: receivedWeightKg.round(),
+      totalLabel: '-',
+      createdAt: receivedAt,
+      qrCodeData: shipment.code,
+      note: cleanQualityNote,
+    );
+    addPurchase(purchase);
+    _recordMaterialReceived(
+      traceCode: shipment.code,
+      productName: purchase.productName,
+      supplierName: purchase.supplierName,
+      quantity: receivedWeightKg,
+      unit: 'kg',
+      receivedAt: receivedAt,
+      relatedPurchaseId: purchase.id,
+      note: cleanQualityNote,
     );
     notifyListeners();
     return receipt;
@@ -660,17 +931,27 @@ class UmkmRepository extends ChangeNotifier {
       note: conditionNote,
     );
 
-    addPurchase(
-      UmkmPurchase(
-        id: 'PUR-${DateTime.now().millisecondsSinceEpoch}',
-        supplierName: 'Petani ${batch.farmerId}',
-        productName: 'Durian ${batch.variety}',
-        quantity: receivedWeightKg.round(),
-        totalLabel: '-',
-        createdAt: DateTime.now(),
-        qrCodeData: code,
-        note: conditionNote,
-      ),
+    final receivedAt = DateTime.now();
+    final purchase = UmkmPurchase(
+      id: 'PUR-${receivedAt.millisecondsSinceEpoch}',
+      supplierName: 'Petani ${batch.farmerId}',
+      productName: 'Durian ${batch.variety}',
+      quantity: receivedWeightKg.round(),
+      totalLabel: '-',
+      createdAt: receivedAt,
+      qrCodeData: code,
+      note: conditionNote,
+    );
+    addPurchase(purchase);
+    _recordMaterialReceived(
+      traceCode: code,
+      productName: purchase.productName,
+      supplierName: purchase.supplierName,
+      quantity: receivedWeightKg,
+      unit: batch.unit,
+      receivedAt: receivedAt,
+      relatedPurchaseId: purchase.id,
+      note: conditionNote,
     );
     notifyListeners();
     return true;

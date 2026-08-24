@@ -425,6 +425,20 @@ class DistributorRepository extends ChangeNotifier {
     }
   }
 
+  DistributorHorizontalSale? findHorizontalSaleByScanCode(String code) {
+    final cleanCode = code.trim().toUpperCase();
+    if (cleanCode.isEmpty) return null;
+    try {
+      return _horizontalSales.firstWhere(
+        (sale) =>
+            sale.id.toUpperCase() == cleanCode ||
+            sale.itemCode.toUpperCase() == cleanCode,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   DistributorPartner? _findDistributorPartner(String id) {
     try {
       return distributorPartners.firstWhere((partner) => partner.id == id);
@@ -780,6 +794,152 @@ class DistributorRepository extends ChangeNotifier {
       metadata: {
         'Pembeli': sale.buyerName,
         'Tujuan': sale.destinationLocation,
+        'Berat dikirim': '${sale.expectedWeightKg} kg',
+        'Jumlah dikirim': '${sale.expectedFruitCount} butir',
+        'Alasan': cleanNote,
+      },
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  bool verifyHorizontalSaleByReceiver({
+    required String saleId,
+    required String receiverId,
+    required TraceActorRole receiverRole,
+    required String receiverName,
+    required double receivedWeightKg,
+    required int receivedFruitCount,
+    required DistributorReceiptCondition condition,
+    required String destinationLocation,
+    String? discrepancyNote,
+    String? qualityNote,
+  }) {
+    final cleanLocation = destinationLocation.trim();
+    final index = _horizontalSales.indexWhere(
+      (sale) =>
+          sale.id == saleId &&
+          sale.status == DistributorHorizontalSaleStatus.initiated,
+    );
+    if (index == -1 ||
+        cleanLocation.isEmpty ||
+        receivedWeightKg <= 0 ||
+        receivedFruitCount <= 0) {
+      return false;
+    }
+
+    final sale = _horizontalSales[index];
+    final hasDiscrepancy =
+        (receivedWeightKg - sale.expectedWeightKg).abs() > 0.01 ||
+        receivedFruitCount != sale.expectedFruitCount;
+    final cleanDiscrepancy = discrepancyNote?.trim();
+    if (hasDiscrepancy &&
+        (cleanDiscrepancy == null || cleanDiscrepancy.isEmpty)) {
+      return false;
+    }
+
+    final cleanQuality = qualityNote?.trim();
+    _horizontalSales[index] = sale.copyWith(
+      status: DistributorHorizontalSaleStatus.verified,
+      verifiedAt: DateTime.now(),
+      receivedWeightKg: receivedWeightKg,
+      receivedFruitCount: receivedFruitCount,
+      condition: condition,
+      discrepancyNote: cleanDiscrepancy?.isEmpty == true
+          ? null
+          : cleanDiscrepancy,
+      qualityNote: cleanQuality?.isEmpty == true ? null : cleanQuality,
+    );
+    TraceabilityRepository.instance.recordReceiptVariance(
+      batchCode: sale.itemCode,
+      actorId: receiverId,
+      actorRole: receiverRole,
+      actorName: receiverName,
+      expectedQuantity: sale.expectedWeightKg,
+      receivedQuantity: receivedWeightKg,
+      unit: 'kg',
+      expectedFruitCount: sale.expectedFruitCount,
+      receivedFruitCount: receivedFruitCount,
+      conditionLabel: condition.label,
+      locationLabel: cleanLocation,
+      relatedObjectId: sale.id,
+      note: cleanDiscrepancy?.isNotEmpty == true
+          ? cleanDiscrepancy
+          : cleanQuality,
+    );
+    _recordAudit(
+      type: DistributorAuditEventType.sale,
+      action: 'Validasi T2 oleh penerima',
+      objectCode: sale.id,
+      description: '${sale.itemCode} diterima $receiverName di $cleanLocation.',
+      metadata: {
+        'Penerima': receiverName,
+        'Role penerima': receiverRole.label,
+        'Kondisi': condition.label,
+        'Berat dikirim': '${sale.expectedWeightKg} kg',
+        'Berat diterima': '$receivedWeightKg kg',
+        'Selisih berat': '${receivedWeightKg - sale.expectedWeightKg} kg',
+        'Jumlah dikirim': '${sale.expectedFruitCount} butir',
+        'Jumlah diterima': '$receivedFruitCount butir',
+        'Selisih jumlah':
+            '${receivedFruitCount - sale.expectedFruitCount} butir',
+        if (cleanDiscrepancy?.isNotEmpty == true)
+          'Catatan selisih': cleanDiscrepancy!,
+        if (cleanQuality?.isNotEmpty == true) 'Catatan mutu': cleanQuality!,
+      },
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  bool rejectHorizontalSaleByReceiver({
+    required String saleId,
+    required String receiverId,
+    required TraceActorRole receiverRole,
+    required String receiverName,
+    required String destinationLocation,
+    required String note,
+  }) {
+    final cleanNote = note.trim();
+    final cleanLocation = destinationLocation.trim();
+    final index = _horizontalSales.indexWhere(
+      (sale) =>
+          sale.id == saleId &&
+          sale.status == DistributorHorizontalSaleStatus.initiated,
+    );
+    if (index == -1 || cleanNote.isEmpty || cleanLocation.isEmpty) {
+      return false;
+    }
+
+    final sale = _horizontalSales[index];
+    _horizontalSales[index] = sale.copyWith(
+      status: DistributorHorizontalSaleStatus.rejected,
+      verifiedAt: DateTime.now(),
+      rejectionNote: cleanNote,
+    );
+    TraceabilityRepository.instance.recordReceiptRejection(
+      batchCode: sale.itemCode,
+      actorId: receiverId,
+      actorRole: receiverRole,
+      actorName: receiverName,
+      expectedQuantity: sale.expectedWeightKg,
+      unit: 'kg',
+      expectedFruitCount: sale.expectedFruitCount,
+      locationLabel: cleanLocation,
+      relatedObjectId: sale.id,
+      reason: cleanNote,
+    );
+    _recordAudit(
+      type: DistributorAuditEventType.rejection,
+      action: 'Tolak T2 oleh penerima',
+      objectCode: sale.id,
+      description: '${sale.itemCode} ditolak $receiverName di $cleanLocation.',
+      metadata: {
+        'Penerima': receiverName,
+        'Role penerima': receiverRole.label,
+        'Tujuan': cleanLocation,
         'Berat dikirim': '${sale.expectedWeightKg} kg',
         'Jumlah dikirim': '${sale.expectedFruitCount} butir',
         'Alasan': cleanNote,

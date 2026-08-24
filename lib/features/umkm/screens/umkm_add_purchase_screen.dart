@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/mobile_scanner_feedback.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/product_media_tile.dart';
 import '../../../shared/widgets/qr_preview.dart';
 import '../../collector/models/collector_delivery_receipt.dart';
 import '../../collector/models/collector_shipment_batch.dart';
+import '../../distributor/models/distributor_horizontal_sale.dart';
+import '../../distributor/models/distributor_receipt.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../data/umkm_repository.dart';
 import '../models/umkm_purchase.dart';
@@ -26,6 +30,7 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
   final _searchCtrl = TextEditingController();
   final _drnCtrl = TextEditingController();
   final _pglCtrl = TextEditingController();
+  final _dstCtrl = TextEditingController();
   String _query = '';
   _MainTab _activeTab = _MainTab.beli;
   UmkmSupplierType? _activeSupplierFilter;
@@ -46,6 +51,7 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
     _searchCtrl.dispose();
     _drnCtrl.dispose();
     _pglCtrl.dispose();
+    _dstCtrl.dispose();
     super.dispose();
   }
 
@@ -117,6 +123,18 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
       return matchesQuery && matchesSupplier;
     } catch (_) {
       return false;
+    }
+  }
+
+  Future<void> _openIncomingScanner() async {
+    final completed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const UmkmIncomingQrScanScreen()),
+    );
+    if (completed == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Stok masuk berhasil diproses.')),
+      );
     }
   }
 
@@ -198,6 +216,48 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
     }
   }
 
+  Future<void> _openDistributorSale() async {
+    final input = _dstCtrl.text.trim().toUpperCase();
+    final match = RegExp(
+      r'JDL-DST-\d{4}-\d{6}',
+      caseSensitive: false,
+    ).firstMatch(input);
+    final code = match?.group(0)?.toUpperCase() ?? input;
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Masukkan kode transaksi distributor terlebih dahulu.'),
+        ),
+      );
+      return;
+    }
+
+    final sale = _repo.scanDistributorSale(code);
+    if (sale == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Transaksi distributor tidak tersedia untuk diterima UMKM.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final success = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UmkmDistributorSaleReceiveScreen(saleId: sale.id),
+      ),
+    );
+    if (success == true && mounted) {
+      _dstCtrl.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Stok distributor berhasil diproses.')),
+      );
+    }
+  }
+
   Widget _buildBeliTab(List<UmkmStockOffer> offers) {
     final categories = <UmkmSupplierType?>[
       null,
@@ -210,6 +270,8 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
       key: const ValueKey('beli-tab'),
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
       children: [
+        _ScanEntryCard(onScan: _openIncomingScanner),
+        const SizedBox(height: 14),
         TextField(
           controller: _searchCtrl,
           style: const TextStyle(fontSize: 14, color: AppColors.black),
@@ -246,6 +308,13 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
           title: 'Terima PGL dari Pengepul',
           hint: 'PGL-2026-000905',
           onSubmit: _openCollectorShipment,
+        ),
+        const SizedBox(height: 10),
+        _DirectFarmerReceiveCard(
+          controller: _dstCtrl,
+          title: 'Terima Stok dari Distributor',
+          hint: 'JDL-DST-2026-000001',
+          onSubmit: _openDistributorSale,
         ),
         const SizedBox(height: 14),
         SizedBox(
@@ -382,6 +451,306 @@ class UmkmCollectorShipmentReceiveScreen extends StatefulWidget {
   @override
   State<UmkmCollectorShipmentReceiveScreen> createState() =>
       _UmkmCollectorShipmentReceiveScreenState();
+}
+
+class UmkmIncomingQrScanScreen extends StatefulWidget {
+  const UmkmIncomingQrScanScreen({super.key});
+
+  @override
+  State<UmkmIncomingQrScanScreen> createState() =>
+      _UmkmIncomingQrScanScreenState();
+}
+
+class _UmkmIncomingQrScanScreenState extends State<UmkmIncomingQrScanScreen> {
+  final _repo = UmkmRepository.instance;
+  final _codeCtrl = TextEditingController();
+  final _scannerController = MobileScannerController();
+  var _isCameraMode = true;
+  var _isHandlingScan = false;
+
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    _scannerController.dispose();
+    super.dispose();
+  }
+
+  _IncomingScanCode _extractCode(String raw) {
+    final text = raw.trim();
+    final drn = RegExp(
+      r'DRN-\d{4}-\d{6}',
+      caseSensitive: false,
+    ).firstMatch(text);
+    if (drn != null) {
+      return _IncomingScanCode(
+        kind: _IncomingScanKind.farmer,
+        value: drn.group(0)!.toUpperCase(),
+      );
+    }
+
+    final pgl = RegExp(
+      r'(?:BATCH-)?PGL-\d{3,4}-\d{3,6}',
+      caseSensitive: false,
+    ).firstMatch(text);
+    if (pgl != null) {
+      return _IncomingScanCode(
+        kind: _IncomingScanKind.collector,
+        value: pgl.group(0)!.toUpperCase(),
+      );
+    }
+
+    final sale = RegExp(
+      r'JDL-DST-\d{4}-\d{6}',
+      caseSensitive: false,
+    ).firstMatch(text);
+    if (sale != null) {
+      return _IncomingScanCode(
+        kind: _IncomingScanKind.distributor,
+        value: sale.group(0)!.toUpperCase(),
+      );
+    }
+
+    final upper = text.toUpperCase();
+    if (upper.startsWith('DRN-')) {
+      return _IncomingScanCode(kind: _IncomingScanKind.farmer, value: upper);
+    }
+    if (upper.startsWith('JDL-DST-')) {
+      return _IncomingScanCode(
+        kind: _IncomingScanKind.distributor,
+        value: upper,
+      );
+    }
+    return _IncomingScanCode(kind: _IncomingScanKind.collector, value: upper);
+  }
+
+  Future<void> _handleManualSubmit() async {
+    FocusScope.of(context).unfocus();
+    final code = _extractCode(_codeCtrl.text);
+    if (code.value.isEmpty) {
+      _showError('Masukkan atau scan kode QR stok terlebih dahulu.');
+      return;
+    }
+    await _processCode(code);
+  }
+
+  Future<void> _handleCameraDetect(BarcodeCapture capture) async {
+    if (_isHandlingScan) return;
+    final rawValue = capture.barcodes
+        .map((barcode) => barcode.rawValue)
+        .whereType<String>()
+        .firstWhere((value) => value.trim().isNotEmpty, orElse: () => '');
+    if (rawValue.isEmpty) return;
+
+    setState(() => _isHandlingScan = true);
+    await _scannerController.stop();
+    await _processCode(_extractCode(rawValue));
+  }
+
+  Future<void> _processCode(_IncomingScanCode code) async {
+    switch (code.kind) {
+      case _IncomingScanKind.farmer:
+        await _openFarmerBatch(code.value);
+        return;
+      case _IncomingScanKind.collector:
+        await _openCollectorShipment(code.value);
+        return;
+      case _IncomingScanKind.distributor:
+        await _openDistributorSale(code.value);
+        return;
+    }
+  }
+
+  Future<void> _openFarmerBatch(String code) async {
+    final batch = _repo.findFarmerBatch(code);
+    if (batch == null || batch.status != BatchStatus.created) {
+      await _restartAfterError('DRN tidak tersedia untuk diterima UMKM.');
+      return;
+    }
+
+    _repo.recordFarmerBatchScan(code);
+    if (!mounted) return;
+    final success = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UmkmDirectFarmerReceiveScreen(batchCode: code),
+      ),
+    );
+    await _handleFlowResult(success);
+  }
+
+  Future<void> _openCollectorShipment(String code) async {
+    final shipment = _repo.scanCollectorShipment(code);
+    if (shipment == null ||
+        shipment.status == CollectorShipmentStatus.completed ||
+        shipment.status == CollectorShipmentStatus.rejected) {
+      await _restartAfterError('PGL tidak tersedia untuk diterima UMKM.');
+      return;
+    }
+
+    if (!mounted) return;
+    final success = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            UmkmCollectorShipmentReceiveScreen(shipmentCode: shipment.code),
+      ),
+    );
+    await _handleFlowResult(success);
+  }
+
+  Future<void> _openDistributorSale(String code) async {
+    final sale = _repo.scanDistributorSale(code);
+    if (sale == null) {
+      await _restartAfterError(
+        'Transaksi distributor tidak tersedia untuk diterima UMKM.',
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    final success = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UmkmDistributorSaleReceiveScreen(saleId: sale.id),
+      ),
+    );
+    await _handleFlowResult(success);
+  }
+
+  Future<void> _handleFlowResult(bool? success) async {
+    if (!mounted) return;
+    if (success == true) {
+      Navigator.pop(context, true);
+      return;
+    }
+    setState(() => _isHandlingScan = false);
+    if (_isCameraMode) await _scannerController.start();
+  }
+
+  Future<void> _restartAfterError(String message) async {
+    _showError(message);
+    await Future.delayed(const Duration(milliseconds: 900));
+    if (!mounted) return;
+    setState(() => _isHandlingScan = false);
+    if (_isCameraMode) await _scannerController.start();
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  InputDecoration _receiveInputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: AppColors.surface,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const AppTopBar(title: 'Scan QR Stok Masuk'),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+                children: [
+                  _InfoCard(
+                    title: 'Pilih Mode',
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _ScanModeButton(
+                              label: 'Kamera',
+                              icon: Icons.qr_code_scanner_rounded,
+                              selected: _isCameraMode,
+                              onTap: () async {
+                                setState(() {
+                                  _isCameraMode = true;
+                                  _isHandlingScan = false;
+                                });
+                                await _scannerController.start();
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _ScanModeButton(
+                              label: 'Input Kode',
+                              icon: Icons.keyboard_alt_outlined,
+                              selected: !_isCameraMode,
+                              onTap: () async {
+                                setState(() {
+                                  _isCameraMode = false;
+                                  _isHandlingScan = false;
+                                });
+                                await _scannerController.stop();
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  if (_isCameraMode)
+                    _UmkmCameraScannerBox(
+                      controller: _scannerController,
+                      isHandlingScan: _isHandlingScan,
+                      onDetect: _handleCameraDetect,
+                    )
+                  else
+                    _InfoCard(
+                      title: 'Input Kode QR',
+                      children: [
+                        TextField(
+                          controller: _codeCtrl,
+                          textCapitalization: TextCapitalization.characters,
+                          decoration: _receiveInputDecoration(
+                            'DRN, PGL, atau JDL-DST',
+                          ),
+                          onSubmitted: (_) => _handleManualSubmit(),
+                        ),
+                        const SizedBox(height: 12),
+                        PrimaryPillButton(
+                          label: 'CEK STOK',
+                          onPressed: _handleManualSubmit,
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 16),
+                  _InfoCard(
+                    title: 'Kode yang Didukung',
+                    children: const [
+                      _DetailLine(label: 'Petani', value: 'DRN-2026-000009'),
+                      _DetailLine(label: 'Pengepul', value: 'PGL-2026-000905'),
+                      _DetailLine(
+                        label: 'Distributor',
+                        value: 'JDL-DST-2026-000001',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _UmkmCollectorShipmentReceiveScreenState
@@ -669,6 +1038,335 @@ class _UmkmCollectorShipmentReceiveScreenState
                             onPressed: _isSaving
                                 ? null
                                 : () => _reject(shipment),
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            label: const Text('TOLAK STOK'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                              foregroundColor: const Color(0xFFD64545),
+                              side: const BorderSide(color: Color(0xFFD64545)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _receiveInputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: AppColors.surface,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    );
+  }
+}
+
+class UmkmDistributorSaleReceiveScreen extends StatefulWidget {
+  const UmkmDistributorSaleReceiveScreen({super.key, required this.saleId});
+
+  final String saleId;
+
+  @override
+  State<UmkmDistributorSaleReceiveScreen> createState() =>
+      _UmkmDistributorSaleReceiveScreenState();
+}
+
+class _UmkmDistributorSaleReceiveScreenState
+    extends State<UmkmDistributorSaleReceiveScreen> {
+  final _repo = UmkmRepository.instance;
+  final _weightCtrl = TextEditingController();
+  final _fruitCtrl = TextEditingController();
+  final _locationCtrl = TextEditingController();
+  final _discrepancyCtrl = TextEditingController();
+  final _qualityCtrl = TextEditingController();
+  final _conditions = DistributorReceiptCondition.values;
+  var _condition = DistributorReceiptCondition.good;
+  var _isSaving = false;
+
+  DistributorHorizontalSale? get _sale =>
+      _repo.findDistributorSale(widget.saleId);
+
+  @override
+  void initState() {
+    super.initState();
+    final sale = _sale;
+    if (sale != null) {
+      _weightCtrl.text = _formatNumber(sale.expectedWeightKg);
+      _fruitCtrl.text = '${sale.expectedFruitCount}';
+      _locationCtrl.text = _repo.profile.location;
+    }
+    _weightCtrl.addListener(_refresh);
+    _fruitCtrl.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    _weightCtrl.removeListener(_refresh);
+    _fruitCtrl.removeListener(_refresh);
+    _weightCtrl.dispose();
+    _fruitCtrl.dispose();
+    _locationCtrl.dispose();
+    _discrepancyCtrl.dispose();
+    _qualityCtrl.dispose();
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  double? get _weight =>
+      double.tryParse(_weightCtrl.text.trim().replaceAll(',', '.'));
+
+  int? get _fruit => int.tryParse(_fruitCtrl.text.trim());
+
+  bool _hasDiscrepancy(DistributorHorizontalSale sale) {
+    final weight = _weight;
+    final fruit = _fruit;
+    if (weight == null || fruit == null) return false;
+    return (weight - sale.expectedWeightKg).abs() > 0.01 ||
+        fruit != sale.expectedFruitCount;
+  }
+
+  Future<void> _accept(DistributorHorizontalSale sale) async {
+    final weight = _weight;
+    final fruit = _fruit;
+    if (weight == null || weight <= 0 || fruit == null || fruit <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Berat dan jumlah aktual wajib valid.')),
+      );
+      return;
+    }
+    if (_locationCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lokasi penerimaan wajib diisi.')),
+      );
+      return;
+    }
+    if (_hasDiscrepancy(sale) && _discrepancyCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Isi catatan untuk selisih stok.')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    await Future.delayed(const Duration(milliseconds: 350));
+    final ok = _repo.receiveDistributorSale(
+      saleId: sale.id,
+      receivedWeightKg: weight,
+      receivedFruitCount: fruit,
+      condition: _condition,
+      destinationLocation: _locationCtrl.text,
+      discrepancyNote: _discrepancyCtrl.text,
+      qualityNote: _qualityCtrl.text,
+    );
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Penerimaan stok distributor gagal disimpan.'),
+        ),
+      );
+      return;
+    }
+    Navigator.pop(context, true);
+  }
+
+  Future<void> _reject(DistributorHorizontalSale sale) async {
+    final reason = _qualityCtrl.text.trim();
+    if (reason.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Isi catatan sebagai alasan penolakan.')),
+      );
+      return;
+    }
+    if (_locationCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lokasi pemeriksaan wajib diisi.')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    await Future.delayed(const Duration(milliseconds: 300));
+    final ok = _repo.rejectDistributorSale(
+      saleId: sale.id,
+      reason: reason,
+      destinationLocation: _locationCtrl.text,
+    );
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Penolakan stok distributor gagal.')),
+      );
+      return;
+    }
+    Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sale = _sale;
+    final unavailable =
+        sale == null ||
+        sale.status != DistributorHorizontalSaleStatus.initiated;
+
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const AppTopBar(title: 'Validasi Stok Distributor'),
+            Expanded(
+              child: unavailable
+                  ? const _EmptyState(
+                      icon: Icons.inventory_2_outlined,
+                      title: 'Transaksi tidak tersedia',
+                      subtitle:
+                          'Kode distributor ini sudah diproses atau belum tersedia untuk UMKM.',
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _InfoCard(
+                            title: 'Ringkasan Distributor',
+                            children: [
+                              _DetailLine(label: 'Kode T1', value: sale.id),
+                              _DetailLine(
+                                label: 'Kode Stok',
+                                value: sale.itemCode,
+                              ),
+                              _DetailLine(
+                                label: 'Distributor',
+                                value: sale.sellerName,
+                              ),
+                              _DetailLine(
+                                label: 'Gudang Asal',
+                                value: sale.sourceWarehouseName,
+                              ),
+                              _DetailLine(
+                                label: 'Tujuan',
+                                value: sale.destinationLocation,
+                              ),
+                              _DetailLine(
+                                label: 'Jumlah Kirim',
+                                value:
+                                    '${_formatNumber(sale.expectedWeightKg)} kg / ${sale.expectedFruitCount} butir',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _InfoCard(
+                            title: 'Validasi Stok Masuk',
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _weightCtrl,
+                                      keyboardType: TextInputType.number,
+                                      decoration: _receiveInputDecoration(
+                                        'Berat aktual kg',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _fruitCtrl,
+                                      keyboardType: TextInputType.number,
+                                      decoration: _receiveInputDecoration(
+                                        'Jumlah butir',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (_hasDiscrepancy(sale)) ...[
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _discrepancyCtrl,
+                                  maxLines: 2,
+                                  decoration: _receiveInputDecoration(
+                                    'Catatan selisih wajib diisi',
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _locationCtrl,
+                                decoration: _receiveInputDecoration(
+                                  'Lokasi penerimaan',
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _conditions.map((condition) {
+                                  final selected = condition == _condition;
+                                  return ChoiceChip(
+                                    label: Text(condition.label),
+                                    selected: selected,
+                                    onSelected: (_) =>
+                                        setState(() => _condition = condition),
+                                    selectedColor: AppColors.primaryContainer
+                                        .withValues(alpha: 0.18),
+                                    labelStyle: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: selected
+                                          ? AppColors.primary
+                                          : AppColors.subtitle,
+                                    ),
+                                    side: BorderSide(
+                                      color: selected
+                                          ? AppColors.primaryContainer
+                                          : const Color(0xFFE5E7EB),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _qualityCtrl,
+                                maxLines: 3,
+                                decoration: _receiveInputDecoration(
+                                  'Catatan kondisi atau alasan penolakan',
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          PrimaryPillButton(
+                            label: 'TERIMA STOK',
+                            isLoading: _isSaving,
+                            onPressed: _isSaving ? null : () => _accept(sale),
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton.icon(
+                            onPressed: _isSaving ? null : () => _reject(sale),
                             icon: const Icon(Icons.close_rounded, size: 18),
                             label: const Text('TOLAK STOK'),
                             style: OutlinedButton.styleFrom(
@@ -1058,9 +1756,182 @@ class UmkmStockOfferDetailScreen extends StatelessWidget {
 
 enum _MainTab { beli, pesanan }
 
+enum _IncomingScanKind { farmer, collector, distributor }
+
+class _IncomingScanCode {
+  const _IncomingScanCode({required this.kind, required this.value});
+
+  final _IncomingScanKind kind;
+  final String value;
+}
+
 String _formatNumber(double value) {
   if (value % 1 == 0) return value.toStringAsFixed(0);
   return value.toStringAsFixed(1);
+}
+
+class _ScanEntryCard extends StatelessWidget {
+  const _ScanEntryCard({required this.onScan});
+
+  final VoidCallback onScan;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'Scan QR Stok Masuk',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.white,
+                  ),
+                ),
+                SizedBox(height: 5),
+                Text(
+                  'DRN petani, PGL pengepul, atau transaksi distributor.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.35,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFEAF7E5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 54,
+            height: 54,
+            child: ElevatedButton(
+              onPressed: onScan,
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.zero,
+                shape: const CircleBorder(),
+                backgroundColor: AppColors.white,
+                foregroundColor: AppColors.primary,
+                elevation: 0,
+              ),
+              child: const Icon(Icons.qr_code_scanner_rounded, size: 28),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScanModeButton extends StatelessWidget {
+  const _ScanModeButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(44),
+        backgroundColor: selected
+            ? AppColors.primary.withValues(alpha: 0.10)
+            : AppColors.white,
+        foregroundColor: selected ? AppColors.primary : AppColors.subtitle,
+        side: BorderSide(
+          color: selected ? AppColors.primary : const Color(0xFFE5E7EB),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+      ),
+    );
+  }
+}
+
+class _UmkmCameraScannerBox extends StatelessWidget {
+  const _UmkmCameraScannerBox({
+    required this.controller,
+    required this.isHandlingScan,
+    required this.onDetect,
+  });
+
+  final MobileScannerController controller;
+  final bool isHandlingScan;
+  final ValueChanged<BarcodeCapture> onDetect;
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 1,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            MobileScanner(
+              controller: controller,
+              onDetect: isHandlingScan ? null : onDetect,
+              errorBuilder: (context, error) =>
+                  MobileScannerFeedback(error: error),
+              placeholderBuilder: (context) => const MobileScannerLoading(),
+            ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.75),
+                  width: 3,
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                margin: const EdgeInsets.all(14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.62),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  isHandlingScan
+                      ? 'Memproses QR...'
+                      : 'Arahkan kamera ke QR stok masuk',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _DirectFarmerReceiveCard extends StatelessWidget {

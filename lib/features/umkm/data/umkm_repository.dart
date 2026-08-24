@@ -7,6 +7,9 @@ import '../../traceability/models/traceability_models.dart';
 import '../../collector/data/collector_repository.dart';
 import '../../collector/models/collector_delivery_receipt.dart';
 import '../../collector/models/collector_shipment_batch.dart';
+import '../../distributor/data/distributor_repository.dart';
+import '../../distributor/models/distributor_horizontal_sale.dart';
+import '../../distributor/models/distributor_receipt.dart';
 import '../models/umkm_order.dart';
 import '../models/umkm_product.dart';
 import '../models/umkm_profile.dart';
@@ -191,6 +194,96 @@ class UmkmRepository extends ChangeNotifier {
       return findCollectorShipment(shipment.code);
     }
     return shipment;
+  }
+
+  List<DistributorHorizontalSale> get incomingDistributorSales {
+    final items = DistributorRepository.instance.allHorizontalSales
+        .where(
+          (sale) => sale.status == DistributorHorizontalSaleStatus.initiated,
+        )
+        .toList();
+    items.sort((a, b) => b.initiatedAt.compareTo(a.initiatedAt));
+    return List.unmodifiable(items);
+  }
+
+  DistributorHorizontalSale? findDistributorSale(String code) {
+    return DistributorRepository.instance.findHorizontalSaleByScanCode(code);
+  }
+
+  DistributorHorizontalSale? scanDistributorSale(String code) {
+    final sale = findDistributorSale(code);
+    if (sale == null ||
+        sale.status != DistributorHorizontalSaleStatus.initiated) {
+      return null;
+    }
+    return sale;
+  }
+
+  bool receiveDistributorSale({
+    required String saleId,
+    required double receivedWeightKg,
+    required int receivedFruitCount,
+    required DistributorReceiptCondition condition,
+    required String destinationLocation,
+    String? discrepancyNote,
+    String? qualityNote,
+  }) {
+    final sale = findDistributorSale(saleId);
+    if (sale == null ||
+        sale.status != DistributorHorizontalSaleStatus.initiated) {
+      return false;
+    }
+
+    final ok = DistributorRepository.instance.verifyHorizontalSaleByReceiver(
+      saleId: sale.id,
+      receiverId: profile.umkmId,
+      receiverRole: TraceActorRole.umkm,
+      receiverName: profile.name,
+      receivedWeightKg: receivedWeightKg,
+      receivedFruitCount: receivedFruitCount,
+      condition: condition,
+      destinationLocation: destinationLocation,
+      discrepancyNote: discrepancyNote,
+      qualityNote: qualityNote,
+    );
+    if (!ok) return false;
+
+    addPurchase(
+      UmkmPurchase(
+        id: 'PUR-${DateTime.now().millisecondsSinceEpoch}',
+        supplierName: sale.sellerName,
+        productName: 'Durian ${sale.itemCode}',
+        quantity: receivedWeightKg.round(),
+        totalLabel: '-',
+        createdAt: DateTime.now(),
+        qrCodeData: sale.itemCode,
+        note: qualityNote?.trim().isEmpty == true ? null : qualityNote?.trim(),
+      ),
+    );
+    notifyListeners();
+    return true;
+  }
+
+  bool rejectDistributorSale({
+    required String saleId,
+    required String reason,
+    required String destinationLocation,
+  }) {
+    final sale = findDistributorSale(saleId);
+    if (sale == null ||
+        sale.status != DistributorHorizontalSaleStatus.initiated) {
+      return false;
+    }
+    final ok = DistributorRepository.instance.rejectHorizontalSaleByReceiver(
+      saleId: sale.id,
+      receiverId: profile.umkmId,
+      receiverRole: TraceActorRole.umkm,
+      receiverName: profile.name,
+      destinationLocation: destinationLocation,
+      note: reason,
+    );
+    if (ok) notifyListeners();
+    return ok;
   }
 
   CollectorDeliveryReceipt? receiveCollectorShipment({

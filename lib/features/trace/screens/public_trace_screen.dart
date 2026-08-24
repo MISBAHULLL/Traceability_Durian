@@ -288,6 +288,60 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     return result;
   }
 
+  List<_TraceMaterialLineage> _traceMaterialLineages(String batchCode) {
+    final directRelations = _traceRepo.parentsOf(batchCode);
+    final result = <_TraceMaterialLineage>[];
+
+    for (final relation in directRelations) {
+      final sourceCode = relation.sourceBatchCode.trim().toUpperCase();
+      result.add(
+        _TraceMaterialLineage(
+          relation: relation,
+          sourceBatch: _traceRepo.findBatch(sourceCode),
+          originBatches: _originBatchesFor(sourceCode),
+        ),
+      );
+    }
+    return List.unmodifiable(result);
+  }
+
+  List<TraceBatch> _originBatchesFor(String batchCode) {
+    final result = <TraceBatch>[];
+    final visited = <String>{};
+    final added = <String>{};
+
+    void addOrigin(TraceBatch batch) {
+      if (added.contains(batch.code)) return;
+      added.add(batch.code);
+      result.add(batch);
+    }
+
+    void visit(String code) {
+      final cleanCode = code.trim().toUpperCase();
+      if (cleanCode.isEmpty || visited.contains(cleanCode)) return;
+      visited.add(cleanCode);
+
+      final parents = _traceRepo.parentsOf(cleanCode);
+      final batch = _traceRepo.findBatch(cleanCode);
+      if (parents.isEmpty) {
+        if (batch != null) addOrigin(batch);
+        return;
+      }
+
+      for (final relation in parents) {
+        visit(relation.sourceBatchCode);
+      }
+
+      if (batch != null && batch.code.startsWith('DRN-')) {
+        addOrigin(batch);
+      }
+    }
+
+    visit(batchCode);
+    result.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return List.unmodifiable(result);
+  }
+
   bool _isPublicCoreEvent(TraceBatchEvent event) {
     return switch (event.type) {
       TraceEventType.harvestCreated ||
@@ -636,6 +690,9 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
                             sourceRelations: _traceRepo.parentsOf(
                               traceBatch.code,
                             ),
+                            materialLineages: _traceMaterialLineages(
+                              traceBatch.code,
+                            ),
                             routeStops: _routeStops,
                             routeLoading: _routeLoading,
                           )
@@ -833,6 +890,7 @@ class _TraceProductContent extends StatelessWidget {
     required this.batch,
     required this.lineageBatches,
     required this.sourceRelations,
+    required this.materialLineages,
     required this.routeStops,
     required this.routeLoading,
   });
@@ -840,6 +898,7 @@ class _TraceProductContent extends StatelessWidget {
   final TraceBatch batch;
   final List<TraceBatch> lineageBatches;
   final List<TraceBatchRelation> sourceRelations;
+  final List<_TraceMaterialLineage> materialLineages;
   final List<_TraceStop> routeStops;
   final bool routeLoading;
 
@@ -871,12 +930,29 @@ class _TraceProductContent extends StatelessWidget {
   }
 
   List<TraceBatch> get _originBatches {
-    final origins = lineageBatches
-        .where((item) => item.code.startsWith('DRN-'))
-        .toList();
-    return origins.isEmpty
-        ? lineageBatches.where((item) => item.code != batch.code).toList()
-        : origins;
+    final byCode = <String, TraceBatch>{};
+    for (final item in materialLineages) {
+      for (final origin in item.originBatches) {
+        byCode[origin.code] = origin;
+      }
+    }
+    if (byCode.isEmpty) {
+      for (final origin in lineageBatches.where(
+        (item) => item.code.startsWith('DRN-'),
+      )) {
+        byCode[origin.code] = origin;
+      }
+    }
+    if (byCode.isEmpty) {
+      for (final origin in lineageBatches.where(
+        (item) => item.code != batch.code,
+      )) {
+        byCode[origin.code] = origin;
+      }
+    }
+    final origins = byCode.values.toList();
+    origins.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return origins;
   }
 
   List<MapEntry<String, String>> get _productionRows {
@@ -950,27 +1026,23 @@ class _TraceProductContent extends StatelessWidget {
             const SizedBox(height: 16),
           ],
           _TraceSection(
-            title: 'Bahan Baku Trace',
-            children: sourceRelations.isEmpty
-                ? [
-                    _TraceInfoRow(
-                      label: 'Sumber',
-                      value: batch.sourceReference ?? 'Belum tercatat',
-                    ),
-                  ]
-                : sourceRelations
+            title: 'Komposisi Bahan Baku',
+            children: materialLineages.isEmpty
+                ? _fallbackSourceRows()
+                : materialLineages
+                      .asMap()
+                      .entries
                       .map(
-                        (relation) => _TraceInfoRow(
-                          label: relation.sourceBatchCode,
-                          value:
-                              '${relation.type.label} / ${_formatQuantity(relation.quantity, relation.unit)}',
+                        (entry) => _TraceMaterialLineageBlock(
+                          index: entry.key + 1,
+                          item: entry.value,
                         ),
                       )
                       .toList(),
           ),
           const SizedBox(height: 16),
           _TraceSection(
-            title: 'Asal Durian',
+            title: 'Ringkasan Asal Durian',
             children: originBatches.isEmpty
                 ? const [
                     _TraceInfoRow(
@@ -987,6 +1059,219 @@ class _TraceProductContent extends StatelessWidget {
                         ),
                       )
                       .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _fallbackSourceRows() {
+    if (sourceRelations.isNotEmpty) {
+      return sourceRelations
+          .map(
+            (relation) => _TraceInfoRow(
+              label: relation.sourceBatchCode,
+              value:
+                  '${relation.type.label} / ${_formatQuantity(relation.quantity, relation.unit)}',
+            ),
+          )
+          .toList();
+    }
+    return [
+      _TraceInfoRow(
+        label: 'Sumber',
+        value: batch.sourceReference ?? 'Belum tercatat',
+      ),
+    ];
+  }
+}
+
+class _TraceMaterialLineage {
+  const _TraceMaterialLineage({
+    required this.relation,
+    required this.sourceBatch,
+    required this.originBatches,
+  });
+
+  final TraceBatchRelation relation;
+  final TraceBatch? sourceBatch;
+  final List<TraceBatch> originBatches;
+}
+
+class _TraceMaterialLineageBlock extends StatelessWidget {
+  const _TraceMaterialLineageBlock({required this.index, required this.item});
+
+  final int index;
+  final _TraceMaterialLineage item;
+
+  String _formatQuantity(double value, String unit) {
+    final text = value % 1 == 0
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return '$text $unit';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final source = item.sourceBatch;
+    final sourceName = source?.productName ?? 'Batch sumber';
+    final holderName = source?.currentHolderName.trim().isNotEmpty == true
+        ? source!.currentHolderName
+        : source?.originActorName ?? 'Pelaku belum tercatat';
+    final origins = item.originBatches;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: AppColors.primary,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '$index',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                color: AppColors.white,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.relation.sourceBatchCode,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$sourceName / $holderName',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.black,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${item.relation.type.label} - ${_formatQuantity(item.relation.quantity, item.relation.unit)}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    height: 1.35,
+                    color: AppColors.subtitle,
+                  ),
+                ),
+                if (item.relation.note != null &&
+                    item.relation.note!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    item.relation.note!.trim(),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      height: 1.35,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                _TraceOriginList(origins: origins),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TraceOriginList extends StatelessWidget {
+  const _TraceOriginList({required this.origins});
+
+  final List<TraceBatch> origins;
+
+  @override
+  Widget build(BuildContext context) {
+    if (origins.isEmpty) {
+      return const Text(
+        'Asal paling awal belum ditemukan.',
+        style: TextStyle(
+          fontSize: 11,
+          height: 1.35,
+          color: AppColors.placeholder,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          origins.length == 1
+              ? 'Asal durian'
+              : 'Sumber ini gabungan dari ${origins.length} asal durian',
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: AppColors.black,
+          ),
+        ),
+        const SizedBox(height: 6),
+        ...origins.map((origin) => _TraceOriginMiniRow(origin: origin)),
+      ],
+    );
+  }
+}
+
+class _TraceOriginMiniRow extends StatelessWidget {
+  const _TraceOriginMiniRow({required this.origin});
+
+  final TraceBatch origin;
+
+  @override
+  Widget build(BuildContext context) {
+    final location = origin.publicLocationLabel?.trim().isNotEmpty == true
+        ? origin.publicLocationLabel!.trim()
+        : origin.locationLabel?.trim();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 5),
+            child: Icon(
+              Icons.fiber_manual_record,
+              size: 7,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              [
+                origin.code,
+                origin.originActorName,
+                if (location != null && location.isNotEmpty) location,
+              ].join(' / '),
+              style: const TextStyle(
+                fontSize: 11,
+                height: 1.35,
+                color: AppColors.subtitle,
+              ),
+            ),
           ),
         ],
       ),

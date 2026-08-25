@@ -24,6 +24,7 @@ class ConsumerRepository extends ChangeNotifier {
     _loadFromLocal();
     _products = _buildSeedProducts();
     _transactions ??= _buildSeedTransactions(_products);
+    _syncTransactionsFromUmkmOrders();
     UmkmRepository.instance.addListener(_onCatalogChanged);
     TraceabilityRepository.instance.addListener(_onCatalogChanged);
   }
@@ -48,6 +49,11 @@ class ConsumerRepository extends ChangeNotifier {
   late List<CollectorDeliveryReceipt> _collectorDeliveryReceipts;
   late List<ConsumerAuditEntry> _auditLogs;
 
+  static const _currentConsumerIdKey = 'consumer_current_id';
+  static const _profileKey = 'consumer_profile';
+  static const _collectorDeliveryReceiptsKey =
+      'consumer_collector_delivery_receipts';
+  static const _transactionsKey = 'consumer_transactions';
   static const _auditLogsKey = 'consumer_audit_logs';
 
   void _onCatalogChanged() {
@@ -98,49 +104,65 @@ class ConsumerRepository extends ChangeNotifier {
 
   void _loadFromLocal() {
     _currentConsumerId =
-        LocalStorageService.loadString('consumer_current_id') ??
+        LocalStorageService.loadString(_currentConsumerIdKey) ??
         _kSeedConsumerId;
 
-    final profileJson = LocalStorageService.loadJson('consumer_profile');
-    if (profileJson != null) {
-      _profile = ConsumerProfile.fromJson(profileJson);
-    } else {
-      _profile = _kSeedProfile;
+    _profile =
+        _loadObject(_profileKey, ConsumerProfile.fromJson) ?? _kSeedProfile;
+
+    _collectorDeliveryReceipts =
+        _loadList(
+          _collectorDeliveryReceiptsKey,
+          CollectorDeliveryReceipt.fromJson,
+        ) ??
+        <CollectorDeliveryReceipt>[];
+
+    _transactions = _loadList(_transactionsKey, ConsumerTransaction.fromJson);
+
+    _auditLogs =
+        _loadList(_auditLogsKey, ConsumerAuditEntry.fromJson) ??
+        <ConsumerAuditEntry>[];
+  }
+
+  T? _loadObject<T>(
+    String key,
+    T Function(Map<String, dynamic> json) fromJson,
+  ) {
+    final json = LocalStorageService.loadJson(key);
+    if (json == null) return null;
+    try {
+      return fromJson(json);
+    } catch (_) {
+      return null;
     }
+  }
 
-    final deliveryReceiptsJson = LocalStorageService.loadJsonList(
-      'consumer_collector_delivery_receipts',
-    );
-    _collectorDeliveryReceipts = deliveryReceiptsJson == null
-        ? <CollectorDeliveryReceipt>[]
-        : deliveryReceiptsJson
-              .map((json) => CollectorDeliveryReceipt.fromJson(json))
-              .toList();
-
-    final transactionsJson = LocalStorageService.loadJsonList(
-      'consumer_transactions',
-    );
-    _transactions = transactionsJson
-        ?.map((json) => ConsumerTransaction.fromJson(json))
-        .toList();
-
-    final auditLogsJson = LocalStorageService.loadJsonList(_auditLogsKey);
-    _auditLogs = auditLogsJson == null
-        ? <ConsumerAuditEntry>[]
-        : auditLogsJson
-              .map((json) => ConsumerAuditEntry.fromJson(json))
-              .toList();
+  List<T>? _loadList<T>(
+    String key,
+    T Function(Map<String, dynamic> json) fromJson,
+  ) {
+    final raw = LocalStorageService.loadJsonList(key);
+    if (raw == null) return null;
+    final items = <T>[];
+    for (final item in raw) {
+      try {
+        items.add(fromJson(item));
+      } catch (_) {
+        continue;
+      }
+    }
+    return items;
   }
 
   void _saveToLocal() {
-    LocalStorageService.saveString('consumer_current_id', _currentConsumerId);
-    LocalStorageService.saveJson('consumer_profile', _profile.toJson());
+    LocalStorageService.saveString(_currentConsumerIdKey, _currentConsumerId);
+    LocalStorageService.saveJson(_profileKey, _profile.toJson());
     LocalStorageService.saveJsonList(
-      'consumer_collector_delivery_receipts',
+      _collectorDeliveryReceiptsKey,
       _collectorDeliveryReceipts.map((item) => item.toJson()).toList(),
     );
     LocalStorageService.saveJsonList(
-      'consumer_transactions',
+      _transactionsKey,
       (_transactions ?? <ConsumerTransaction>[])
           .map((item) => item.toJson())
           .toList(),

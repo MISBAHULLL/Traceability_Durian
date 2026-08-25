@@ -6,6 +6,7 @@ import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../../trace/screens/public_trace_screen.dart';
 import '../consumer_routes.dart';
+import '../widgets/consumer_trace_timeline_card.dart';
 import 'consumer_create_transaction_screen.dart';
 import '../models/consumer_product.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
@@ -184,6 +185,8 @@ class ConsumerProductDetailScreen extends StatelessWidget {
                                 _InfoRow(label: 'Catatan', value: batch.notes!),
                             ],
                     ),
+                    const SizedBox(height: 16),
+                    ConsumerTraceTimelineCard(traceCode: traceCode),
                     const SizedBox(height: 24),
                     if (traceCode != null && traceCode.isNotEmpty) ...[
                       OutlinedButton.icon(

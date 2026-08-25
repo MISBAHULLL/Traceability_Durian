@@ -6,6 +6,7 @@ import '../../../shared/widgets/qr_preview.dart';
 import '../data/consumer_repository.dart';
 import '../models/consumer_product.dart';
 import '../models/consumer_transaction.dart';
+import '../widgets/consumer_trace_timeline_card.dart';
 
 /// Detail transaksi konsumen.
 class ConsumerTransactionDetailScreen extends StatefulWidget {
@@ -78,6 +79,9 @@ class _ConsumerTransactionDetailScreenState
         !isCod && paymentStatus == ConsumerPaymentStatus.unpaid;
     final showVerifyPayment =
         !isCod && paymentStatus == ConsumerPaymentStatus.processing;
+    final traceCode = product.code.startsWith('UMKM-P-')
+        ? product.code
+        : product.sourceBatchCode;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -224,6 +228,8 @@ class _ConsumerTransactionDetailScreenState
                   ),
                   const SizedBox(height: 16),
                   _ProductInfoCard(product: product),
+                  const SizedBox(height: 16),
+                  ConsumerTraceTimelineCard(traceCode: traceCode),
                   if (showQr) ...[
                     const SizedBox(height: 16),
                     Container(

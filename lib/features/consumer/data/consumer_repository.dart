@@ -641,10 +641,81 @@ class ConsumerRepository extends ChangeNotifier {
       note: note,
     );
     transactions.add(transaction);
-    _createUmkmOrderForTransaction(transaction);
+    if (_canCreateUmkmOrderFromTransaction(transaction)) {
+      _createUmkmOrderForTransaction(transaction);
+    }
     _saveToLocal();
     notifyListeners();
     return transaction;
+  }
+
+  ConsumerTransaction? findTransaction(String id) {
+    final cleanId = id.trim().toUpperCase();
+    if (cleanId.isEmpty) return null;
+    try {
+      return (_transactions ?? <ConsumerTransaction>[]).firstWhere(
+        (transaction) => transaction.id.toUpperCase() == cleanId,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  ConsumerTransaction? confirmPayment(String transactionId) {
+    final current = findTransaction(transactionId);
+    if (current == null ||
+        current.paymentMethod == 'Cash on Delivery' ||
+        current.effectivePaymentStatus != ConsumerPaymentStatus.unpaid) {
+      return null;
+    }
+    return _updatePaymentStatus(
+      transactionId,
+      paymentStatus: ConsumerPaymentStatus.processing,
+      note: 'Pembayaran dikonfirmasi konsumen, menunggu verifikasi.',
+    );
+  }
+
+  ConsumerTransaction? verifyPayment(String transactionId) {
+    final current = findTransaction(transactionId);
+    if (current == null ||
+        current.paymentMethod == 'Cash on Delivery' ||
+        current.effectivePaymentStatus != ConsumerPaymentStatus.processing) {
+      return null;
+    }
+    final transaction = _updatePaymentStatus(
+      transactionId,
+      paymentStatus: ConsumerPaymentStatus.paid,
+      note: 'Pembayaran terverifikasi, order dikirim ke UMKM.',
+    );
+    if (transaction != null) {
+      _createUmkmOrderForTransaction(transaction);
+    }
+    return transaction;
+  }
+
+  ConsumerTransaction? _updatePaymentStatus(
+    String transactionId, {
+    required ConsumerPaymentStatus paymentStatus,
+    required String note,
+  }) {
+    final transactions = _transactions;
+    if (transactions == null || transactions.isEmpty) return null;
+    final cleanId = transactionId.trim().toUpperCase();
+    final index = transactions.indexWhere(
+      (transaction) => transaction.id.toUpperCase() == cleanId,
+    );
+    if (index == -1) return null;
+    final current = transactions[index];
+    final updated = current.copyWith(paymentStatus: paymentStatus, note: note);
+    transactions[index] = updated;
+    _saveToLocal();
+    notifyListeners();
+    return updated;
+  }
+
+  bool _canCreateUmkmOrderFromTransaction(ConsumerTransaction transaction) {
+    return transaction.effectivePaymentStatus == ConsumerPaymentStatus.paid ||
+        transaction.paymentMethod == 'Cash on Delivery';
   }
 
   void _createUmkmOrderForTransaction(ConsumerTransaction transaction) {

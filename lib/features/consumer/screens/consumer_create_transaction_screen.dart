@@ -138,16 +138,13 @@ class _ConsumerCreateTransactionScreenState
     setState(() => _isSubmitting = true);
     final repo = ConsumerRepository.instance;
     final isTransferBank = _paymentMethod == 'Transfer Bank';
-    final paymentStatus = _paymentMethod == 'QRIS'
-        ? ConsumerPaymentStatus.unpaid
-        : ConsumerPaymentStatus.processing;
     final transaction = repo.addTransaction(
       widget.product,
       quantity: _quantity,
       buyerAddress: _addressController.text.trim(),
       buyerCoordinates: _coordinateController.text.trim(),
       paymentMethod: _paymentMethod,
-      paymentStatus: paymentStatus,
+      paymentStatus: ConsumerPaymentStatus.unpaid,
       bankName: isTransferBank ? _selectedBank : null,
       accountNumber: isTransferBank
           ? _accountNumberController.text.trim()

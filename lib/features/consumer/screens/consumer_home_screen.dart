@@ -549,15 +549,15 @@ class _TransactionStatusTabs extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     _TransactionStatusButton(
-                      label: 'Diproses',
+                      label: 'Verifikasi',
                       count: processingCount,
-                      minWidth: 108,
+                      minWidth: 112,
                       isActive: activeTab == _TransactionPaymentTab.processing,
                       onTap: () => onChanged(_TransactionPaymentTab.processing),
                     ),
                     const SizedBox(width: 4),
                     _TransactionStatusButton(
-                      label: 'Selesai',
+                      label: 'Terbayar',
                       count: completedCount,
                       minWidth: 96,
                       isActive: activeTab == _TransactionPaymentTab.completed,

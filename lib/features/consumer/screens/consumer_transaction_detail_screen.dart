@@ -3,23 +3,81 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/qr_preview.dart';
+import '../data/consumer_repository.dart';
 import '../models/consumer_product.dart';
 import '../models/consumer_transaction.dart';
 
 /// Detail transaksi konsumen.
-class ConsumerTransactionDetailScreen extends StatelessWidget {
+class ConsumerTransactionDetailScreen extends StatefulWidget {
   const ConsumerTransactionDetailScreen({super.key, required this.transaction});
 
   final ConsumerTransaction transaction;
 
   @override
+  State<ConsumerTransactionDetailScreen> createState() =>
+      _ConsumerTransactionDetailScreenState();
+}
+
+class _ConsumerTransactionDetailScreenState
+    extends State<ConsumerTransactionDetailScreen> {
+  final _repo = ConsumerRepository.instance;
+  late ConsumerTransaction _transaction;
+
+  @override
+  void initState() {
+    super.initState();
+    _transaction = widget.transaction;
+    _repo.addListener(_syncTransaction);
+    _syncTransaction();
+  }
+
+  @override
+  void dispose() {
+    _repo.removeListener(_syncTransaction);
+    super.dispose();
+  }
+
+  void _syncTransaction() {
+    final latest = _repo.findTransaction(widget.transaction.id);
+    if (latest == null || latest == _transaction || !mounted) return;
+    setState(() => _transaction = latest);
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.primary),
+    );
+  }
+
+  void _confirmPayment() {
+    final updated = _repo.confirmPayment(_transaction.id);
+    if (updated == null) return;
+    setState(() => _transaction = updated);
+    _showMessage('Pembayaran dikirim untuk verifikasi.');
+  }
+
+  void _verifyPayment() {
+    final updated = _repo.verifyPayment(_transaction.id);
+    if (updated == null) return;
+    setState(() => _transaction = updated);
+    _showMessage('Pembayaran terverifikasi. Order masuk ke UMKM.');
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final transaction = _transaction;
     final product = transaction.product;
     final isQris = transaction.paymentMethod == 'QRIS';
+    final isCod = transaction.paymentMethod == 'Cash on Delivery';
     final paymentStatus = transaction.effectivePaymentStatus;
     final showQr = isQris && paymentStatus == ConsumerPaymentStatus.unpaid;
-    final showDeliveryFlow = paymentStatus != ConsumerPaymentStatus.unpaid;
+    final showDeliveryFlow =
+        paymentStatus == ConsumerPaymentStatus.paid || isCod;
     final paymentStatusLabel = paymentStatus.label;
+    final showConfirmPayment =
+        !isCod && paymentStatus == ConsumerPaymentStatus.unpaid;
+    final showVerifyPayment =
+        !isCod && paymentStatus == ConsumerPaymentStatus.processing;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -213,6 +271,14 @@ class ConsumerTransactionDetailScreen extends StatelessWidget {
                   if (showDeliveryFlow) ...[
                     const SizedBox(height: 16),
                     _DeliveryTimeline(status: transaction.status),
+                  ],
+                  if (showConfirmPayment || showVerifyPayment) ...[
+                    const SizedBox(height: 16),
+                    _PaymentActionCard(
+                      status: paymentStatus,
+                      onConfirm: showConfirmPayment ? _confirmPayment : null,
+                      onVerify: showVerifyPayment ? _verifyPayment : null,
+                    ),
                   ],
                   if (transaction.status ==
                       ConsumerTransactionStatus.completed) ...[
@@ -441,6 +507,89 @@ class _DeliveryTimeline extends StatelessWidget {
               ),
             );
           }),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentActionCard extends StatelessWidget {
+  const _PaymentActionCard({
+    required this.status,
+    required this.onConfirm,
+    required this.onVerify,
+  });
+
+  final ConsumerPaymentStatus status;
+  final VoidCallback? onConfirm;
+  final VoidCallback? onVerify;
+
+  @override
+  Widget build(BuildContext context) {
+    final isWaitingVerification = status == ConsumerPaymentStatus.processing;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            isWaitingVerification
+                ? 'Verifikasi Pembayaran'
+                : 'Konfirmasi Pembayaran',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppColors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isWaitingVerification
+                ? 'Pembayaran sudah dikonfirmasi konsumen. Verifikasi lokal untuk meneruskan order ke UMKM.'
+                : 'Setelah pembayaran dilakukan, konfirmasi agar status masuk ke tahap verifikasi.',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.placeholder,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (onConfirm != null)
+            ElevatedButton.icon(
+              onPressed: onConfirm,
+              icon: const Icon(Icons.payments_rounded, size: 18),
+              label: const Text('Konfirmasi Pembayaran'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          if (onVerify != null)
+            ElevatedButton.icon(
+              onPressed: onVerify,
+              icon: const Icon(Icons.verified_rounded, size: 18),
+              label: const Text('Verifikasi Pembayaran'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
         ],
       ),
     );

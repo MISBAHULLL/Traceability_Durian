@@ -50,9 +50,9 @@ extension ConsumerPaymentStatusX on ConsumerPaymentStatus {
       case ConsumerPaymentStatus.unpaid:
         return 'Belum Dibayar';
       case ConsumerPaymentStatus.processing:
-        return 'Diproses';
+        return 'Menunggu Verifikasi';
       case ConsumerPaymentStatus.paid:
-        return 'Selesai';
+        return 'Terverifikasi';
     }
   }
 

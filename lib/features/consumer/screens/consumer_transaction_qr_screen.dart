@@ -4,20 +4,78 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../consumer_routes.dart';
+import '../data/consumer_repository.dart';
 import '../models/consumer_transaction.dart';
 import 'consumer_home_screen.dart';
 
-class ConsumerTransactionQrScreen extends StatelessWidget {
+class ConsumerTransactionQrScreen extends StatefulWidget {
   const ConsumerTransactionQrScreen({super.key, required this.transaction});
 
   final ConsumerTransaction transaction;
 
   @override
+  State<ConsumerTransactionQrScreen> createState() =>
+      _ConsumerTransactionQrScreenState();
+}
+
+class _ConsumerTransactionQrScreenState
+    extends State<ConsumerTransactionQrScreen> {
+  final _repo = ConsumerRepository.instance;
+  late ConsumerTransaction _transaction;
+
+  @override
+  void initState() {
+    super.initState();
+    _transaction = widget.transaction;
+    _repo.addListener(_syncTransaction);
+    _syncTransaction();
+  }
+
+  @override
+  void dispose() {
+    _repo.removeListener(_syncTransaction);
+    super.dispose();
+  }
+
+  void _syncTransaction() {
+    final latest = _repo.findTransaction(widget.transaction.id);
+    if (latest == null || latest == _transaction || !mounted) return;
+    setState(() => _transaction = latest);
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.primary),
+    );
+  }
+
+  void _confirmPayment() {
+    final updated = _repo.confirmPayment(_transaction.id);
+    if (updated == null) return;
+    setState(() => _transaction = updated);
+    _showMessage('Pembayaran dikirim untuk verifikasi.');
+  }
+
+  void _verifyPayment() {
+    final updated = _repo.verifyPayment(_transaction.id);
+    if (updated == null) return;
+    setState(() => _transaction = updated);
+    _showMessage('Pembayaran terverifikasi. Order masuk ke UMKM.');
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final transaction = _transaction;
     final isQris = transaction.paymentMethod == 'QRIS';
+    final isCod = transaction.paymentMethod == 'Cash on Delivery';
+    final isTransferBank = transaction.paymentMethod == 'Transfer Bank';
     final paymentStatus = transaction.effectivePaymentStatus;
     final showQr = isQris && paymentStatus == ConsumerPaymentStatus.unpaid;
     final statusLabel = paymentStatus.label;
+    final showConfirmPayment =
+        !isCod && paymentStatus == ConsumerPaymentStatus.unpaid;
+    final showVerifyPayment =
+        !isCod && paymentStatus == ConsumerPaymentStatus.processing;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -32,7 +90,7 @@ class ConsumerTransactionQrScreen extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: Padding(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -81,7 +139,7 @@ class ConsumerTransactionQrScreen extends StatelessWidget {
                                 label: 'Kode Transaksi',
                                 value: transaction.id,
                               ),
-                            ] else ...[
+                            ] else if (isTransferBank) ...[
                               _MiniInfoRow(
                                 label: 'Bank',
                                 value: transaction.bankName ?? '-',
@@ -93,6 +151,18 @@ class ConsumerTransactionQrScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 10),
                               _MiniInfoRow(label: 'Status', value: statusLabel),
+                            ] else ...[
+                              _MiniInfoRow(
+                                label: 'Metode',
+                                value: transaction.paymentMethod,
+                              ),
+                              const SizedBox(height: 10),
+                              _MiniInfoRow(label: 'Status', value: statusLabel),
+                              const SizedBox(height: 10),
+                              const _MiniInfoRow(
+                                label: 'Catatan',
+                                value: 'Bayar saat produk diterima.',
+                              ),
                             ],
                           ],
                         ),
@@ -185,6 +255,37 @@ class ConsumerTransactionQrScreen extends StatelessWidget {
                         label: 'Rekening',
                         value: transaction.accountNumber!,
                       ),
+                    if (showConfirmPayment || showVerifyPayment) ...[
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: showConfirmPayment
+                              ? _confirmPayment
+                              : _verifyPayment,
+                          icon: Icon(
+                            showConfirmPayment
+                                ? Icons.payments_rounded
+                                : Icons.verified_rounded,
+                            size: 18,
+                          ),
+                          label: Text(
+                            showConfirmPayment
+                                ? 'Konfirmasi Pembayaran'
+                                : 'Verifikasi Pembayaran',
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

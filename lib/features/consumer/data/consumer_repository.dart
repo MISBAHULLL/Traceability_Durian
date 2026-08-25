@@ -11,6 +11,7 @@ import '../../traceability/models/traceability_models.dart';
 import '../../umkm/data/umkm_repository.dart';
 import '../../umkm/models/umkm_order.dart';
 import '../../umkm/models/umkm_product.dart';
+import '../models/consumer_audit_entry.dart';
 import '../models/consumer_product.dart';
 import '../models/consumer_transaction.dart';
 
@@ -45,6 +46,9 @@ class ConsumerRepository extends ChangeNotifier {
   late List<ConsumerProduct> _products;
   List<ConsumerTransaction>? _transactions;
   late List<CollectorDeliveryReceipt> _collectorDeliveryReceipts;
+  late List<ConsumerAuditEntry> _auditLogs;
+
+  static const _auditLogsKey = 'consumer_audit_logs';
 
   void _onCatalogChanged() {
     _syncTransactionsFromUmkmOrders();
@@ -70,6 +74,19 @@ class ConsumerRepository extends ChangeNotifier {
         status: ConsumerTransactionStatus.completed,
         paymentStatus: ConsumerPaymentStatus.paid,
         note: order.note ?? transaction.note,
+      );
+      _recordAudit(
+        type: ConsumerAuditEventType.orderCompleted,
+        title: 'Order selesai',
+        referenceCode: order.id,
+        batchCode: order.productCode,
+        description: '${order.productName} diterima konsumen.',
+        metadata: {
+          'Produk': order.productName,
+          'Jumlah': '${order.quantity} pcs',
+          'Total': order.totalLabel,
+        },
+        save: false,
       );
       changed = true;
     }
@@ -106,6 +123,13 @@ class ConsumerRepository extends ChangeNotifier {
     _transactions = transactionsJson
         ?.map((json) => ConsumerTransaction.fromJson(json))
         .toList();
+
+    final auditLogsJson = LocalStorageService.loadJsonList(_auditLogsKey);
+    _auditLogs = auditLogsJson == null
+        ? <ConsumerAuditEntry>[]
+        : auditLogsJson
+              .map((json) => ConsumerAuditEntry.fromJson(json))
+              .toList();
   }
 
   void _saveToLocal() {
@@ -120,6 +144,10 @@ class ConsumerRepository extends ChangeNotifier {
       (_transactions ?? <ConsumerTransaction>[])
           .map((item) => item.toJson())
           .toList(),
+    );
+    LocalStorageService.saveJsonList(
+      _auditLogsKey,
+      _auditLogs.map((item) => item.toJson()).toList(),
     );
   }
 
@@ -399,6 +427,179 @@ class ConsumerRepository extends ChangeNotifier {
           .where((item) => item.status == ConsumerTransactionStatus.completed)
           .length;
 
+  List<ConsumerAuditEntry> get auditEntries {
+    final entries = <ConsumerAuditEntry>[..._auditLogs];
+    final existingKeys = entries
+        .map(
+          (entry) =>
+              '${entry.type.name}|${entry.referenceCode ?? ''}|${entry.batchCode ?? ''}',
+        )
+        .toSet();
+
+    void addDerived(ConsumerAuditEntry entry) {
+      final key =
+          '${entry.type.name}|${entry.referenceCode ?? ''}|${entry.batchCode ?? ''}';
+      if (existingKeys.contains(key)) return;
+      existingKeys.add(key);
+      entries.add(entry);
+    }
+
+    for (final transaction in _transactions ?? <ConsumerTransaction>[]) {
+      addDerived(
+        ConsumerAuditEntry(
+          id: 'AUD-DER-TRX-${transaction.id}',
+          type: ConsumerAuditEventType.transactionCreated,
+          title: 'Transaksi dibuat',
+          actorName: profile.fullName,
+          occurredAt: transaction.createdAt,
+          referenceCode: transaction.id,
+          batchCode: transaction.product.code,
+          description: transaction.product.name,
+          metadata: {
+            'Produk': transaction.product.name,
+            'UMKM': transaction.product.umkmName,
+            'Jumlah': '${transaction.quantity} pcs',
+            'Total': transaction.totalLabel,
+            'Pembayaran': transaction.paymentMethod,
+            'Status bayar': transaction.effectivePaymentStatus.label,
+          },
+        ),
+      );
+      if (transaction.effectivePaymentStatus == ConsumerPaymentStatus.paid) {
+        addDerived(
+          ConsumerAuditEntry(
+            id: 'AUD-DER-PAY-${transaction.id}',
+            type: ConsumerAuditEventType.paymentVerified,
+            title: 'Pembayaran terverifikasi',
+            actorName: profile.fullName,
+            occurredAt: transaction.createdAt,
+            referenceCode: transaction.id,
+            batchCode: transaction.product.code,
+            description: 'Order siap diproses UMKM.',
+            metadata: {
+              'Produk': transaction.product.name,
+              'Metode': transaction.paymentMethod,
+              'Total': transaction.totalLabel,
+            },
+          ),
+        );
+      }
+      if (transaction.status == ConsumerTransactionStatus.completed) {
+        addDerived(
+          ConsumerAuditEntry(
+            id: 'AUD-DER-DONE-${transaction.id}',
+            type: ConsumerAuditEventType.orderCompleted,
+            title: 'Order selesai',
+            actorName: profile.fullName,
+            occurredAt: transaction.createdAt,
+            referenceCode: transaction.id,
+            batchCode: transaction.product.code,
+            description: '${transaction.product.name} selesai diterima.',
+            metadata: {
+              'Produk': transaction.product.name,
+              'Jumlah': '${transaction.quantity} pcs',
+              'Total': transaction.totalLabel,
+            },
+          ),
+        );
+      }
+    }
+
+    for (final receipt in _collectorDeliveryReceipts) {
+      final accepted =
+          receipt.decision == CollectorDeliveryReceiptDecision.accepted;
+      addDerived(
+        ConsumerAuditEntry(
+          id: 'AUD-DER-RCP-${receipt.id}',
+          type: accepted
+              ? ConsumerAuditEventType.receiptAccepted
+              : ConsumerAuditEventType.receiptRejected,
+          title: accepted ? 'Pengiriman diterima' : 'Pengiriman ditolak',
+          actorName: receipt.receiverName,
+          occurredAt: receipt.checkedAt,
+          referenceCode: receipt.id,
+          batchCode: receipt.shipmentCode,
+          description: accepted
+              ? 'PGL diterima dan divalidasi konsumen.'
+              : receipt.rejectionReason,
+          metadata: {
+            'PGL': receipt.shipmentCode,
+            'Ekspektasi':
+                '${receipt.expectedWeightKg.toStringAsFixed(0)} kg / ${receipt.expectedFruitCount} butir',
+            if (receipt.receivedWeightKg != null)
+              'Diterima':
+                  '${receipt.receivedWeightKg!.toStringAsFixed(0)} kg / ${receipt.receivedFruitCount ?? 0} butir',
+            if (receipt.condition != null) 'Kondisi': receipt.condition!.label,
+            if (receipt.destinationLocation.trim().isNotEmpty)
+              'Lokasi': receipt.destinationLocation.trim(),
+          },
+        ),
+      );
+    }
+
+    entries.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+    return List.unmodifiable(entries);
+  }
+
+  void recordScanAudit({
+    required String code,
+    required bool success,
+    required String title,
+    String? batchCode,
+    String? description,
+  }) {
+    _recordAudit(
+      type: ConsumerAuditEventType.scan,
+      title: title,
+      referenceCode: code.trim().toUpperCase(),
+      batchCode: batchCode?.trim().toUpperCase(),
+      description: description,
+      metadata: {'Hasil': success ? 'Berhasil' : 'Gagal'},
+      dedupe: false,
+    );
+  }
+
+  void _recordAudit({
+    required ConsumerAuditEventType type,
+    required String title,
+    String? referenceCode,
+    String? batchCode,
+    String? description,
+    Map<String, String> metadata = const {},
+    bool save = true,
+    bool dedupe = true,
+  }) {
+    final cleanReference = referenceCode?.trim();
+    final cleanBatch = batchCode?.trim();
+    if (dedupe) {
+      final exists = _auditLogs.any(
+        (entry) =>
+            entry.type == type &&
+            entry.referenceCode == cleanReference &&
+            entry.batchCode == cleanBatch,
+      );
+      if (exists) return;
+    }
+    _auditLogs.insert(
+      0,
+      ConsumerAuditEntry(
+        id: 'CON-AUD-${DateTime.now().millisecondsSinceEpoch}-${_auditLogs.length + 1}',
+        type: type,
+        title: title,
+        actorName: profile.fullName,
+        occurredAt: DateTime.now(),
+        referenceCode: cleanReference?.isEmpty == true ? null : cleanReference,
+        batchCode: cleanBatch?.isEmpty == true ? null : cleanBatch,
+        description: description,
+        metadata: metadata,
+      ),
+    );
+    if (save) {
+      _saveToLocal();
+      notifyListeners();
+    }
+  }
+
   List<ConsumerProduct> filteredProducts(
     ConsumerProductFilter filter,
     String query,
@@ -532,6 +733,22 @@ class ConsumerRepository extends ChangeNotifier {
       qualityNote: cleanQualityNote?.isEmpty == true ? null : cleanQualityNote,
     );
     _collectorDeliveryReceipts.add(receipt);
+    _recordAudit(
+      type: ConsumerAuditEventType.receiptAccepted,
+      title: 'Pengiriman diterima',
+      referenceCode: receipt.id,
+      batchCode: receipt.shipmentCode,
+      description: 'PGL diterima dan divalidasi konsumen.',
+      metadata: {
+        'Ekspektasi':
+            '${receipt.expectedWeightKg.toStringAsFixed(0)} kg / ${receipt.expectedFruitCount} butir',
+        'Diterima':
+            '${receivedWeightKg.toStringAsFixed(0)} kg / $receivedFruitCount butir',
+        'Kondisi': condition.label,
+        'Lokasi': receipt.destinationLocation,
+      },
+      save: false,
+    );
 
     TraceabilityRepository.instance.recordReceiptVariance(
       batchCode: shipment.code,
@@ -591,6 +808,20 @@ class ConsumerRepository extends ChangeNotifier {
       rejectionReason: cleanReason,
     );
     _collectorDeliveryReceipts.add(receipt);
+    _recordAudit(
+      type: ConsumerAuditEventType.receiptRejected,
+      title: 'Pengiriman ditolak',
+      referenceCode: receipt.id,
+      batchCode: receipt.shipmentCode,
+      description: cleanReason,
+      metadata: {
+        'Ekspektasi':
+            '${receipt.expectedWeightKg.toStringAsFixed(0)} kg / ${receipt.expectedFruitCount} butir',
+        'Lokasi': receipt.destinationLocation,
+        'Alasan': cleanReason,
+      },
+      save: false,
+    );
 
     TraceabilityRepository.instance.recordReceiptRejection(
       batchCode: shipment.code,
@@ -641,6 +872,22 @@ class ConsumerRepository extends ChangeNotifier {
       note: note,
     );
     transactions.add(transaction);
+    _recordAudit(
+      type: ConsumerAuditEventType.transactionCreated,
+      title: 'Transaksi dibuat',
+      referenceCode: transaction.id,
+      batchCode: product.code,
+      description: product.name,
+      metadata: {
+        'Produk': product.name,
+        'UMKM': product.umkmName,
+        'Jumlah': '$quantity pcs',
+        'Total': product.priceLabel,
+        'Pembayaran': paymentMethod,
+        'Status bayar': transaction.effectivePaymentStatus.label,
+      },
+      save: false,
+    );
     if (_canCreateUmkmOrderFromTransaction(transaction)) {
       _createUmkmOrderForTransaction(transaction);
     }
@@ -668,11 +915,26 @@ class ConsumerRepository extends ChangeNotifier {
         current.effectivePaymentStatus != ConsumerPaymentStatus.unpaid) {
       return null;
     }
-    return _updatePaymentStatus(
+    final updated = _updatePaymentStatus(
       transactionId,
       paymentStatus: ConsumerPaymentStatus.processing,
       note: 'Pembayaran dikonfirmasi konsumen, menunggu verifikasi.',
     );
+    if (updated != null) {
+      _recordAudit(
+        type: ConsumerAuditEventType.paymentConfirmed,
+        title: 'Pembayaran dikonfirmasi',
+        referenceCode: updated.id,
+        batchCode: updated.product.code,
+        description: 'Menunggu verifikasi pembayaran.',
+        metadata: {
+          'Produk': updated.product.name,
+          'Metode': updated.paymentMethod,
+          'Total': updated.totalLabel,
+        },
+      );
+    }
+    return updated;
   }
 
   ConsumerTransaction? verifyPayment(String transactionId) {
@@ -688,6 +950,18 @@ class ConsumerRepository extends ChangeNotifier {
       note: 'Pembayaran terverifikasi, order dikirim ke UMKM.',
     );
     if (transaction != null) {
+      _recordAudit(
+        type: ConsumerAuditEventType.paymentVerified,
+        title: 'Pembayaran terverifikasi',
+        referenceCode: transaction.id,
+        batchCode: transaction.product.code,
+        description: 'Order diteruskan ke UMKM.',
+        metadata: {
+          'Produk': transaction.product.name,
+          'Metode': transaction.paymentMethod,
+          'Total': transaction.totalLabel,
+        },
+      );
       _createUmkmOrderForTransaction(transaction);
     }
     return transaction;

@@ -67,6 +67,12 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
     final pglCode = _extractPglCode(raw);
     final productCode = _extractProductCode(raw);
     if ((pglCode == null || pglCode.isEmpty) && productCode.isEmpty) {
+      _repo.recordScanAudit(
+        code: raw,
+        success: false,
+        title: 'Scan QR gagal',
+        description: 'Kode QR kosong atau tidak terbaca.',
+      );
       _notification.show(
         context,
         'Masukkan kode QR terlebih dahulu.',
@@ -78,6 +84,13 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
     if (pglCode != null) {
       final shipment = _repo.scanCollectorShipment(pglCode);
       if (shipment == null) {
+        _repo.recordScanAudit(
+          code: pglCode,
+          success: false,
+          title: 'Scan PGL gagal',
+          batchCode: pglCode,
+          description: 'PGL tidak tersedia atau bukan tujuan konsumen.',
+        );
         _notification.show(
           context,
           'PGL tidak tersedia atau bukan tujuan konsumen ini.',
@@ -87,9 +100,23 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
       }
       if (shipment.status == CollectorShipmentStatus.completed ||
           shipment.status == CollectorShipmentStatus.rejected) {
+        _repo.recordScanAudit(
+          code: pglCode,
+          success: false,
+          title: 'Scan PGL selesai',
+          batchCode: pglCode,
+          description: 'PGL sudah ${shipment.status.label}.',
+        );
         _notification.show(context, 'PGL ini sudah ${shipment.status.label}.');
         return;
       }
+      _repo.recordScanAudit(
+        code: pglCode,
+        success: true,
+        title: 'Scan PGL berhasil',
+        batchCode: pglCode,
+        description: 'PGL siap divalidasi konsumen.',
+      );
       await _openShipmentReceipt(pglCode);
       return;
     }
@@ -97,9 +124,23 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
     final product = _repo.findProduct(productCode);
     if (product == null) {
       if (productCode.startsWith('UMKM-P-')) {
+        _repo.recordScanAudit(
+          code: productCode,
+          success: true,
+          title: 'Scan trace produk',
+          batchCode: productCode,
+          description: 'QR produk olahan dibuka ke trace publik.',
+        );
         await _openPublicTrace(productCode);
         return;
       }
+      _repo.recordScanAudit(
+        code: productCode,
+        success: false,
+        title: 'Scan produk gagal',
+        batchCode: productCode,
+        description: 'QR tidak valid atau produk belum tersedia.',
+      );
       _notification.show(
         context,
         'QR tidak valid atau produk belum tersedia.',
@@ -108,6 +149,13 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
       return;
     }
 
+    _repo.recordScanAudit(
+      code: productCode,
+      success: true,
+      title: 'Scan produk berhasil',
+      batchCode: productCode,
+      description: 'Detail produk konsumen dibuka.',
+    );
     await _openProductDetail(product);
   }
 
@@ -129,6 +177,13 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
       final shipment = _repo.scanCollectorShipment(pglCode);
       if (shipment == null) {
         if (!mounted) return;
+        _repo.recordScanAudit(
+          code: pglCode,
+          success: false,
+          title: 'Scan PGL gagal',
+          batchCode: pglCode,
+          description: 'PGL tidak tersedia atau bukan tujuan konsumen.',
+        );
         _notification.show(
           context,
           'PGL tidak tersedia atau bukan tujuan konsumen ini.',
@@ -143,6 +198,13 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
       if (shipment.status == CollectorShipmentStatus.completed ||
           shipment.status == CollectorShipmentStatus.rejected) {
         if (!mounted) return;
+        _repo.recordScanAudit(
+          code: pglCode,
+          success: false,
+          title: 'Scan PGL selesai',
+          batchCode: pglCode,
+          description: 'PGL sudah ${shipment.status.label}.',
+        );
         _notification.show(context, 'PGL ini sudah ${shipment.status.label}.');
         await Future.delayed(const Duration(milliseconds: 900));
         if (!mounted) return;
@@ -150,6 +212,13 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
         await _scannerController.start();
         return;
       }
+      _repo.recordScanAudit(
+        code: pglCode,
+        success: true,
+        title: 'Scan PGL berhasil',
+        batchCode: pglCode,
+        description: 'PGL siap divalidasi konsumen.',
+      );
       await _openShipmentReceipt(pglCode);
       return;
     }
@@ -158,10 +227,24 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
     final product = _repo.findProduct(code);
     if (product == null) {
       if (code.startsWith('UMKM-P-')) {
+        _repo.recordScanAudit(
+          code: code,
+          success: true,
+          title: 'Scan trace produk',
+          batchCode: code,
+          description: 'QR produk olahan dibuka ke trace publik.',
+        );
         await _openPublicTrace(code);
         return;
       }
       if (!mounted) return;
+      _repo.recordScanAudit(
+        code: code,
+        success: false,
+        title: 'Scan produk gagal',
+        batchCode: code,
+        description: 'QR tidak valid atau produk belum tersedia.',
+      );
       _notification.show(
         context,
         'QR tidak valid atau produk belum tersedia.',
@@ -174,6 +257,13 @@ class _ConsumerScanQrScreenState extends State<ConsumerScanQrScreen> {
       return;
     }
 
+    _repo.recordScanAudit(
+      code: code,
+      success: true,
+      title: 'Scan produk berhasil',
+      batchCode: code,
+      description: 'Detail produk konsumen dibuka.',
+    );
     await _openProductDetail(product);
   }
 

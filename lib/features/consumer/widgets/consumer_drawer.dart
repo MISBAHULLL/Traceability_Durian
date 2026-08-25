@@ -6,6 +6,7 @@ import '../consumer_routes.dart';
 import '../data/consumer_repository.dart';
 import '../models/consumer_product.dart';
 import '../screens/consumer_about_screen.dart';
+import '../screens/consumer_audit_trail_screen.dart';
 import '../screens/consumer_help_screen.dart';
 import '../screens/consumer_profile_screen.dart';
 import 'consumer_avatar.dart';
@@ -46,6 +47,11 @@ class ConsumerDrawer extends StatelessWidget {
                   icon: Icons.person_outline_rounded,
                   label: 'Profil',
                   onTap: () => _go(context, const ConsumerProfileScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.fact_check_outlined,
+                  label: 'Audit Trail',
+                  onTap: () => _go(context, const ConsumerAuditTrailScreen()),
                 ),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 28, vertical: 16),

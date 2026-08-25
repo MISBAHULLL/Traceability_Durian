@@ -4,6 +4,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
+import '../../trace/screens/public_trace_screen.dart';
 import '../consumer_routes.dart';
 import 'consumer_create_transaction_screen.dart';
 import '../models/consumer_product.dart';
@@ -25,6 +26,9 @@ class ConsumerProductDetailScreen extends StatelessWidget {
         ? null
         : FarmerRepository.instance.findPublicBatch(product.sourceBatchCode!);
     final hasPhoto = product.imagePath != null && product.imagePath!.isNotEmpty;
+    final traceCode = product.code.startsWith('UMKM-P-')
+        ? product.code
+        : product.sourceBatchCode;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -181,6 +185,31 @@ class ConsumerProductDetailScreen extends StatelessWidget {
                             ],
                     ),
                     const SizedBox(height: 24),
+                    if (traceCode != null && traceCode.isNotEmpty) ...[
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          ConsumerRoutes.push(
+                            context,
+                            PublicTraceScreen(batchCode: traceCode),
+                          );
+                        },
+                        icon: const Icon(Icons.account_tree_outlined, size: 18),
+                        label: const Text('LIHAT TRACE PRODUK'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          foregroundColor: AppColors.primary,
+                          side: const BorderSide(color: AppColors.primary),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     PrimaryPillButton(
                       label: 'BUAT TRANSAKSI',
                       onPressed: () {

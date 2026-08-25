@@ -8,6 +8,8 @@ import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../../traceability/data/traceability_repository.dart';
 import '../../traceability/models/traceability_models.dart';
+import '../../umkm/data/umkm_repository.dart';
+import '../../umkm/models/umkm_product.dart';
 import '../models/consumer_product.dart';
 import '../models/consumer_transaction.dart';
 
@@ -20,6 +22,8 @@ class ConsumerRepository extends ChangeNotifier {
     _loadFromLocal();
     _products = _buildSeedProducts();
     _transactions = _buildSeedTransactions(_products);
+    UmkmRepository.instance.addListener(_onCatalogChanged);
+    TraceabilityRepository.instance.addListener(_onCatalogChanged);
   }
 
   static final ConsumerRepository instance = ConsumerRepository._seed();
@@ -40,6 +44,10 @@ class ConsumerRepository extends ChangeNotifier {
   late List<ConsumerProduct> _products;
   late List<ConsumerTransaction> _transactions;
   late List<CollectorDeliveryReceipt> _collectorDeliveryReceipts;
+
+  void _onCatalogChanged() {
+    notifyListeners();
+  }
 
   void _loadFromLocal() {
     _currentConsumerId =
@@ -246,11 +254,89 @@ class ConsumerRepository extends ChangeNotifier {
 
   ConsumerProfile get profile => _profile;
 
-  List<ConsumerProduct> get products => List.unmodifiable(
-    _products
-        .where((product) => product.status == ConsumerProductStatus.readyToSell)
-        .toList(),
-  );
+  List<ConsumerProduct> get products {
+    final realProducts = _buildProductsFromUmkm();
+    final source = realProducts.isEmpty ? _products : realProducts;
+    return List.unmodifiable(
+      source
+          .where(
+            (product) => product.status == ConsumerProductStatus.readyToSell,
+          )
+          .toList(),
+    );
+  }
+
+  List<ConsumerProduct> _buildProductsFromUmkm() {
+    final umkmRepo = UmkmRepository.instance;
+    return umkmRepo.products
+        .where((product) => product.status == UmkmProductStatus.aktif)
+        .map((product) => _consumerProductFromUmkm(product, umkmRepo))
+        .toList();
+  }
+
+  ConsumerProduct _consumerProductFromUmkm(
+    UmkmProduct product,
+    UmkmRepository umkmRepo,
+  ) {
+    final sourceCode = _preferredSourceCode(product);
+    final sourceBatch = sourceCode == null
+        ? null
+        : FarmerRepository.instance.findPublicBatch(sourceCode);
+    final traceBatch = TraceabilityRepository.instance.findBatch(product.code);
+    return ConsumerProduct(
+      code: product.code,
+      name: product.name,
+      category: _consumerCategoryFor(product.category),
+      status: product.status == UmkmProductStatus.aktif
+          ? ConsumerProductStatus.readyToSell
+          : ConsumerProductStatus.soldOut,
+      priceLabel: product.priceLabel,
+      shortDescription: product.description,
+      umkmName: umkmRepo.profile.name,
+      location:
+          traceBatch?.publicLocationLabel ??
+          traceBatch?.locationLabel ??
+          umkmRepo.profile.location,
+      rating: 4.8,
+      stockLabel: product.stockLabel,
+      sourceBatchCode: sourceCode ?? product.code,
+      sourceVariety: sourceBatch?.variety,
+      sourceGrade: sourceBatch?.grade,
+      sourceOriginFarm: sourceBatch?.farmName,
+      sourceHarvestDate: sourceBatch?.harvestDate,
+      sourceHarvestMethod: sourceBatch?.harvestMethod,
+      sourceMaturityLevel: sourceBatch?.maturityLevel,
+      sourceShelfLifeEstimate: sourceBatch?.shelfLifeEstimate,
+      sourceVerifiedBy: sourceBatch?.verifiedBy,
+      sourceVerifiedAt: sourceBatch?.verifiedAt,
+      sourceReceivedQuantity: sourceBatch?.receivedQuantity,
+      sourceReceivedFruitCount: sourceBatch?.receivedFruitCount,
+      sourceQualityNotes: sourceBatch?.qualityNotes,
+      sourceNotes: sourceBatch?.notes,
+      imagePath: product.imagePath,
+    );
+  }
+
+  String? _preferredSourceCode(UmkmProduct product) {
+    if (product.sourceTraceCodes.isEmpty) return product.code;
+    return product.sourceTraceCodes.firstWhere(
+      (code) => code.startsWith('DRN-'),
+      orElse: () => product.sourceTraceCodes.first,
+    );
+  }
+
+  ConsumerProductCategory _consumerCategoryFor(String category) {
+    switch (category.trim().toLowerCase()) {
+      case 'segar':
+        return ConsumerProductCategory.segar;
+      case 'minuman':
+        return ConsumerProductCategory.minuman;
+      case 'paket':
+        return ConsumerProductCategory.paket;
+      default:
+        return ConsumerProductCategory.olahan;
+    }
+  }
 
   List<ConsumerTransaction> get transactions {
     final items = List<ConsumerTransaction>.from(_transactions);

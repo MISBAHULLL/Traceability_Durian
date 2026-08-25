@@ -114,6 +114,39 @@ class ConsumerTransaction {
 
   String get purchasedProductQrData => purchasedProductCode;
 
+  ConsumerTransaction copyWith({
+    ConsumerProduct? product,
+    ConsumerTransactionStatus? status,
+    int? quantity,
+    String? totalLabel,
+    DateTime? createdAt,
+    String? buyerAddress,
+    String? buyerCoordinates,
+    String? paymentMethod,
+    ConsumerPaymentStatus? paymentStatus,
+    String? qrCodeData,
+    String? bankName,
+    String? accountNumber,
+    String? note,
+  }) {
+    return ConsumerTransaction(
+      id: id,
+      product: product ?? this.product,
+      status: status ?? this.status,
+      quantity: quantity ?? this.quantity,
+      totalLabel: totalLabel ?? this.totalLabel,
+      createdAt: createdAt ?? this.createdAt,
+      buyerAddress: buyerAddress ?? this.buyerAddress,
+      buyerCoordinates: buyerCoordinates ?? this.buyerCoordinates,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      qrCodeData: qrCodeData ?? this.qrCodeData,
+      bankName: bankName ?? this.bankName,
+      accountNumber: accountNumber ?? this.accountNumber,
+      note: note ?? this.note,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'product': product.toJson(),

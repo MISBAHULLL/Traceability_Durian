@@ -9,6 +9,7 @@ import '../../farmer/models/harvest_batch.dart';
 import '../../traceability/data/traceability_repository.dart';
 import '../../traceability/models/traceability_models.dart';
 import '../../umkm/data/umkm_repository.dart';
+import '../../umkm/models/umkm_order.dart';
 import '../../umkm/models/umkm_product.dart';
 import '../models/consumer_product.dart';
 import '../models/consumer_transaction.dart';
@@ -46,7 +47,36 @@ class ConsumerRepository extends ChangeNotifier {
   late List<CollectorDeliveryReceipt> _collectorDeliveryReceipts;
 
   void _onCatalogChanged() {
+    _syncTransactionsFromUmkmOrders();
     notifyListeners();
+  }
+
+  void _syncTransactionsFromUmkmOrders() {
+    final transactions = _transactions;
+    if (transactions == null || transactions.isEmpty) return;
+
+    var changed = false;
+    final umkmOrders = UmkmRepository.instance.orders;
+    for (var i = 0; i < transactions.length; i++) {
+      final transaction = transactions[i];
+      if (transaction.status == ConsumerTransactionStatus.completed) continue;
+      final matchingOrders = umkmOrders.where(
+        (order) => order.id == transaction.id,
+      );
+      if (matchingOrders.isEmpty) continue;
+      final order = matchingOrders.first;
+      if (order.status != UmkmOrderStatus.selesai) continue;
+      transactions[i] = transaction.copyWith(
+        status: ConsumerTransactionStatus.completed,
+        paymentStatus: ConsumerPaymentStatus.paid,
+        note: order.note ?? transaction.note,
+      );
+      changed = true;
+    }
+
+    if (changed) {
+      _saveToLocal();
+    }
   }
 
   void _loadFromLocal() {
@@ -611,9 +641,47 @@ class ConsumerRepository extends ChangeNotifier {
       note: note,
     );
     transactions.add(transaction);
+    _createUmkmOrderForTransaction(transaction);
     _saveToLocal();
     notifyListeners();
     return transaction;
+  }
+
+  void _createUmkmOrderForTransaction(ConsumerTransaction transaction) {
+    final umkmRepo = UmkmRepository.instance;
+    final hasExistingOrder = umkmRepo.orders.any(
+      (order) => order.id == transaction.id,
+    );
+    if (hasExistingOrder) return;
+
+    umkmRepo.addOrder(
+      UmkmOrder(
+        id: transaction.id,
+        productName: transaction.product.name,
+        buyerName: profile.fullName,
+        quantity: transaction.quantity,
+        totalLabel: transaction.totalLabel,
+        status: UmkmOrderStatus.diproses,
+        createdAt: transaction.createdAt,
+        qrCodeData: transaction.qrCodeData,
+        productCode: transaction.product.code,
+        note: _orderNoteForTransaction(transaction),
+      ),
+    );
+  }
+
+  String _orderNoteForTransaction(ConsumerTransaction transaction) {
+    final parts = <String>[
+      'Dibuat dari transaksi konsumen ${transaction.id}.',
+      if (transaction.buyerAddress.trim().isNotEmpty)
+        'Alamat: ${transaction.buyerAddress.trim()}',
+      if (transaction.buyerCoordinates.trim().isNotEmpty)
+        'Koordinat: ${transaction.buyerCoordinates.trim()}',
+      'Pembayaran: ${transaction.paymentMethod} (${transaction.effectivePaymentStatus.label})',
+      if (transaction.note != null && transaction.note!.trim().isNotEmpty)
+        transaction.note!.trim(),
+    ];
+    return parts.join(' ');
   }
 
   ConsumerProfile registerConsumer({

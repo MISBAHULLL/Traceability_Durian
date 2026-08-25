@@ -9,6 +9,20 @@ enum ConsumerProductCategory { segar, olahan, minuman, paket }
 /// Status produk yang terlihat oleh konsumen.
 enum ConsumerProductStatus { readyToSell, limitedStock, soldOut, promo }
 
+ConsumerProductCategory consumerProductCategoryFromJson(Object? value) {
+  return ConsumerProductCategory.values.firstWhere(
+    (category) => category.name == value,
+    orElse: () => ConsumerProductCategory.olahan,
+  );
+}
+
+ConsumerProductStatus consumerProductStatusFromJson(Object? value) {
+  return ConsumerProductStatus.values.firstWhere(
+    (status) => status.name == value,
+    orElse: () => ConsumerProductStatus.readyToSell,
+  );
+}
+
 extension ConsumerProductFilterX on ConsumerProductFilter {
   String get label {
     switch (this) {
@@ -127,6 +141,70 @@ class ConsumerProduct {
   final String? sourceQualityNotes;
   final String? sourceNotes;
   final String? imagePath;
+
+  Map<String, dynamic> toJson() => {
+    'code': code,
+    'name': name,
+    'category': category.name,
+    'status': status.name,
+    'priceLabel': priceLabel,
+    'shortDescription': shortDescription,
+    'umkmName': umkmName,
+    'location': location,
+    'rating': rating,
+    'stockLabel': stockLabel,
+    'sourceBatchCode': sourceBatchCode,
+    'sourceVariety': sourceVariety,
+    'sourceGrade': sourceGrade,
+    'sourceOriginFarm': sourceOriginFarm,
+    'sourceHarvestDate': sourceHarvestDate?.toIso8601String(),
+    'sourceHarvestMethod': sourceHarvestMethod,
+    'sourceMaturityLevel': sourceMaturityLevel,
+    'sourceShelfLifeEstimate': sourceShelfLifeEstimate,
+    'sourceVerifiedBy': sourceVerifiedBy,
+    'sourceVerifiedAt': sourceVerifiedAt?.toIso8601String(),
+    'sourceReceivedQuantity': sourceReceivedQuantity,
+    'sourceReceivedFruitCount': sourceReceivedFruitCount,
+    'sourceQualityNotes': sourceQualityNotes,
+    'sourceNotes': sourceNotes,
+    'imagePath': imagePath,
+  };
+
+  factory ConsumerProduct.fromJson(Map<String, dynamic> json) {
+    return ConsumerProduct(
+      code: json['code'] as String? ?? '',
+      name: json['name'] as String? ?? 'Produk UMKM',
+      category: consumerProductCategoryFromJson(json['category']),
+      status: consumerProductStatusFromJson(json['status']),
+      priceLabel: json['priceLabel'] as String? ?? '-',
+      shortDescription: json['shortDescription'] as String? ?? '',
+      umkmName: json['umkmName'] as String? ?? '-',
+      location: json['location'] as String? ?? '',
+      rating: (json['rating'] as num?)?.toDouble() ?? 0,
+      stockLabel: json['stockLabel'] as String? ?? 'Stok belum ditentukan',
+      sourceBatchCode: json['sourceBatchCode'] as String?,
+      sourceVariety: json['sourceVariety'] as String?,
+      sourceGrade: json['sourceGrade'] as String?,
+      sourceOriginFarm: json['sourceOriginFarm'] as String?,
+      sourceHarvestDate: DateTime.tryParse(
+        json['sourceHarvestDate'] as String? ?? '',
+      ),
+      sourceHarvestMethod: json['sourceHarvestMethod'] as String?,
+      sourceMaturityLevel: json['sourceMaturityLevel'] as String?,
+      sourceShelfLifeEstimate: json['sourceShelfLifeEstimate'] as String?,
+      sourceVerifiedBy: json['sourceVerifiedBy'] as String?,
+      sourceVerifiedAt: DateTime.tryParse(
+        json['sourceVerifiedAt'] as String? ?? '',
+      ),
+      sourceReceivedQuantity: (json['sourceReceivedQuantity'] as num?)
+          ?.toDouble(),
+      sourceReceivedFruitCount: (json['sourceReceivedFruitCount'] as num?)
+          ?.toInt(),
+      sourceQualityNotes: json['sourceQualityNotes'] as String?,
+      sourceNotes: json['sourceNotes'] as String?,
+      imagePath: json['imagePath'] as String?,
+    );
+  }
 }
 
 /// Profil konsumen yang login.

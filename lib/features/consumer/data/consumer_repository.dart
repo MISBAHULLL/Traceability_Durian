@@ -21,7 +21,7 @@ class ConsumerRepository extends ChangeNotifier {
   ConsumerRepository._seed() {
     _loadFromLocal();
     _products = _buildSeedProducts();
-    _transactions = _buildSeedTransactions(_products);
+    _transactions ??= _buildSeedTransactions(_products);
     UmkmRepository.instance.addListener(_onCatalogChanged);
     TraceabilityRepository.instance.addListener(_onCatalogChanged);
   }
@@ -42,7 +42,7 @@ class ConsumerRepository extends ChangeNotifier {
   late String _currentConsumerId;
   late ConsumerProfile _profile;
   late List<ConsumerProduct> _products;
-  late List<ConsumerTransaction> _transactions;
+  List<ConsumerTransaction>? _transactions;
   late List<CollectorDeliveryReceipt> _collectorDeliveryReceipts;
 
   void _onCatalogChanged() {
@@ -69,6 +69,13 @@ class ConsumerRepository extends ChangeNotifier {
         : deliveryReceiptsJson
               .map((json) => CollectorDeliveryReceipt.fromJson(json))
               .toList();
+
+    final transactionsJson = LocalStorageService.loadJsonList(
+      'consumer_transactions',
+    );
+    _transactions = transactionsJson
+        ?.map((json) => ConsumerTransaction.fromJson(json))
+        .toList();
   }
 
   void _saveToLocal() {
@@ -77,6 +84,12 @@ class ConsumerRepository extends ChangeNotifier {
     LocalStorageService.saveJsonList(
       'consumer_collector_delivery_receipts',
       _collectorDeliveryReceipts.map((item) => item.toJson()).toList(),
+    );
+    LocalStorageService.saveJsonList(
+      'consumer_transactions',
+      (_transactions ?? <ConsumerTransaction>[])
+          .map((item) => item.toJson())
+          .toList(),
     );
   }
 
@@ -339,18 +352,22 @@ class ConsumerRepository extends ChangeNotifier {
   }
 
   List<ConsumerTransaction> get transactions {
-    final items = List<ConsumerTransaction>.from(_transactions);
+    final items = List<ConsumerTransaction>.from(
+      _transactions ?? <ConsumerTransaction>[],
+    );
     items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return List.unmodifiable(items);
   }
 
-  int get processingTransactionCount => _transactions
-      .where((item) => item.status == ConsumerTransactionStatus.processing)
-      .length;
+  int get processingTransactionCount =>
+      (_transactions ?? <ConsumerTransaction>[])
+          .where((item) => item.status == ConsumerTransactionStatus.processing)
+          .length;
 
-  int get completedTransactionCount => _transactions
-      .where((item) => item.status == ConsumerTransactionStatus.completed)
-      .length;
+  int get completedTransactionCount =>
+      (_transactions ?? <ConsumerTransaction>[])
+          .where((item) => item.status == ConsumerTransactionStatus.completed)
+          .length;
 
   List<ConsumerProduct> filteredProducts(
     ConsumerProductFilter filter,
@@ -574,8 +591,9 @@ class ConsumerRepository extends ChangeNotifier {
     String? note,
   }) {
     final now = DateTime.now();
+    final transactions = _transactions ??= <ConsumerTransaction>[];
     final id =
-        'TRX-${now.year}-${(_transactions.length + 1).toString().padLeft(4, '0')}';
+        'TRX-${now.year}-${(transactions.length + 1).toString().padLeft(4, '0')}';
     final transaction = ConsumerTransaction(
       id: id,
       product: product,
@@ -592,7 +610,8 @@ class ConsumerRepository extends ChangeNotifier {
       accountNumber: accountNumber,
       note: note,
     );
-    _transactions.add(transaction);
+    transactions.add(transaction);
+    _saveToLocal();
     notifyListeners();
     return transaction;
   }

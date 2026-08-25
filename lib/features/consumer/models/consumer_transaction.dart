@@ -5,6 +5,13 @@ import 'consumer_product.dart';
 /// Status transaksi konsumen.
 enum ConsumerTransactionStatus { processing, completed }
 
+ConsumerTransactionStatus consumerTransactionStatusFromJson(Object? value) {
+  return ConsumerTransactionStatus.values.firstWhere(
+    (status) => status.name == value,
+    orElse: () => ConsumerTransactionStatus.processing,
+  );
+}
+
 extension ConsumerTransactionStatusX on ConsumerTransactionStatus {
   String get label {
     switch (this) {
@@ -29,6 +36,13 @@ extension ConsumerTransactionStatusX on ConsumerTransactionStatus {
 
 /// Status pembayaran transaksi konsumen.
 enum ConsumerPaymentStatus { unpaid, processing, paid }
+
+ConsumerPaymentStatus consumerPaymentStatusFromJson(Object? value) {
+  return ConsumerPaymentStatus.values.firstWhere(
+    (status) => status.name == value,
+    orElse: () => ConsumerPaymentStatus.unpaid,
+  );
+}
 
 extension ConsumerPaymentStatusX on ConsumerPaymentStatus {
   String get label {
@@ -99,4 +113,47 @@ class ConsumerTransaction {
   String get purchasedProductCode => 'PUR-${product.code}-$id';
 
   String get purchasedProductQrData => purchasedProductCode;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'product': product.toJson(),
+    'status': status.name,
+    'quantity': quantity,
+    'totalLabel': totalLabel,
+    'createdAt': createdAt.toIso8601String(),
+    'buyerAddress': buyerAddress,
+    'buyerCoordinates': buyerCoordinates,
+    'paymentMethod': paymentMethod,
+    'paymentStatus': paymentStatus?.name,
+    'qrCodeData': qrCodeData,
+    'bankName': bankName,
+    'accountNumber': accountNumber,
+    'note': note,
+  };
+
+  factory ConsumerTransaction.fromJson(Map<String, dynamic> json) {
+    final rawProduct = json['product'];
+    return ConsumerTransaction(
+      id: json['id'] as String? ?? '',
+      product: rawProduct is Map
+          ? ConsumerProduct.fromJson(Map<String, dynamic>.from(rawProduct))
+          : ConsumerProduct.fromJson(const {}),
+      status: consumerTransactionStatusFromJson(json['status']),
+      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+      totalLabel: json['totalLabel'] as String? ?? '-',
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      buyerAddress: json['buyerAddress'] as String? ?? '',
+      buyerCoordinates: json['buyerCoordinates'] as String? ?? '',
+      paymentMethod: json['paymentMethod'] as String? ?? '-',
+      paymentStatus: json['paymentStatus'] == null
+          ? null
+          : consumerPaymentStatusFromJson(json['paymentStatus']),
+      qrCodeData: json['qrCodeData'] as String? ?? '',
+      bankName: json['bankName'] as String?,
+      accountNumber: json['accountNumber'] as String?,
+      note: json['note'] as String?,
+    );
+  }
 }

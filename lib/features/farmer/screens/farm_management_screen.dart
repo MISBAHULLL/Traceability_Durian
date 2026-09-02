@@ -53,6 +53,76 @@ class _FarmManagementScreenState extends State<FarmManagementScreen> {
     // Listener _onRepoChanged sudah menangani refresh otomatis.
   }
 
+  // [FE - Event Handler] Membuka form kebun dalam mode edit untuk memperbarui
+  // data lokasi tanpa membuat screen baru.
+  Future<void> _goToEditFarm(Farm farm) async {
+    await FarmerRoutes.push(context, CreateFarmScreen(editFarmId: farm.id));
+  }
+
+  // [FE - Event Handler] Dialog ini mengonfirmasi hapus kebun dan menampilkan
+  // guard traceability bila kebun sudah dipakai oleh batch.
+  Future<void> _confirmDeleteFarm(Farm farm) async {
+    if (!_repo.canDeleteFarm(farm.id)) {
+      _showMessage(
+        'Kebun tidak dapat dihapus karena sudah dipakai oleh batch panen.',
+        isError: true,
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Hapus Kebun?',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: Text(
+          'Kebun "${farm.name}" akan dihapus dari daftar lokasi. Aksi ini tidak dapat dibatalkan.',
+          style: const TextStyle(color: AppColors.subtitle, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    final ok = _repo.deleteFarm(farm.id);
+    _showMessage(
+      ok ? 'Kebun berhasil dihapus.' : 'Kebun tidak dapat dihapus.',
+      isError: !ok,
+    );
+  }
+
+  // [FE - Event Handler] SnackBar ringkas dipakai untuk feedback aksi kartu
+  // kebun agar tidak menambah dependency overlay pada screen daftar.
+  void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError
+            ? const Color(0xFFDC2626)
+            : AppColors.primaryContainer,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final farms = _repo.farms;
@@ -92,6 +162,8 @@ class _FarmManagementScreenState extends State<FarmManagementScreen> {
                       farms: farms,
                       selectMode: widget.selectMode,
                       onCreateFarm: _goToCreateFarm,
+                      onEditFarm: _goToEditFarm,
+                      onDeleteFarm: _confirmDeleteFarm,
                     ),
             ),
           ],
@@ -110,11 +182,15 @@ class _FarmList extends StatelessWidget {
     required this.farms,
     required this.selectMode,
     required this.onCreateFarm,
+    required this.onEditFarm,
+    required this.onDeleteFarm,
   });
 
   final List<Farm> farms;
   final bool selectMode;
   final VoidCallback onCreateFarm;
+  final ValueChanged<Farm> onEditFarm;
+  final ValueChanged<Farm> onDeleteFarm;
 
   @override
   Widget build(BuildContext context) {
@@ -126,7 +202,12 @@ class _FarmList extends StatelessWidget {
             itemCount: farms.length,
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
-              return _FarmCard(farm: farms[index], selectMode: selectMode);
+              return _FarmCard(
+                farm: farms[index],
+                selectMode: selectMode,
+                onEdit: () => onEditFarm(farms[index]),
+                onDelete: () => onDeleteFarm(farms[index]),
+              );
             },
           ),
         ),
@@ -151,10 +232,17 @@ class _FarmList extends StatelessWidget {
 // mendukung selectMode — bila aktif, tap kartu akan pop dan mengembalikan
 // Farm yang dipilih ke pemanggil (AddBatchScreen).
 class _FarmCard extends StatelessWidget {
-  const _FarmCard({required this.farm, required this.selectMode});
+  const _FarmCard({
+    required this.farm,
+    required this.selectMode,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final Farm farm;
   final bool selectMode;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -260,6 +348,32 @@ class _FarmCard extends StatelessWidget {
                   color: AppColors.primaryContainer,
                   size: 22,
                 ),
+              )
+            else
+              // [FE - Component Rendering] Aksi kartu kebun memberi akses CRUD
+              // langsung tanpa masuk halaman detail tambahan.
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Ubah kebun',
+                    onPressed: onEdit,
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      color: AppColors.primaryContainer,
+                      size: 20,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Hapus kebun',
+                    onPressed: onDelete,
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: Color(0xFFDC2626),
+                      size: 20,
+                    ),
+                  ),
+                ],
               ),
           ],
         ),

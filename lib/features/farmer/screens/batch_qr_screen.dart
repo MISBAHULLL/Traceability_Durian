@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
+import '../../../shared/widgets/qr_preview.dart';
 import '../../trace/screens/public_trace_screen.dart';
 import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
@@ -83,9 +83,9 @@ class _BatchQrScreenState extends State<BatchQrScreen>
     }
   }
 
-  // [FE - Event Handler] Tombol ini mensimulasikan hasil scan QR oleh
-  // konsumen: membuka halaman trace publik read-only berdasarkan kode batch.
-  void _handleViewDetail() {
+  // [FE - Event Handler] Tombol ini membuka halaman trace publik read-only
+  // yang sama dengan tujuan scan QR konsumen.
+  void _handleViewTrace() {
     FarmerRoutes.push(context, PublicTraceScreen(batchCode: widget.batchCode));
   }
 
@@ -131,12 +131,7 @@ class _BatchQrScreenState extends State<BatchQrScreen>
                                 color: const Color(0xFFE5E7EB),
                               ),
                             ),
-                            child: QrImageView(
-                              data: url,
-                              version: QrVersions.auto,
-                              size: 220,
-                              backgroundColor: AppColors.white,
-                            ),
+                            child: ResponsiveQrCode(data: url, size: 220),
                           ),
 
                           const SizedBox(height: 28),
@@ -196,8 +191,8 @@ class _BatchQrScreenState extends State<BatchQrScreen>
 
                           // ── Tombol Lihat Detail ──────────────────────────
                           PrimaryPillButton(
-                            label: 'LIHAT DETAIL',
-                            onPressed: _handleViewDetail,
+                            label: 'LIHAT TRACE DURIAN',
+                            onPressed: _handleViewTrace,
                           ),
                         ],
                       ),

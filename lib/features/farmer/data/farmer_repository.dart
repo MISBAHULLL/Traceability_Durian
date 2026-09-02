@@ -1,8 +1,11 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/storage/local_storage_service.dart';
+import '../../traceability/data/traceability_repository.dart';
+import '../../traceability/models/traceability_models.dart';
 import '../models/batch_event.dart';
 import '../models/farm.dart';
+import '../models/farmer_notification.dart';
 import '../models/harvest_batch.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,6 +28,17 @@ import '../models/harvest_batch.dart';
 class FarmerRepository extends ChangeNotifier {
   FarmerRepository._seed() {
     _loadFromLocal();
+    TraceabilityRepository.instance.addListener(_onTraceabilityChanged);
+  }
+
+  void _onTraceabilityChanged() {
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    TraceabilityRepository.instance.removeListener(_onTraceabilityChanged);
+    super.dispose();
   }
 
   // [FE - State Management] Loader ini me-restore state mock dari
@@ -54,10 +68,21 @@ class FarmerRepository extends ChangeNotifier {
       _batches = _buildSeedBatches();
     }
 
+    final eventsJsonList = LocalStorageService.loadJsonList(
+      'farmer_batch_events',
+    );
+    if (eventsJsonList != null) {
+      _batchEvents = eventsJsonList.map((e) => BatchEvent.fromJson(e)).toList();
+    } else {
+      _batchEvents = <BatchEvent>[];
+    }
+
     _batchCounter =
         LocalStorageService.loadInt('farmer_batch_counter') ?? _batches.length;
     _ensureSeedRejectedBatch();
     _ensureSeedShipmentSourceBatches();
+    _ensureEventStoreBackfilled();
+    _syncCoreTraceabilityBatches();
   }
 
   // [FE - State Management] Migrasi seed ini menjaga data demo tetap lengkap
@@ -125,9 +150,160 @@ class FarmerRepository extends ChangeNotifier {
       'farmer_batches',
       _batches.map((e) => e.toJson()).toList(),
     );
+    LocalStorageService.saveJsonList(
+      'farmer_batch_events',
+      _batchEvents.map((e) => e.toJson()).toList(),
+    );
     LocalStorageService.saveInt('farmer_batch_counter', _batchCounter);
   }
 
+  // [FE - State Management] Adapter sementara menuju core traceability.
+  // Setiap batch panen petani punya representasi generik TraceBatch agar
+  // flow role berikutnya nanti bisa memakai event, balance, dan lineage sama.
+  void _syncCoreTraceabilityBatches() {
+    final traceRepo = TraceabilityRepository.instance;
+    for (final batch in _batches) {
+      traceRepo.recordHarvestBatch(
+        batchCode: batch.code,
+        farmerId: batch.farmerId,
+        farmerName: _profile.fullName,
+        variety: batch.variety,
+        quantity: batch.quantity,
+        unit: batch.unit,
+        fruitCount: batch.fruitCount,
+        harvestDate: batch.createdAt ?? batch.harvestDate,
+        farmName: batch.farmName,
+        publicLocationLabel: batch.farmName,
+        metadata: {
+          'Grade awal': batch.grade,
+          if (batch.maturityLevel?.isNotEmpty == true)
+            'Kematangan': batch.maturityLevel!,
+          if (batch.harvestMethod?.isNotEmpty == true)
+            'Metode panen': batch.harvestMethod!,
+        },
+      );
+    }
+  }
+
+  String _nextEventId(String batchCode, BatchEventType type) {
+    final index = (_batchEvents.length + 1).toString().padLeft(6, '0');
+    return 'EVT-$batchCode-${type.name}-$index';
+  }
+
+  void _appendBatchEvent({
+    required String batchCode,
+    required BatchEventType type,
+    required String title,
+    required String actorLabel,
+    required DateTime timestamp,
+    required BatchStatus status,
+    String? description,
+    String? locationLabel,
+    Map<String, String> metadata = const {},
+  }) {
+    _batchEvents.add(
+      BatchEvent(
+        id: _nextEventId(batchCode, type),
+        batchCode: batchCode,
+        type: type,
+        title: title,
+        actorLabel: actorLabel,
+        timestamp: timestamp,
+        status: status,
+        description: description,
+        locationLabel: locationLabel,
+        metadata: metadata,
+      ),
+    );
+  }
+
+  List<BatchEvent> _storedEventsForBatch(String code) {
+    final events = _batchEvents
+        .where((event) => event.batchCode == code)
+        .toList();
+    events.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return List.unmodifiable(events);
+  }
+
+  void _ensureEventStoreBackfilled() {
+    var changed = false;
+    final existingCodes = _batchEvents
+        .map((event) => event.batchCode)
+        .whereType<String>()
+        .toSet();
+    for (final batch in _batches) {
+      if (existingCodes.contains(batch.code)) continue;
+      for (final event in _eventsForBatch(batch)) {
+        _appendBatchEvent(
+          batchCode: batch.code,
+          type: _eventTypeForGenerated(event),
+          title: event.title,
+          actorLabel: event.actorLabel,
+          timestamp: event.timestamp,
+          status: event.status,
+          description: event.description,
+          locationLabel: event.locationLabel,
+          metadata: event.metadata,
+        );
+      }
+      changed = true;
+    }
+    if (changed) _saveToLocal();
+  }
+
+  BatchEventType _eventTypeForGenerated(BatchEvent event) {
+    if (event.title.contains('QR')) return BatchEventType.qrCreated;
+    if (event.title.startsWith('Grading')) return BatchEventType.batchGraded;
+    if (event.title.startsWith('Ditolak')) return BatchEventType.batchRejected;
+    if (event.title.startsWith('Dalam Distribusi')) {
+      return BatchEventType.batchSent;
+    }
+    if (event.title.startsWith('Diterima')) return BatchEventType.batchReceived;
+    if (event.title.startsWith('Sedang Diolah')) {
+      return BatchEventType.batchProcessed;
+    }
+    if (event.title.startsWith('Terjual')) return BatchEventType.batchSold;
+    if (event.title.startsWith('Terverifikasi')) {
+      return BatchEventType.batchVerified;
+    }
+    return BatchEventType.batchCreated;
+  }
+
+  void recordBatchQrScan({
+    required String code,
+    required BatchReceiverRole receiverRole,
+    required String actorName,
+    String? locationLabel,
+  }) {
+    final batch = findPublicBatch(code);
+    if (batch == null || batch.status != BatchStatus.created) return;
+
+    final now = DateTime.now();
+    final recentDuplicate = _batchEvents.any((event) {
+      if (event.batchCode != code || event.type != BatchEventType.qrScanned) {
+        return false;
+      }
+      if (event.actorLabel != actorName.trim()) return false;
+      return now.difference(event.timestamp).inSeconds.abs() < 5;
+    });
+    if (recentDuplicate) return;
+
+    _appendBatchEvent(
+      batchCode: code,
+      type: BatchEventType.qrScanned,
+      title: 'QR discan ${receiverRole.label}',
+      actorLabel: actorName.trim().isEmpty
+          ? receiverRole.label
+          : actorName.trim(),
+      timestamp: now,
+      status: batch.status,
+      description:
+          '${receiverRole.label} memindai QR batch untuk validasi penerimaan.',
+      locationLabel: locationLabel?.trim(),
+    );
+    _saveToLocal();
+    notifyListeners();
+  }
   // [FE - State Management] Seed data dipindahkan dari FarmerMockData ke sini
   // (task 13.3) agar repository menjadi satu-satunya sumber data mock.
   // ── Konstanta seed (dipindahkan dari FarmerMockData — task 13.3) ───────────
@@ -356,6 +532,7 @@ class FarmerRepository extends ChangeNotifier {
   late FarmerProfile _profile;
   late List<Farm> _farms;
   late List<HarvestBatch> _batches;
+  late List<BatchEvent> _batchEvents;
   late int _batchCounter;
 
   // ── Identitas sesi ──────────────────────────────────────────────────────────
@@ -371,6 +548,18 @@ class FarmerRepository extends ChangeNotifier {
   /// Daftar kebun milik petani yang sedang login.
   List<Farm> get farms =>
       _farms.where((f) => f.farmerId == _currentFarmerId).toList();
+
+  // [FE - State Management] findFarm mencari kebun milik sesi aktif untuk
+  // kebutuhan form edit tanpa membuka akses kebun milik petani lain.
+  Farm? findFarm(String id) {
+    try {
+      return _farms.firstWhere(
+        (f) => f.id == id && f.farmerId == _currentFarmerId,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 
   // ── Batch (Req 7.2 — terbatas milik currentFarmerId) ──────────────────────
 
@@ -411,6 +600,16 @@ class FarmerRepository extends ChangeNotifier {
     }
   }
 
+  // [FE - State Management] Lookup kebun publik untuk halaman trace QR.
+  // Tidak membuka aksi edit; hanya dipakai membaca asal geografis batch.
+  Farm? findPublicFarm(String id) {
+    try {
+      return _farms.firstWhere((f) => f.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── Pembuatan kode batch (Req 2.7) ─────────────────────────────────────────
 
   // [UTIL - Helper Function] generateBatchCode menghasilkan kode unik
@@ -419,6 +618,18 @@ class FarmerRepository extends ChangeNotifier {
   ///
   /// Kode bersifat monotetik: counter bertambah setiap pemanggilan sehingga
   /// tidak ada duplikat selama sesi berlangsung.
+  TraceBatch? traceBatchFor(String code) {
+    return TraceabilityRepository.instance.findBatch(code);
+  }
+
+  List<TraceBatchEvent> traceEventsForBatch(String code) {
+    return TraceabilityRepository.instance.eventsForBatch(code);
+  }
+
+  List<TraceQuantityMovement> traceMovementsForBatch(String code) {
+    return TraceabilityRepository.instance.movementsForBatch(code);
+  }
+
   String generateBatchCode() {
     _batchCounter++;
     final year = DateTime.now().year;
@@ -483,6 +694,48 @@ class FarmerRepository extends ChangeNotifier {
       notes: notes,
     );
     _batches.add(batch);
+    _appendBatchEvent(
+      batchCode: batch.code,
+      type: BatchEventType.batchCreated,
+      title: 'Batch Dibuat',
+      actorLabel: 'Petani - ${_profile.fullName}',
+      timestamp: now,
+      status: BatchStatus.created,
+      description: 'Data panen dicatat oleh petani.',
+      locationLabel: batch.farmName,
+      metadata: {
+        'Varietas': batch.variety,
+        'Berat': '${batch.quantity} ${batch.unit}',
+        'Jumlah buah': '$fruitCount',
+      },
+    );
+    _appendBatchEvent(
+      batchCode: batch.code,
+      type: BatchEventType.qrCreated,
+      title: 'QR Batch Dibuat',
+      actorLabel: 'Petani - ${_profile.fullName}',
+      timestamp: now.add(const Duration(seconds: 1)),
+      status: BatchStatus.created,
+      description: 'QR trace siap discan penerima.',
+      locationLabel: batch.farmName,
+    );
+    TraceabilityRepository.instance.recordHarvestBatch(
+      batchCode: batch.code,
+      farmerId: batch.farmerId,
+      farmerName: _profile.fullName,
+      variety: batch.variety,
+      quantity: batch.quantity,
+      unit: batch.unit,
+      fruitCount: batch.fruitCount,
+      harvestDate: batch.createdAt ?? batch.harvestDate,
+      farmName: batch.farmName,
+      publicLocationLabel: batch.farmName,
+      metadata: {
+        'Grade awal': batch.grade,
+        'Kematangan': batch.maturityLevel ?? '',
+        'Metode panen': batch.harvestMethod ?? '',
+      },
+    );
     _saveToLocal();
     notifyListeners();
     return batch;
@@ -523,6 +776,66 @@ class FarmerRepository extends ChangeNotifier {
     _saveToLocal();
     notifyListeners();
     return farm;
+  }
+
+  // [FE - State Management] updateFarm memperbarui data kebun milik petani
+  // aktif. Batch lama tetap menyimpan snapshot farmName agar audit tidak kabur.
+  bool updateFarm({
+    required String id,
+    required String name,
+    required String province,
+    required String city,
+    required String district,
+    required String village,
+    required String address,
+    double? latitude,
+    double? longitude,
+  }) {
+    final index = _farms.indexWhere(
+      (f) => f.id == id && f.farmerId == _currentFarmerId,
+    );
+    if (index == -1) return false;
+
+    final existing = _farms[index];
+    _farms[index] = Farm(
+      id: existing.id,
+      farmerId: existing.farmerId,
+      name: name,
+      province: province,
+      city: city,
+      district: district,
+      village: village,
+      address: address,
+      latitude: latitude,
+      longitude: longitude,
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  // [AUTH - Authorization] canDeleteFarm menjaga agar kebun yang sudah menjadi
+  // asal batch tidak dihapus dan memutus rantai traceability.
+  bool canDeleteFarm(String id) {
+    final farm = findFarm(id);
+    if (farm == null) return false;
+    return !_batches.any(
+      (batch) => batch.farmerId == _currentFarmerId && batch.farmId == id,
+    );
+  }
+
+  // [FE - State Management] deleteFarm menghapus kebun kosong saja; kebun yang
+  // sudah dipakai batch harus tetap ada sebagai data asal panen.
+  bool deleteFarm(String id) {
+    if (!canDeleteFarm(id)) return false;
+
+    final before = _farms.length;
+    _farms.removeWhere((f) => f.id == id && f.farmerId == _currentFarmerId);
+    if (_farms.length == before) return false;
+
+    _saveToLocal();
+    notifyListeners();
+    return true;
   }
 
   // ── Guard edit batch (Req 3.8, 3.9, 7.3, 7.4) ─────────────────────────────
@@ -643,6 +956,134 @@ class FarmerRepository extends ChangeNotifier {
   int get verifiedBatch =>
       batches.where((b) => b.status == BatchStatus.verifiedByCollector).length;
 
+  // [FE - State Management] Statistik ini menghitung batch yang ditolak
+  // pengepul agar Beranda dapat memberi sinyal masalah ke petani.
+  int get rejectedBatch =>
+      batches.where((b) => b.status == BatchStatus.rejected).length;
+
+  // [FE - State Management] Notifikasi petani dibangkitkan dari status batch
+  // agar FE punya pusat notifikasi meski tabel notifikasi BE belum tersedia.
+  List<FarmerNotification> get notifications {
+    final items = <FarmerNotification>[];
+
+    for (final batch in batches) {
+      final baseTime = batch.createdAt ?? batch.harvestDate;
+
+      switch (batch.status) {
+        case BatchStatus.draft:
+          break;
+        case BatchStatus.created:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-request',
+              batchCode: batch.code,
+              title: 'Batch siap discan',
+              message:
+                  '${batch.variety} ${_formatBatchAmount(batch)} menunggu scan QR dan konfirmasi penerima.',
+              createdAt: baseTime,
+              type: FarmerNotificationType.transactionRequest,
+              batchStatus: batch.status,
+              requiresAttention: true,
+            ),
+          );
+        case BatchStatus.verifiedByCollector:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-verified',
+              batchCode: batch.code,
+              title: 'Serah terima diterima',
+              message:
+                  '${batch.verifiedBy ?? 'Penerima'} menerima ${_formatReceivedAmount(batch)} dengan grade riil ${batch.verifiedGrade ?? batch.grade}.',
+              createdAt: batch.verifiedAt ?? baseTime,
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.inDistribution:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-distribution',
+              batchCode: batch.code,
+              title: 'Batch masuk pengiriman',
+              message:
+                  '${batch.variety} dari ${batch.farmName} sudah bergerak ke penerima berikutnya.',
+              createdAt: (batch.verifiedAt ?? baseTime).add(
+                const Duration(days: 1),
+              ),
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.receivedByUmkm:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-received-umkm',
+              batchCode: batch.code,
+              title: 'Batch diterima UMKM',
+              message:
+                  '${batch.variety} sudah diterima UMKM dan trace tetap tersambung.',
+              createdAt: (batch.verifiedAt ?? baseTime).add(
+                const Duration(days: 2),
+              ),
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.processed:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-processed',
+              batchCode: batch.code,
+              title: 'Batch mulai diolah',
+              message:
+                  '${batch.variety} sudah masuk proses olahan UMKM sebagai bagian trace produk.',
+              createdAt: (batch.verifiedAt ?? baseTime).add(
+                const Duration(days: 3),
+              ),
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.sold:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-sold',
+              batchCode: batch.code,
+              title: 'Trace selesai sampai konsumen',
+              message:
+                  '${batch.variety} telah selesai di rantai pasok dan tercatat sampai penjualan.',
+              createdAt: (batch.verifiedAt ?? baseTime).add(
+                const Duration(days: 4),
+              ),
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.rejected:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-rejected',
+              batchCode: batch.code,
+              title: 'Serah terima ditolak',
+              message:
+                  batch.rejectionReason ??
+                  'Batch perlu ditinjau karena penerima menolak serah terima.',
+              createdAt: batch.rejectedAt ?? baseTime,
+              type: FarmerNotificationType.dispute,
+              batchStatus: batch.status,
+              requiresAttention: true,
+            ),
+          );
+      }
+    }
+
+    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return items;
+  }
+
+  int get attentionNotificationCount =>
+      notifications.where((item) => item.requiresAttention).length;
+
   // ── Timeline (Req 3.6) ─────────────────────────────────────────────────────
 
   // [FE - State Management] Getter ini membuka batch CREATED sebagai antrean
@@ -660,11 +1101,16 @@ class FarmerRepository extends ChangeNotifier {
   }
 
   // [FE - State Management] Getter lintas-role ini menyediakan stok hasil
-  // verifikasi dari seluruh petani untuk operasional pengepul pada mock FE.
-  // Backend nanti harus membatasi hasil berdasarkan collectorId penerima.
+  // verifikasi pengepul untuk operasional pengepul pada mock FE. Batch yang
+  // diterima langsung oleh distributor/UMKM tidak masuk gudang pengepul.
   List<HarvestBatch> get batchesForCollectorStock {
     final items = _batches
-        .where((b) => b.status == BatchStatus.verifiedByCollector)
+        .where(
+          (b) =>
+              b.status == BatchStatus.verifiedByCollector &&
+              (b.verifiedByRole == null ||
+                  b.verifiedByRole == BatchReceiverRole.collector),
+        )
         .toList();
     items.sort((a, b) {
       final aDate = a.verifiedAt ?? a.createdAt ?? a.harvestDate;
@@ -690,15 +1136,43 @@ class FarmerRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
-  // [FE - State Management] Mutasi ini menjadi transisi status dari petani
-  // ke pengepul: CREATED -> VERIFIED_BY_COLLECTOR pada fase mock FE-only.
+  // [FE - State Management] Wrapper legacy untuk jalur pengepul. UI lama tetap
+  // aman, tetapi mutasi utama sekarang generik lintas penerima.
   bool verifyBatchByCollector({
     required String code,
     required double receivedQuantity,
     required int receivedFruitCount,
     required List<BatchGradeBreakdown> gradeBreakdown,
+    String? warehouseId,
+    String? verificationPhotoPath,
     String? qualityNotes,
     String verifiedBy = 'Pengepul',
+  }) {
+    return verifyBatchByReceiver(
+      code: code,
+      receiverRole: BatchReceiverRole.collector,
+      receivedQuantity: receivedQuantity,
+      receivedFruitCount: receivedFruitCount,
+      gradeBreakdown: gradeBreakdown,
+      warehouseId: warehouseId,
+      verificationPhotoPath: verificationPhotoPath,
+      qualityNotes: qualityNotes,
+      receiverName: verifiedBy,
+    );
+  }
+
+  // [FE - State Management] Mutasi T2 generik: penerima memindai QR DRN,
+  // menimbang aktual, mengecek kondisi, lalu batch berpindah ke penerima.
+  bool verifyBatchByReceiver({
+    required String code,
+    required BatchReceiverRole receiverRole,
+    required double receivedQuantity,
+    required int receivedFruitCount,
+    required List<BatchGradeBreakdown> gradeBreakdown,
+    String? warehouseId,
+    String? verificationPhotoPath,
+    String? qualityNotes,
+    String receiverName = 'Penerima',
   }) {
     final cleanBreakdown = gradeBreakdown.where((e) => e.hasValue).toList();
     if (receivedQuantity <= 0 ||
@@ -719,28 +1193,208 @@ class FarmerRepository extends ChangeNotifier {
       (a, b) => b.weightKg > a.weightKg ? b : a,
     );
     final dominantGrade = dominantBreakdown.grade.trim();
+    final verifiedAt = DateTime.now();
+    final newStatus = receiverRole == BatchReceiverRole.umkm
+        ? BatchStatus.receivedByUmkm
+        : BatchStatus.verifiedByCollector;
+    final cleanReceiverName = receiverName.trim().isEmpty
+        ? receiverRole.label
+        : receiverName.trim();
 
     _batches[index] = existing.copyWith(
-      status: BatchStatus.verifiedByCollector,
+      status: newStatus,
       receivedQuantity: receivedQuantity,
       receivedFruitCount: receivedFruitCount,
+      warehouseId: warehouseId?.trim(),
       verifiedGrade: dominantGrade,
       gradeBreakdown: cleanBreakdown,
+      verificationPhotoPath: verificationPhotoPath?.trim(),
       qualityNotes: qualityNotes?.trim(),
-      verifiedBy: verifiedBy.trim().isEmpty ? 'Pengepul' : verifiedBy.trim(),
-      verifiedAt: DateTime.now(),
+      verifiedBy: cleanReceiverName,
+      verifiedByRole: receiverRole,
+      verifiedAt: verifiedAt,
+    );
+    _appendBatchEvent(
+      batchCode: code,
+      type: receiverRole == BatchReceiverRole.umkm
+          ? BatchEventType.batchReceived
+          : BatchEventType.batchVerified,
+      title: receiverRole == BatchReceiverRole.umkm
+          ? 'Diterima UMKM'
+          : 'Terverifikasi ${receiverRole.label}',
+      actorLabel: cleanReceiverName,
+      timestamp: verifiedAt,
+      status: newStatus,
+      description: qualityNotes?.trim().isEmpty == false
+          ? qualityNotes!.trim()
+          : '${receiverRole.label} menerima dan memverifikasi batch.',
+      locationLabel: warehouseId?.trim(),
+      metadata: {
+        'Berat diterima': '$receivedQuantity kg',
+        'Jumlah diterima': '$receivedFruitCount butir',
+        'Grade dominan': dominantGrade,
+      },
     );
     _saveToLocal();
     notifyListeners();
     return true;
   }
 
-  // [FE - State Management] Mutasi ini menjadi jalur penolakan batch dari
-  // pengepul ke petani pada fase mock FE-only.
+  // [FE - State Management] Mutasi ini menyimpan grading lanjutan setelah
+  // batch menjadi stok pengepul. Status tidak berubah; hanya pecahan grade
+  // fisik yang diperbarui agar ringkasan stok membaca hasil sortir terbaru.
+  bool updateCollectorAdvancedGrading({
+    required String code,
+    required List<BatchGradeBreakdown> gradeBreakdown,
+    String gradedBy = 'Pengepul',
+  }) {
+    final cleanBreakdown = gradeBreakdown.where((e) => e.hasValue).toList();
+    if (cleanBreakdown.isEmpty) return false;
+
+    final index = _batches.indexWhere((b) => b.code == code);
+    if (index == -1) return false;
+
+    final existing = _batches[index];
+    if (existing.status != BatchStatus.verifiedByCollector) return false;
+
+    final receivedQuantity = existing.receivedQuantity ?? existing.quantity;
+    final receivedFruitCount =
+        existing.receivedFruitCount ?? existing.fruitCount ?? 0;
+    final totalWeight = cleanBreakdown.fold<double>(
+      0,
+      (sum, item) => sum + item.weightKg,
+    );
+    final totalFruit = cleanBreakdown.fold<int>(
+      0,
+      (sum, item) => sum + item.fruitCount,
+    );
+    if ((totalWeight - receivedQuantity).abs() > 0.01 ||
+        totalFruit != receivedFruitCount) {
+      return false;
+    }
+
+    final dominantBreakdown = cleanBreakdown.reduce(
+      (a, b) => b.weightKg > a.weightKg ? b : a,
+    );
+
+    _batches[index] = existing.copyWith(
+      verifiedGrade: dominantBreakdown.grade.trim(),
+      gradeBreakdown: cleanBreakdown,
+    );
+    final cleanGradedBy = gradedBy.trim().isEmpty
+        ? 'Pengepul'
+        : gradedBy.trim();
+    _appendBatchEvent(
+      batchCode: code,
+      type: BatchEventType.batchGraded,
+      title: 'Grading Lanjutan',
+      actorLabel: cleanGradedBy,
+      timestamp: DateTime.now(),
+      status: existing.status,
+      description: 'Stok disortir ulang berdasarkan kondisi dan mutu durian.',
+      locationLabel: existing.warehouseId,
+      metadata: {
+        'Total grading': '$totalWeight kg / $totalFruit butir',
+        'Grade dominan': dominantBreakdown.grade.trim(),
+        'Rincian grade': cleanBreakdown
+            .map(
+              (item) =>
+                  '${item.grade}: ${item.weightKg} kg / ${item.fruitCount} butir',
+            )
+            .join(', '),
+      },
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  bool transferCollectorBatchWarehouse({
+    required String code,
+    required String fromWarehouseId,
+    required String fromWarehouseLabel,
+    required String toWarehouseId,
+    required String toWarehouseLabel,
+    required String reason,
+    String actorName = 'Pengepul',
+  }) {
+    final cleanCode = code.trim().toUpperCase();
+    final cleanFromId = fromWarehouseId.trim();
+    final cleanToId = toWarehouseId.trim();
+    final cleanReason = reason.trim();
+    if (cleanCode.isEmpty ||
+        cleanFromId.isEmpty ||
+        cleanToId.isEmpty ||
+        cleanFromId == cleanToId ||
+        cleanReason.isEmpty) {
+      return false;
+    }
+
+    final index = _batches.indexWhere((b) => b.code == cleanCode);
+    if (index == -1) return false;
+
+    final existing = _batches[index];
+    if (existing.status != BatchStatus.verifiedByCollector ||
+        existing.verifiedByRole != BatchReceiverRole.collector ||
+        existing.warehouseId?.trim() != cleanFromId) {
+      return false;
+    }
+
+    final transferredAt = DateTime.now();
+    final weight = existing.receivedQuantity ?? existing.quantity;
+    final fruitCount = existing.receivedFruitCount ?? existing.fruitCount ?? 0;
+    final cleanActorName = actorName.trim().isEmpty
+        ? 'Pengepul'
+        : actorName.trim();
+    final cleanFromLabel = fromWarehouseLabel.trim().isEmpty
+        ? cleanFromId
+        : fromWarehouseLabel.trim();
+    final cleanToLabel = toWarehouseLabel.trim().isEmpty
+        ? cleanToId
+        : toWarehouseLabel.trim();
+
+    _batches[index] = existing.copyWith(warehouseId: cleanToId);
+    _appendBatchEvent(
+      batchCode: cleanCode,
+      type: BatchEventType.batchTransferred,
+      title: 'Transfer Gudang',
+      actorLabel: cleanActorName,
+      timestamp: transferredAt,
+      status: existing.status,
+      description: cleanReason,
+      locationLabel: cleanToLabel,
+      metadata: {
+        'Gudang asal': cleanFromLabel,
+        'Gudang tujuan': cleanToLabel,
+        'Jumlah dipindah': '$weight ${existing.unit}',
+        'Jumlah buah': '$fruitCount butir',
+      },
+    );
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  // [FE - State Management] Wrapper legacy penolakan pengepul.
   bool rejectBatchByCollector({
     required String code,
     required String reason,
     String rejectedBy = 'Pengepul',
+  }) {
+    return rejectBatchByReceiver(
+      code: code,
+      reason: reason,
+      receiverRole: BatchReceiverRole.collector,
+      rejectedBy: rejectedBy,
+    );
+  }
+
+  // [FE - State Management] Penolakan T2 generik untuk penerima lintas role.
+  bool rejectBatchByReceiver({
+    required String code,
+    required String reason,
+    required BatchReceiverRole receiverRole,
+    String rejectedBy = 'Penerima',
   }) {
     final cleanReason = reason.trim();
     if (cleanReason.isEmpty) return false;
@@ -751,11 +1405,26 @@ class FarmerRepository extends ChangeNotifier {
     final existing = _batches[index];
     if (existing.status != BatchStatus.created) return false;
 
+    final rejectedAt = DateTime.now();
+    final cleanRejectedBy = rejectedBy.trim().isEmpty
+        ? receiverRole.label
+        : rejectedBy.trim();
+
     _batches[index] = existing.copyWith(
       status: BatchStatus.rejected,
       rejectionReason: cleanReason,
-      rejectedBy: rejectedBy.trim().isEmpty ? 'Pengepul' : rejectedBy.trim(),
-      rejectedAt: DateTime.now(),
+      rejectedBy: cleanRejectedBy,
+      verifiedByRole: receiverRole,
+      rejectedAt: rejectedAt,
+    );
+    _appendBatchEvent(
+      batchCode: code,
+      type: BatchEventType.batchRejected,
+      title: 'Ditolak ${receiverRole.label}',
+      actorLabel: cleanRejectedBy,
+      timestamp: rejectedAt,
+      status: BatchStatus.rejected,
+      description: cleanReason,
     );
     _saveToLocal();
     notifyListeners();
@@ -778,7 +1447,85 @@ class FarmerRepository extends ChangeNotifier {
       if (!cleanCodes.contains(batch.code)) continue;
       if (batch.status != BatchStatus.verifiedByCollector) continue;
 
+      final sentAt = DateTime.now();
       _batches[i] = batch.copyWith(status: BatchStatus.inDistribution);
+      _appendBatchEvent(
+        batchCode: batch.code,
+        type: BatchEventType.batchSent,
+        title: 'Dalam Distribusi',
+        actorLabel: batch.verifiedByRole?.label ?? 'Penerima',
+        timestamp: sentAt,
+        status: BatchStatus.inDistribution,
+        description: 'Batch dikirim ke tujuan berikutnya.',
+      );
+      changed = true;
+    }
+
+    if (!changed) return false;
+
+    _saveToLocal();
+    notifyListeners();
+    return true;
+  }
+
+  // [FE - State Management] Transisi ini dipakai saat pengepul menerima PGL
+  // dari pengepul lain. Source DRN kembali menjadi stok pengepul penerima agar
+  // bisa dibuat pengiriman lanjutan tanpa memutus provenance asal petani.
+  bool markBatchesReceivedByCollector({
+    required Iterable<String> sourceBatchCodes,
+    required String warehouseId,
+    required String warehouseLabel,
+    required String receiverName,
+    String? qualityNote,
+  }) {
+    final cleanCodes = sourceBatchCodes
+        .map((code) => code.trim())
+        .where((code) => code.isNotEmpty)
+        .toSet();
+    final cleanWarehouseId = warehouseId.trim();
+    if (cleanCodes.isEmpty || cleanWarehouseId.isEmpty) return false;
+
+    final cleanReceiverName = receiverName.trim().isEmpty
+        ? 'Pengepul'
+        : receiverName.trim();
+    final cleanWarehouseLabel = warehouseLabel.trim().isEmpty
+        ? cleanWarehouseId
+        : warehouseLabel.trim();
+    final note = qualityNote?.trim();
+
+    var changed = false;
+    for (var i = 0; i < _batches.length; i++) {
+      final batch = _batches[i];
+      if (!cleanCodes.contains(batch.code)) continue;
+      if (batch.status != BatchStatus.inDistribution) continue;
+
+      final receivedAt = DateTime.now();
+      _batches[i] = batch.copyWith(
+        status: BatchStatus.verifiedByCollector,
+        warehouseId: cleanWarehouseId,
+        verifiedByRole: BatchReceiverRole.collector,
+        verifiedBy: cleanReceiverName,
+        verifiedAt: receivedAt,
+      );
+      _appendBatchEvent(
+        batchCode: batch.code,
+        type: BatchEventType.batchReceived,
+        title: 'Diterima Pengepul Lain',
+        actorLabel: cleanReceiverName,
+        timestamp: receivedAt,
+        status: BatchStatus.verifiedByCollector,
+        description: note?.isNotEmpty == true
+            ? note!
+            : 'Batch diterima pengepul lain dari PGL sebelumnya.',
+        locationLabel: cleanWarehouseLabel,
+        metadata: {
+          'Gudang tujuan': cleanWarehouseLabel,
+          'Berat stok':
+              '${batch.receivedQuantity ?? batch.quantity} ${batch.unit}',
+          'Jumlah buah':
+              '${batch.receivedFruitCount ?? batch.fruitCount ?? 0} butir',
+        },
+      );
       changed = true;
     }
 
@@ -804,7 +1551,17 @@ class FarmerRepository extends ChangeNotifier {
       if (!cleanCodes.contains(batch.code)) continue;
       if (batch.status != BatchStatus.inDistribution) continue;
 
+      final receivedAt = DateTime.now();
       _batches[i] = batch.copyWith(status: BatchStatus.receivedByUmkm);
+      _appendBatchEvent(
+        batchCode: batch.code,
+        type: BatchEventType.batchReceived,
+        title: 'Diterima UMKM',
+        actorLabel: 'UMKM',
+        timestamp: receivedAt,
+        status: BatchStatus.receivedByUmkm,
+        description: 'Batch diterima UMKM dari pengiriman sebelumnya.',
+      );
       changed = true;
     }
 
@@ -825,22 +1582,52 @@ class FarmerRepository extends ChangeNotifier {
   /// Integrasi event nyata dari backend adalah future work.
   List<BatchEvent> eventsFor(String code) {
     final batch = findBatch(code);
-    if (batch == null) return [];
+    if (batch == null) return const [];
+    final stored = _storedEventsForBatch(code);
+    return stored.isNotEmpty ? stored : _eventsForBatch(batch);
+  }
 
+  // [FE - State Management] Versi publik untuk QR/trace konsumen. Lookup-nya
+  // tidak memakai ownership petani aktif karena halaman trace dibaca lintas role.
+  List<BatchEvent> publicEventsFor(String code) {
+    final batch = findPublicBatch(code);
+    if (batch == null) return const [];
+    final stored = _storedEventsForBatch(code);
+    return stored.isNotEmpty ? stored : _eventsForBatch(batch);
+  }
+
+  List<BatchEvent> _eventsForBatch(HarvestBatch batch) {
     final events = <BatchEvent>[];
     final actorName = _profile.fullName;
     final createdAt = batch.createdAt ?? batch.harvestDate;
-    final verifiedBy = batch.verifiedBy ?? 'Pengepul';
+    final receiverRole = batch.verifiedByRole ?? BatchReceiverRole.collector;
+    final receiverLabel = receiverRole.label;
+    final receiverActionTitle = receiverRole == BatchReceiverRole.umkm
+        ? 'Diterima UMKM'
+        : 'Terverifikasi $receiverLabel';
+    final verifiedBy = batch.verifiedBy ?? receiverLabel;
     final verifiedAt =
         batch.verifiedAt ?? createdAt.add(const Duration(days: 1));
 
-    // Event "Batch Dibuat" selalu ada
+    // Event "Batch Dibuat" dan QR awal selalu ada.
     events.add(
       BatchEvent(
         title: 'Batch Dibuat',
-        actorLabel: 'Petani — $actorName',
+        actorLabel: 'Petani - $actorName',
         timestamp: createdAt,
         status: BatchStatus.created,
+        description: 'Data panen dicatat oleh petani.',
+        locationLabel: batch.farmName,
+      ),
+    );
+    events.add(
+      BatchEvent(
+        title: 'QR Batch Dibuat',
+        actorLabel: 'Petani - $actorName',
+        timestamp: createdAt.add(const Duration(seconds: 1)),
+        status: BatchStatus.created,
+        description: 'QR trace siap discan penerima.',
+        locationLabel: batch.farmName,
       ),
     );
 
@@ -852,7 +1639,7 @@ class FarmerRepository extends ChangeNotifier {
       case BatchStatus.verifiedByCollector:
         events.add(
           BatchEvent(
-            title: 'Terverifikasi Pengepul',
+            title: receiverActionTitle,
             actorLabel: verifiedBy,
             timestamp: verifiedAt,
             status: BatchStatus.verifiedByCollector,
@@ -861,7 +1648,7 @@ class FarmerRepository extends ChangeNotifier {
       case BatchStatus.inDistribution:
         events.add(
           BatchEvent(
-            title: 'Terverifikasi Pengepul',
+            title: receiverActionTitle,
             actorLabel: verifiedBy,
             timestamp: verifiedAt,
             status: BatchStatus.verifiedByCollector,
@@ -870,7 +1657,7 @@ class FarmerRepository extends ChangeNotifier {
         events.add(
           BatchEvent(
             title: 'Dalam Distribusi',
-            actorLabel: 'Pengepul',
+            actorLabel: receiverLabel,
             timestamp: createdAt.add(const Duration(days: 2)),
             status: BatchStatus.inDistribution,
           ),
@@ -878,32 +1665,36 @@ class FarmerRepository extends ChangeNotifier {
       case BatchStatus.receivedByUmkm:
         events.add(
           BatchEvent(
-            title: 'Terverifikasi Pengepul',
+            title: receiverActionTitle,
             actorLabel: verifiedBy,
             timestamp: verifiedAt,
-            status: BatchStatus.verifiedByCollector,
+            status: receiverRole == BatchReceiverRole.umkm
+                ? BatchStatus.receivedByUmkm
+                : BatchStatus.verifiedByCollector,
           ),
         );
-        events.add(
-          BatchEvent(
-            title: 'Dalam Distribusi',
-            actorLabel: 'Pengepul',
-            timestamp: createdAt.add(const Duration(days: 2)),
-            status: BatchStatus.inDistribution,
-          ),
-        );
-        events.add(
-          BatchEvent(
-            title: 'Diterima UMKM',
-            actorLabel: 'UMKM',
-            timestamp: createdAt.add(const Duration(days: 3)),
-            status: BatchStatus.receivedByUmkm,
-          ),
-        );
+        if (receiverRole != BatchReceiverRole.umkm) {
+          events.add(
+            BatchEvent(
+              title: 'Dalam Distribusi',
+              actorLabel: receiverLabel,
+              timestamp: createdAt.add(const Duration(days: 2)),
+              status: BatchStatus.inDistribution,
+            ),
+          );
+          events.add(
+            BatchEvent(
+              title: 'Diterima UMKM',
+              actorLabel: 'UMKM',
+              timestamp: createdAt.add(const Duration(days: 3)),
+              status: BatchStatus.receivedByUmkm,
+            ),
+          );
+        }
       case BatchStatus.processed:
         events.add(
           BatchEvent(
-            title: 'Terverifikasi Pengepul',
+            title: receiverActionTitle,
             actorLabel: verifiedBy,
             timestamp: verifiedAt,
             status: BatchStatus.verifiedByCollector,
@@ -912,7 +1703,7 @@ class FarmerRepository extends ChangeNotifier {
         events.add(
           BatchEvent(
             title: 'Dalam Distribusi',
-            actorLabel: 'Pengepul',
+            actorLabel: receiverLabel,
             timestamp: createdAt.add(const Duration(days: 2)),
             status: BatchStatus.inDistribution,
           ),
@@ -936,7 +1727,7 @@ class FarmerRepository extends ChangeNotifier {
       case BatchStatus.sold:
         events.add(
           BatchEvent(
-            title: 'Terverifikasi Pengepul',
+            title: receiverActionTitle,
             actorLabel: verifiedBy,
             timestamp: verifiedAt,
             status: BatchStatus.verifiedByCollector,
@@ -945,7 +1736,7 @@ class FarmerRepository extends ChangeNotifier {
         events.add(
           BatchEvent(
             title: 'Dalam Distribusi',
-            actorLabel: 'Pengepul',
+            actorLabel: receiverLabel,
             timestamp: createdAt.add(const Duration(days: 2)),
             status: BatchStatus.inDistribution,
           ),
@@ -977,8 +1768,8 @@ class FarmerRepository extends ChangeNotifier {
       case BatchStatus.rejected:
         events.add(
           BatchEvent(
-            title: 'Ditolak Pengepul',
-            actorLabel: batch.rejectedBy ?? 'Pengepul',
+            title: 'Ditolak $receiverLabel',
+            actorLabel: batch.rejectedBy ?? receiverLabel,
             timestamp:
                 batch.rejectedAt ?? createdAt.add(const Duration(days: 1)),
             status: BatchStatus.rejected,
@@ -1112,6 +1903,24 @@ List<HarvestBatch> searchAndFilterBatches(
         b.variety.toLowerCase().contains(q);
     return matchFilter && matchQuery;
   }).toList();
+}
+
+String _formatBatchAmount(HarvestBatch batch) {
+  final weight = _formatCompactNumber(batch.quantity);
+  final fruit = batch.fruitCount == null ? '' : ' / ${batch.fruitCount} butir';
+  return '$weight ${batch.unit}$fruit';
+}
+
+String _formatReceivedAmount(HarvestBatch batch) {
+  final quantity = batch.receivedQuantity ?? batch.quantity;
+  final fruit = batch.receivedFruitCount ?? batch.fruitCount;
+  final fruitText = fruit == null ? '' : ' / $fruit butir';
+  return '${_formatCompactNumber(quantity)} ${batch.unit}$fruitText';
+}
+
+String _formatCompactNumber(num value) {
+  if (value % 1 == 0) return value.toInt().toString();
+  return value.toStringAsFixed(1);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

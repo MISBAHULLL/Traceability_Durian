@@ -7,8 +7,10 @@ import '../farmer_routes.dart';
 import '../models/harvest_batch.dart';
 import '../screens/about_screen.dart';
 import '../screens/farm_management_screen.dart';
+import '../screens/farmer_notifications_screen.dart';
 import '../screens/farmer_profile_screen.dart';
 import '../screens/help_screen.dart';
+import '../screens/ownership_history_screen.dart';
 import 'farmer_avatar.dart';
 
 // [FE - Component Rendering] FarmerDrawer adalah navigation drawer utama
@@ -57,6 +59,16 @@ class FarmerDrawer extends StatelessWidget {
                   icon: Icons.forest_rounded, // Ikon kebun yang lebih megah
                   label: 'Kelola Kebun',
                   onTap: () => _go(context, const FarmManagementScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.timeline_rounded,
+                  label: 'Riwayat Perpindahan',
+                  onTap: () => _go(context, const OwnershipHistoryScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.notifications_none_rounded,
+                  label: 'Notifikasi',
+                  onTap: () => _go(context, const FarmerNotificationsScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.person_outline_rounded,
@@ -134,7 +146,11 @@ class FarmerDrawer extends StatelessWidget {
         ),
         content: const Text(
           'Anda akan keluar dari sesi ini dan kembali ke halaman masuk. Pastikan semua data telah tersimpan.',
-          style: TextStyle(color: AppColors.subtitle, height: 1.5, fontSize: 15),
+          style: TextStyle(
+            color: AppColors.subtitle,
+            height: 1.5,
+            fontSize: 15,
+          ),
         ),
         actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
         actions: [
@@ -210,7 +226,7 @@ class _DrawerHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
-    
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -262,7 +278,9 @@ class _DrawerHeader extends StatelessWidget {
                       // Glassmorphism effect untuk label role
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(8),
@@ -313,15 +331,17 @@ class _DrawerItem extends StatelessWidget {
 
   /// Warna kustom. Jika null, akan memakai warna default atau merah jika destructive.
   final Color? color;
-  
+
   /// Jika true, akan menggunakan styling merah/berbahaya (untuk Keluar).
   final bool isDestructive;
 
   @override
   Widget build(BuildContext context) {
-    final defaultColor = isDestructive ? const Color(0xFFDC2626) : AppColors.primary;
+    final defaultColor = isDestructive
+        ? const Color(0xFFDC2626)
+        : AppColors.primary;
     final itemColor = color ?? defaultColor;
-    
+
     // Warna background ikon yang sangat soft
     final iconBgColor = itemColor.withValues(alpha: 0.12);
 

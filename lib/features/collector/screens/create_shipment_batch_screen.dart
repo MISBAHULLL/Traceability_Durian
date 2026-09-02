@@ -20,6 +20,8 @@ class CreateShipmentBatchScreen extends StatefulWidget {
 
 class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
   final _repo = CollectorRepository.instance;
+  final _destinationNameCtrl = TextEditingController();
+  final _destinationLocationCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   final _notification = TopNotification();
   final Set<String> _selectedCodes = {};
@@ -36,6 +38,8 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
   void dispose() {
     _repo.removeListener(_onRepoChanged);
     _notification.dispose();
+    _destinationNameCtrl.dispose();
+    _destinationLocationCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
   }
@@ -70,11 +74,19 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
 
     final destinationType = _destinationType;
     if (destinationType == null) {
+      _notification.show(context, 'Pilih tujuan pengiriman.', isError: true);
+      return;
+    }
+    if (_destinationNameCtrl.text.trim().isEmpty) {
       _notification.show(
         context,
-        'Pilih tujuan pengiriman: UMKM atau distributor.',
+        'Nama pihak tujuan wajib diisi.',
         isError: true,
       );
+      return;
+    }
+    if (_destinationLocationCtrl.text.trim().isEmpty) {
+      _notification.show(context, 'Lokasi tujuan wajib diisi.', isError: true);
       return;
     }
 
@@ -85,6 +97,8 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
     final shipment = _repo.createShipmentBatch(
       sourceBatchCodes: _selectedCodes.toList(),
       destinationType: destinationType,
+      destinationName: _destinationNameCtrl.text,
+      destinationLocation: _destinationLocationCtrl.text,
       warehouseNote: _noteCtrl.text,
     );
 
@@ -142,6 +156,19 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
                           onChanged: (value) {
                             setState(() => _destinationType = value);
                           },
+                        ),
+                        const SizedBox(height: 18),
+                        const _SectionTitle(title: 'Detail Tujuan'),
+                        const SizedBox(height: 8),
+                        _ShipmentTextField(
+                          controller: _destinationNameCtrl,
+                          hintText: 'Nama pihak tujuan',
+                        ),
+                        const SizedBox(height: 10),
+                        _ShipmentTextField(
+                          controller: _destinationLocationCtrl,
+                          hintText: 'Lokasi/alamat tujuan spesifik',
+                          maxLines: 2,
                         ),
                         const SizedBox(height: 18),
                         const _SectionTitle(title: 'Catatan Kondisi Gudang'),
@@ -214,6 +241,46 @@ class _EmptyAvailableBatch extends StatelessWidget {
   }
 }
 
+class _ShipmentTextField extends StatelessWidget {
+  const _ShipmentTextField({
+    required this.controller,
+    required this.hintText,
+    this.maxLines = 1,
+  });
+
+  final TextEditingController controller;
+  final String hintText;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      maxLines: maxLines,
+      decoration: InputDecoration(
+        hintText: hintText,
+        filled: true,
+        fillColor: AppColors.surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(
+            color: AppColors.primaryContainer,
+            width: 2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // [FE - Component Rendering] Selector ini memisahkan jalur handover langsung
 // ke UMKM dan jalur skala besar melalui distributor tanpa aturan jumlah kaku.
 class _DestinationSelector extends StatelessWidget {
@@ -224,65 +291,80 @@ class _DestinationSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: ShipmentDestinationType.values.map((type) {
-        final isSelected = selected == type;
-        final isLast = type == ShipmentDestinationType.values.last;
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(right: isLast ? 0 : 10),
-            child: InkWell(
-              onTap: () => onChanged(type),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primaryContainer.withValues(alpha: 0.08)
-                      : AppColors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isSelected
-                        ? AppColors.primaryContainer
-                        : const Color(0xFFE5E7EB),
-                    width: isSelected ? 2 : 1,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemWidth = (constraints.maxWidth - 10) / 2;
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: ShipmentDestinationType.values.map((type) {
+            final isSelected = selected == type;
+            return SizedBox(
+              width: itemWidth,
+              child: InkWell(
+                onTap: () => onChanged(type),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 14,
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      type == ShipmentDestinationType.umkm
-                          ? Icons.storefront_outlined
-                          : Icons.warehouse_outlined,
-                      size: 20,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primaryContainer.withValues(alpha: 0.08)
+                        : AppColors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
                       color: isSelected
-                          ? AppColors.primary
-                          : AppColors.placeholder,
+                          ? AppColors.primaryContainer
+                          : const Color(0xFFE5E7EB),
+                      width: isSelected ? 2 : 1,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        type.label,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: isSelected
-                              ? AppColors.primary
-                              : AppColors.subtitle,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _destinationIcon(type),
+                        size: 20,
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.placeholder,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          type.label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.subtitle,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          }).toList(),
         );
-      }).toList(),
+      },
     );
+  }
+
+  IconData _destinationIcon(ShipmentDestinationType type) {
+    switch (type) {
+      case ShipmentDestinationType.umkm:
+        return Icons.storefront_outlined;
+      case ShipmentDestinationType.distributor:
+        return Icons.local_shipping_outlined;
+      case ShipmentDestinationType.consumer:
+        return Icons.person_outline_rounded;
+      case ShipmentDestinationType.collector:
+        return Icons.groups_2_outlined;
+    }
   }
 }
 

@@ -5,10 +5,18 @@ import '../../../shared/widgets/app_top_bar.dart';
 import '../../collector/models/collector_shipment_batch.dart';
 import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
+import '../models/distributor_acquisition_transaction.dart';
+import '../models/distributor_receipt.dart';
+import '../models/distributor_rejection_receipt.dart';
 import 'distributor_shipment_detail_screen.dart';
 
-// [FE - Component Rendering] Screen ini menampilkan riwayat shipment yang
-// sudah selesai agar distributor punya audit pengiriman yang pernah diterima.
+const _pageBackground = Color(0xFFF4F6F3);
+const _borderColor = Color(0xFFE1E6DF);
+
+enum _ActivityTab { receipts, shipments }
+
+// [FE - Component Rendering] Screen ini memisahkan audit barang masuk dari
+// aktivitas pengiriman keluar agar peran distributor tidak tercampur.
 class DistributorHistoryScreen extends StatefulWidget {
   const DistributorHistoryScreen({super.key});
 
@@ -19,6 +27,7 @@ class DistributorHistoryScreen extends StatefulWidget {
 
 class _DistributorHistoryScreenState extends State<DistributorHistoryScreen> {
   final _repo = DistributorRepository.instance;
+  _ActivityTab _activeTab = _ActivityTab.receipts;
 
   @override
   void initState() {
@@ -32,46 +41,52 @@ class _DistributorHistoryScreenState extends State<DistributorHistoryScreen> {
     super.dispose();
   }
 
+  // [FE - State Management] Listener ini menjaga tab audit mengikuti receipt
+  // dan perubahan status manifest secara reaktif.
   void _onRepoChanged() {
-    if (mounted) {
-      setState(() {});
-    }
+    if (mounted) setState(() {});
   }
 
-  // [FE - Event Handler] Navigasi ini membuka detail B1 dari item riwayat
-  // sehingga audit lama tetap bisa dilihat sampai provenance tree.
-  Future<void> _openDetail(CollectorShipmentBatch shipment) async {
+  Future<void> _openDetail(String shipmentCode) async {
     await DistributorRoutes.push(
       context,
-      DistributorShipmentDetailScreen(shipmentCode: shipment.code),
+      DistributorShipmentDetailScreen(shipmentCode: shipmentCode),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final histories = _repo.historyShipments;
+    final completedInbound = _repo.historyShipments;
+    final receiptsByCode = {
+      for (final receipt in _repo.receiptHistory) receipt.shipmentCode: receipt,
+    };
+    final rejectionReceipts = _repo.rejectionReceiptHistory;
+    final receiptCount = completedInbound.length + rejectionReceipts.length;
 
     return Scaffold(
-      backgroundColor: AppColors.white,
+      backgroundColor: _pageBackground,
       body: SafeArea(
         child: Column(
           children: [
-            const AppTopBar(title: 'Riwayat Pengiriman'),
+            const ColoredBox(
+              color: AppColors.white,
+              child: AppTopBar(title: 'Riwayat Aktivitas'),
+            ),
+            _ActivityTabBar(
+              activeTab: _activeTab,
+              receiptCount: receiptCount,
+              shipmentCount: 0,
+              onChanged: (tab) => setState(() => _activeTab = tab),
+            ),
             Expanded(
-              child: histories.isEmpty
-                  ? const _EmptyHistory()
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-                      itemBuilder: (context, index) {
-                        final shipment = histories[index];
-                        return _HistoryCard(
-                          shipment: shipment,
-                          onDetail: () => _openDetail(shipment),
-                        );
-                      },
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                      itemCount: histories.length,
-                    ),
+              child: _activeTab == _ActivityTab.receipts
+                  ? _ReceiptList(
+                      shipments: completedInbound,
+                      receiptsByCode: receiptsByCode,
+                      rejectionReceipts: rejectionReceipts,
+                      onDetail: _openDetail,
+                    )
+                  : const _OutboundEmptyState(),
             ),
           ],
         ),
@@ -80,21 +95,88 @@ class _DistributorHistoryScreenState extends State<DistributorHistoryScreen> {
   }
 }
 
-class _EmptyHistory extends StatelessWidget {
-  const _EmptyHistory();
+class _ActivityTabBar extends StatelessWidget {
+  const _ActivityTabBar({
+    required this.activeTab,
+    required this.receiptCount,
+    required this.shipmentCount,
+    required this.onChanged,
+  });
+
+  final _ActivityTab activeTab;
+  final int receiptCount;
+  final int shipmentCount;
+  final ValueChanged<_ActivityTab> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(28),
+    return Container(
+      color: AppColors.white,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      child: Container(
+        height: 44,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: _pageBackground,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _TabButton(
+                label: 'Penerimaan',
+                count: receiptCount,
+                selected: activeTab == _ActivityTab.receipts,
+                onTap: () => onChanged(_ActivityTab.receipts),
+              ),
+            ),
+            Expanded(
+              child: _TabButton(
+                label: 'Pengiriman',
+                count: shipmentCount,
+                selected: activeTab == _ActivityTab.shipments,
+                onTap: () => onChanged(_ActivityTab.shipments),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TabButton extends StatelessWidget {
+  const _TabButton({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? AppColors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          border: selected ? Border.all(color: _borderColor) : null,
+        ),
         child: Text(
-          'Belum ada pengiriman yang selesai diterima.',
-          textAlign: TextAlign.center,
+          '$label ($count)',
           style: TextStyle(
-            fontSize: 13,
-            height: 1.4,
-            color: AppColors.placeholder,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: selected ? AppColors.primary : AppColors.placeholder,
           ),
         ),
       ),
@@ -102,123 +184,346 @@ class _EmptyHistory extends StatelessWidget {
   }
 }
 
-// [FE - Component Rendering] Kartu riwayat dibuat read-only dengan tombol
-// detail eksplisit agar tidak bercampur dengan aksi konfirmasi pengiriman.
-class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({required this.shipment, required this.onDetail});
+class _ReceiptList extends StatelessWidget {
+  const _ReceiptList({
+    required this.shipments,
+    required this.receiptsByCode,
+    required this.rejectionReceipts,
+    required this.onDetail,
+  });
 
-  final CollectorShipmentBatch shipment;
-  final VoidCallback onDetail;
+  final List<CollectorShipmentBatch> shipments;
+  final Map<String, DistributorReceipt> receiptsByCode;
+  final List<DistributorRejectionReceipt> rejectionReceipts;
+  final ValueChanged<String> onDetail;
 
   @override
   Widget build(BuildContext context) {
-    final completedAt = shipment.completedAt ?? shipment.packagedAt;
-    final sentAt = shipment.sentAt;
+    if (shipments.isEmpty && rejectionReceipts.isEmpty) {
+      return const _EmptyState(
+        icon: Icons.inventory_2_outlined,
+        title: 'Belum ada riwayat penerimaan',
+        message:
+            'Pengiriman pengepul yang selesai diverifikasi akan tercatat di sini.',
+      );
+    }
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1D6FA4).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: const Icon(
-                  Icons.task_alt_rounded,
-                  size: 20,
-                  color: Color(0xFF1D6FA4),
-                ),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+      children: [
+        if (shipments.isNotEmpty) ...[
+          const _HistorySectionHeader(title: 'Diterima'),
+          const SizedBox(height: 8),
+          ...shipments.map(
+            (shipment) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _ReceiptHistoryCard(
+                shipment: shipment,
+                receipt: receiptsByCode[shipment.code],
+                onTap: () => onDetail(shipment.code),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      shipment.code,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.black,
-                      ),
+            ),
+          ),
+        ],
+        if (rejectionReceipts.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const _HistorySectionHeader(title: 'Ditolak'),
+          const SizedBox(height: 8),
+          ...rejectionReceipts.map(
+            (receipt) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _RejectionReceiptHistoryCard(receipt: receipt),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _HistorySectionHeader extends StatelessWidget {
+  const _HistorySectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w900,
+        color: AppColors.black,
+      ),
+    );
+  }
+}
+
+// [FE - Component Rendering] Kartu penerimaan membandingkan manifest dengan
+// receipt aktual; shipment seed lama tetap ditandai sebagai data legacy.
+class _ReceiptHistoryCard extends StatelessWidget {
+  const _ReceiptHistoryCard({
+    required this.shipment,
+    required this.receipt,
+    required this.onTap,
+  });
+
+  final CollectorShipmentBatch shipment;
+  final DistributorReceipt? receipt;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final actualReceipt = receipt;
+    final receivedAt =
+        actualReceipt?.receivedAt ??
+        shipment.completedAt ??
+        shipment.packagedAt;
+    final hasDifference = actualReceipt?.hasDiscrepancy == true;
+    final statusColor = hasDifference
+        ? const Color(0xFF9A6700)
+        : AppColors.primary;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: _borderColor),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Selesai ${_formatDateTime(completedAt)}',
-                      style: const TextStyle(
-                        fontSize: 12,
+                    child: Icon(
+                      hasDifference
+                          ? Icons.warning_amber_rounded
+                          : Icons.fact_check_outlined,
+                      size: 21,
+                      color: statusColor,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          shipment.code,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          _formatDateTime(receivedAt),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.placeholder,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _StatusBadge(
+                    label: actualReceipt == null
+                        ? 'Data lama'
+                        : hasDifference
+                        ? 'Ada selisih'
+                        : 'Sesuai',
+                    color: actualReceipt == null
+                        ? const Color(0xFF1D6FA4)
+                        : statusColor,
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: _borderColor),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
+              child: Column(
+                children: [
+                  _InfoRow(
+                    label: 'Manifest',
+                    value:
+                        '${_formatWeight(shipment.totalWeightKg)} · ${shipment.totalFruitCount} butir',
+                  ),
+                  _InfoRow(
+                    label: 'Diterima',
+                    value: actualReceipt == null
+                        ? 'Detail aktual belum tersedia'
+                        : '${_formatWeight(actualReceipt.receivedWeightKg)} · ${actualReceipt.receivedFruitCount} butir',
+                  ),
+                  _InfoRow(
+                    label: 'Kondisi',
+                    value: actualReceipt?.condition.label ?? '-',
+                  ),
+                  _InfoRow(
+                    label: 'Lokasi',
+                    value: actualReceipt?.destinationLocation ?? '-',
+                    isLast: true,
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 9, 10, 9),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8F9F7),
+                border: Border(top: BorderSide(color: _borderColor)),
+              ),
+              child: const Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Lihat detail dan provenance',
+                      style: TextStyle(
+                        fontSize: 10,
                         color: AppColors.placeholder,
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const _StatusPill(),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _MiniInfo(
-                label: 'Berat',
-                value: _formatWeight(shipment.totalWeightKg),
-              ),
-              _MiniInfo(label: 'Butir', value: '${shipment.totalFruitCount}'),
-              _MiniInfo(
-                label: 'Source',
-                value: '${shipment.sourceBatchCodes.length} batch',
-              ),
-              if (sentAt != null)
-                _MiniInfo(label: 'Diambil', value: _formatShortDate(sentAt)),
-            ],
-          ),
-          if (shipment.warehouseNote != null &&
-              shipment.warehouseNote!.trim().isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              shipment.warehouseNote!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12,
-                height: 1.35,
-                color: AppColors.subtitle,
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: AppColors.primary,
+                  ),
+                ],
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                minimumSize: const Size(0, 34),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+    );
+  }
+}
+
+class _RejectionReceiptHistoryCard extends StatelessWidget {
+  const _RejectionReceiptHistoryCard({required this.receipt});
+
+  final DistributorRejectionReceipt receipt;
+
+  @override
+  Widget build(BuildContext context) {
+    const statusColor = Color(0xFFD64545);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.cancel_outlined,
+                    size: 21,
+                    color: statusColor,
+                  ),
                 ),
-              ),
-              onPressed: onDetail,
-              icon: const Icon(Icons.visibility_outlined, size: 15),
-              label: const Text(
-                'Detail',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-              ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        receipt.itemCode,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${receipt.id} Â· ${_formatDateTime(receipt.rejectedAt)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const _StatusBadge(label: 'Ditolak', color: statusColor),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: _borderColor),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
+            child: Column(
+              children: [
+                _InfoRow(
+                  label: 'Sumber',
+                  value: '${receipt.source.label} - ${receipt.supplierLabel}',
+                ),
+                _InfoRow(
+                  label: 'Manifest',
+                  value:
+                      '${_formatWeight(receipt.expectedWeightKg)} Â· ${receipt.expectedFruitCount} butir',
+                ),
+                _InfoRow(label: 'Lokasi', value: receipt.rejectionLocation),
+                _InfoRow(
+                  label: 'Ditolak oleh',
+                  value: receipt.rejectedBy,
+                  isLast: true,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 9, 14, 11),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFF6F6),
+              border: Border(top: BorderSide(color: _borderColor)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Alasan Penolakan',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: statusColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  receipt.reason,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    height: 1.35,
+                    color: AppColors.subtitle,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -227,50 +532,133 @@ class _HistoryCard extends StatelessWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill();
+class _OutboundEmptyState extends StatelessWidget {
+  const _OutboundEmptyState();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1D6FA4).withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(99),
-      ),
-      child: const Text(
-        'Selesai',
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          color: Color(0xFF1D6FA4),
+    return const _EmptyState(
+      icon: Icons.local_shipping_outlined,
+      title: 'Belum ada pengiriman keluar',
+      message:
+          'Batch distributor yang dikirim ke UMKM akan tercatat setelah fitur stok dan batch DST dibuat.',
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 48, color: AppColors.placeholder),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: AppColors.black,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: AppColors.placeholder,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _MiniInfo extends StatelessWidget {
-  const _MiniInfo({required this.label, required this.value});
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.label, required this.color});
 
   final String label;
-  final String value;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(999),
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
-        '$label: $value',
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: AppColors.subtitle,
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: color,
         ),
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
+
+  final String label;
+  final String value;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 78,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.placeholder,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.subtitle,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -283,7 +671,7 @@ String _formatWeight(double value) {
   return '$text kg';
 }
 
-String _formatShortDate(DateTime date) {
+String _formatDateTime(DateTime date) {
   const months = [
     'Jan',
     'Feb',
@@ -298,12 +686,7 @@ String _formatShortDate(DateTime date) {
     'Nov',
     'Des',
   ];
-  return '${date.day} ${months[date.month - 1]}';
-}
-
-String _formatDateTime(DateTime date) {
-  final dateText = _formatShortDate(date);
   final hour = date.hour.toString().padLeft(2, '0');
   final minute = date.minute.toString().padLeft(2, '0');
-  return '$dateText ${date.year}, $hour:$minute';
+  return '${date.day} ${months[date.month - 1]} ${date.year}, $hour:$minute';
 }

@@ -3,12 +3,15 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
+import '../../../shared/widgets/mobile_scanner_feedback.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_product.dart';
+import '../models/collector_shipment_batch.dart';
 import 'add_transaction_screen.dart';
+import 'collector_incoming_receipt_screen.dart';
 import 'collector_stock_screen.dart';
 
 // [FE - Component Rendering] Screen ini menjadi pintu masuk pengepul untuk
@@ -39,16 +42,19 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
     super.dispose();
   }
 
-  // [UTIL - Helper Function] Parser ini menerima kode batch langsung atau URL
-  // trace publik, lalu mengambil kode DRN-YYYY-NNNNNN untuk validasi FE.
+  // [UTIL - Helper Function] Parser ini menerima kode langsung atau URL QR,
+  // lalu mengambil kode DRN/PGL agar satu scan bisa melayani batch petani dan
+  // manifest pengiriman antar pengepul.
   String _extractBatchCode(String raw) {
     final text = raw.trim();
     final match = RegExp(
-      r'DRN-\d{4}-\d{6}',
+      r'(DRN|PGL)-\d{4}-\d{6}',
       caseSensitive: false,
     ).firstMatch(text);
     return (match?.group(0) ?? text).toUpperCase();
   }
+
+  bool _isPglCode(String code) => code.toUpperCase().startsWith('PGL-');
 
   // [FE - Event Handler] Handler ini memvalidasi input kode manual dan membuka
   // form verifikasi bila batch masih tersedia untuk pengepul.
@@ -62,6 +68,20 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
         'Masukkan kode batch terlebih dahulu.',
         isError: true,
       );
+      return;
+    }
+
+    if (_isPglCode(code)) {
+      final shipment = _repo.findIncomingCollectorShipment(code);
+      if (shipment == null) {
+        _notification.show(
+          context,
+          'PGL tidak valid atau bukan tujuan pengepul ini.',
+          isError: true,
+        );
+        return;
+      }
+      await _openIncomingReceipt(shipment);
       return;
     }
 
@@ -94,6 +114,25 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
     await _scannerController.stop();
 
     final code = _extractBatchCode(rawValue);
+    if (_isPglCode(code)) {
+      final shipment = _repo.findIncomingCollectorShipment(code);
+      if (shipment == null) {
+        if (!mounted) return;
+        _notification.show(
+          context,
+          'PGL tidak valid atau bukan tujuan pengepul ini.',
+          isError: true,
+        );
+        await Future.delayed(const Duration(milliseconds: 900));
+        if (!mounted) return;
+        setState(() => _isHandlingScan = false);
+        await _scannerController.start();
+        return;
+      }
+      await _openIncomingReceipt(shipment);
+      return;
+    }
+
     final product = _repo.findProduct(code);
     if (product == null || product.category != ProductCategory.durianSegar) {
       if (!mounted) return;
@@ -112,12 +151,74 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
     await _openVerification(code);
   }
 
-  // [FE - Event Handler] Navigasi ini membawa kode hasil scan ke form
-  // verifikasi sehingga produk terpilih otomatis.
-  Future<void> _openVerification(String code) async {
+  Future<void> _openIncomingReceipt(CollectorShipmentBatch shipment) async {
+    if (_repo.incomingReceiptForShipment(shipment.code) != null ||
+        shipment.status == CollectorShipmentStatus.completed) {
+      _notification.show(
+        context,
+        'PGL ini sudah selesai diterima.',
+        isError: true,
+      );
+      if (_isCameraMode) {
+        if (mounted) setState(() => _isHandlingScan = false);
+        await _scannerController.start();
+      }
+      return;
+    }
+
+    if (shipment.status == CollectorShipmentStatus.readyToShip &&
+        !_repo.markShipmentSent(shipment.code)) {
+      _notification.show(
+        context,
+        'PGL gagal ditandai sebagai discan/diambil.',
+        isError: true,
+      );
+      if (_isCameraMode) {
+        if (mounted) setState(() => _isHandlingScan = false);
+        await _scannerController.start();
+      }
+      return;
+    }
+
     final completed = await CollectorRoutes.push<bool>(
       context,
-      AddTransactionScreen(initialBatchCode: code),
+      CollectorIncomingReceiptScreen(shipmentCode: shipment.code),
+    );
+    if (!mounted) return;
+
+    setState(() => _isHandlingScan = false);
+    if (completed == true) {
+      await CollectorRoutes.push(context, const CollectorStockScreen());
+      return;
+    }
+    if (_isCameraMode) {
+      await _scannerController.start();
+    }
+  }
+
+  // [FE - Event Handler] Navigasi ini membawa kode hasil scan ke form
+  // verifikasi sekaligus mencatat transaksi T1 penerimaan dari petani.
+  Future<void> _openVerification(String code) async {
+    final transaction = _repo.initiatePurchaseTransaction(code);
+    if (transaction == null) {
+      _notification.show(
+        context,
+        'Transaksi T1 gagal dibuat. Pastikan batch masih tersedia.',
+        isError: true,
+      );
+      if (_isCameraMode) {
+        if (mounted) setState(() => _isHandlingScan = false);
+        await _scannerController.start();
+      }
+      return;
+    }
+
+    final completed = await CollectorRoutes.push<bool>(
+      context,
+      AddTransactionScreen(
+        initialBatchCode: code,
+        initialTransactionId: transaction.id,
+      ),
     );
     if (!mounted) return;
 
@@ -135,6 +236,13 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
   Widget build(BuildContext context) {
     final products = _repo.products
         .where((p) => p.category == ProductCategory.durianSegar)
+        .toList();
+    final incomingShipments = _repo.incomingCollectorShipments
+        .where(
+          (shipment) =>
+              shipment.status != CollectorShipmentStatus.completed &&
+              _repo.incomingReceiptForShipment(shipment.code) == null,
+        )
         .toList();
 
     return Scaffold(
@@ -177,7 +285,7 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            'Gunakan kamera atau input kode batch secara manual.',
+                            'Scan QR batch petani atau PGL dari pengepul lain.',
                             style: TextStyle(
                               fontSize: 12,
                               height: 1.35,
@@ -212,13 +320,14 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
                         },
                       ),
                     ] else ...[
-                      const _FieldLabel(label: 'Kode / URL QR Batch'),
+                      const _FieldLabel(label: 'Kode / URL QR Batch/PGL'),
                       const SizedBox(height: 8),
                       TextField(
                         controller: _codeCtrl,
                         textCapitalization: TextCapitalization.characters,
                         decoration: InputDecoration(
-                          hintText: 'Contoh: DRN-2026-000128',
+                          hintText:
+                              'Contoh: DRN-2026-000128 atau PGL-2026-000904',
                           filled: true,
                           fillColor: AppColors.white,
                           prefixIcon: const Icon(
@@ -254,7 +363,22 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
                       ),
                     ],
                     const SizedBox(height: 26),
-                    const _SectionTitle(title: 'Batch Tersedia'),
+                    const _SectionTitle(title: 'PGL Masuk dari Pengepul Lain'),
+                    const SizedBox(height: 10),
+                    if (incomingShipments.isEmpty)
+                      const _EmptyIncomingHint()
+                    else
+                      ...incomingShipments.map(
+                        (shipment) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _IncomingShipmentTile(
+                            shipment: shipment,
+                            onTap: () => _openIncomingReceipt(shipment),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 26),
+                    const _SectionTitle(title: 'Batch Petani Tersedia'),
                     const SizedBox(height: 10),
                     if (products.isEmpty)
                       const _EmptyBatchHint()
@@ -405,7 +529,7 @@ class _CameraScannerBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 280,
+      height: 320,
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -415,44 +539,73 @@ class _CameraScannerBox extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(controller: controller, onDetect: onDetect),
-          Center(
-            child: Container(
-              width: 210,
-              height: 210,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: AppColors.white.withValues(alpha: 0.85),
-                  width: 2,
+          MobileScanner(
+            controller: controller,
+            onDetect: onDetect,
+            errorBuilder: (context, error) =>
+                MobileScannerFeedback(error: error),
+            placeholderBuilder: (context) => const MobileScannerLoading(),
+          ),
+          // [FE - Component Rendering] Frame scan dibuat kompak di area kamera
+          // penuh agar tidak memanjang sampai caption instruksi.
+          Positioned(
+            top: 28,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                width: 230,
+                height: 230,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.9),
+                    width: 2,
+                  ),
                 ),
               ),
             ),
           ),
           Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.black.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                isHandlingScan
+            left: 20,
+            right: 20,
+            bottom: 18,
+            child: Center(
+              child: _ScannerCaption(
+                text: isHandlingScan
                     ? 'QR terbaca, membuka verifikasi...'
-                    : 'Arahkan kamera ke QR batch petani.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.white,
-                ),
+                    : 'Arahkan kamera ke QR batch petani atau PGL.',
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ScannerCaption extends StatelessWidget {
+  const _ScannerCaption({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 270),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.black.withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: AppColors.white,
+        ),
       ),
     );
   }
@@ -542,6 +695,111 @@ class _AvailableBatchTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _IncomingShipmentTile extends StatelessWidget {
+  const _IncomingShipmentTile({required this.shipment, required this.onTap});
+
+  final CollectorShipmentBatch shipment;
+  final VoidCallback onTap;
+
+  String _formatWeight(double value) {
+    if (value == value.roundToDouble()) return value.toStringAsFixed(0);
+    return value.toStringAsFixed(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.primaryContainer.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.local_shipping_outlined,
+                color: AppColors.primary,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    shipment.code,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${_formatWeight(shipment.totalWeightKg)} kg / ${shipment.totalFruitCount} butir - ${shipment.collectorId}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    shipment.status == CollectorShipmentStatus.readyToShip
+                        ? 'Belum discan - lanjut T2'
+                        : 'Sudah discan - lanjut validasi',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.placeholder,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyIncomingHint extends StatelessWidget {
+  const _EmptyIncomingHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: const Text(
+        'Belum ada PGL dari pengepul lain yang menunggu penerimaan.',
+        style: TextStyle(fontSize: 13, color: AppColors.placeholder),
       ),
     );
   }

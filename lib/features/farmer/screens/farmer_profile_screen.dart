@@ -26,7 +26,6 @@ class _FarmerProfileScreenState extends State<FarmerProfileScreen>
   late final AnimationController _animController;
   late final Animation<double> _fadeAnim;
   late final Animation<Offset> _slideAnim;
-
   bool _isLoggingOut = false;
 
   @override

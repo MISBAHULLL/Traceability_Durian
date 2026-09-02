@@ -147,7 +147,11 @@ class CollectorAvatar extends StatelessWidget {
         onAvatarChanged?.call(file.path);
       }
     } catch (_) {
-      // Gagal ambil foto — biarkan avatar tidak berubah.
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal mengambil foto profil.')),
+        );
+      }
     }
   }
 

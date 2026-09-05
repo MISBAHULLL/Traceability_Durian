@@ -5,13 +5,11 @@ import '../../auth/screens/home_screen.dart';
 import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
 import '../models/distributor_profile.dart';
-import '../screens/distributor_acquisition_screen.dart';
 import '../screens/distributor_active_shipments_screen.dart';
 import '../screens/distributor_audit_trail_screen.dart';
 import '../screens/distributor_history_screen.dart';
 import '../screens/distributor_horizontal_sales_screen.dart';
 import '../screens/distributor_profile_screen.dart';
-import '../screens/distributor_stock_receipt_screen.dart';
 import '../screens/distributor_warehouses_screen.dart';
 import 'distributor_avatar.dart';
 
@@ -46,22 +44,10 @@ class DistributorDrawer extends StatelessWidget {
                   onTap: () => Navigator.pop(context),
                 ),
                 _DrawerItem(
-                  icon: Icons.assignment_turned_in_outlined,
-                  label: 'Akuisisi',
-                  onTap: () =>
-                      _go(context, const DistributorAcquisitionScreen()),
-                ),
-                _DrawerItem(
-                  icon: Icons.inventory_2_outlined,
-                  label: 'Terima Stok',
-                  onTap: () =>
-                      _go(context, const DistributorStockReceiptScreen()),
-                ),
-                _DrawerItem(
                   icon: Icons.qr_code_scanner_rounded,
-                  label: 'Scan Stok Masuk',
+                  label: 'Penerimaan Stok',
                   onTap: () =>
-                      _go(context, const DistributorStockReceiptScreen()),
+                      _go(context, const DistributorActiveShipmentsScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.warehouse_outlined,
@@ -74,12 +60,6 @@ class DistributorDrawer extends StatelessWidget {
                   label: 'Jual ke Distributor Lain',
                   onTap: () =>
                       _go(context, const DistributorHorizontalSalesScreen()),
-                ),
-                _DrawerItem(
-                  icon: Icons.local_shipping_outlined,
-                  label: 'Stok Masuk Aktif',
-                  onTap: () =>
-                      _go(context, const DistributorActiveShipmentsScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.history_rounded,

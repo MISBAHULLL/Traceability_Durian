@@ -190,73 +190,89 @@ class _DistributorReceiptScreenState extends State<DistributorReceiptScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
                       children: [
                         _ManifestSummary(shipment: shipment),
-                        const SizedBox(height: 18),
-                        const _SectionTitle(
-                          title: 'Hasil Timbang dan Hitung Aktual',
-                        ),
-                        const SizedBox(height: 9),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: _NumberField(
-                                controller: _weightCtrl,
-                                label: 'Berat Diterima',
-                                suffix: 'kg',
-                                decimal: true,
+                        const SizedBox(height: 12),
+                        _FormSection(
+                          icon: Icons.scale_outlined,
+                          title: 'Hasil Terima Aktual',
+                          subtitle:
+                              'Bandingkan jumlah diterima dengan manifest',
+                          child: Column(
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: _NumberField(
+                                      controller: _weightCtrl,
+                                      label: 'Berat diterima',
+                                      suffix: 'kg',
+                                      decimal: true,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _NumberField(
+                                      controller: _fruitCtrl,
+                                      label: 'Jumlah diterima',
+                                      suffix: 'butir',
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _NumberField(
-                                controller: _fruitCtrl,
-                                label: 'Jumlah Diterima',
-                                suffix: 'butir',
+                              const SizedBox(height: 12),
+                              _DifferencePanel(
+                                expectedWeight: shipment.totalWeightKg,
+                                expectedFruit: shipment.totalFruitCount,
+                                receivedWeight: _receivedWeight,
+                                receivedFruit: _receivedFruit,
                               ),
-                            ),
-                          ],
+                              if (_hasDiscrepancy(shipment)) ...[
+                                const SizedBox(height: 12),
+                                _TextArea(
+                                  controller: _discrepancyCtrl,
+                                  label: 'Alasan Selisih',
+                                  hint:
+                                      'Contoh: susut selama perjalanan atau hasil timbang ulang',
+                                  required: true,
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 12),
-                        _DifferencePanel(
-                          expectedWeight: shipment.totalWeightKg,
-                          expectedFruit: shipment.totalFruitCount,
-                          receivedWeight: _receivedWeight,
-                          receivedFruit: _receivedFruit,
-                        ),
-                        if (_hasDiscrepancy(shipment)) ...[
-                          const SizedBox(height: 12),
-                          _TextArea(
-                            controller: _discrepancyCtrl,
-                            label: 'Alasan Selisih',
-                            hint:
-                                'Contoh: susut selama perjalanan atau hasil timbang ulang',
+                        _FormSection(
+                          icon: Icons.warehouse_outlined,
+                          title: 'Gudang Tujuan',
+                          subtitle: 'Lokasi penyimpanan stok yang diterima',
+                          child: _TextField(
+                            controller: _destinationCtrl,
+                            label: 'Gudang Tujuan Penerimaan',
+                            hint: 'Contoh: Gudang Hub Surabaya',
                             required: true,
                           ),
-                        ],
-                        const SizedBox(height: 18),
-                        const _SectionTitle(title: 'Asal dan Gudang Tujuan'),
-                        const SizedBox(height: 9),
-                        _TextField(
-                          controller: _destinationCtrl,
-                          label: 'Gudang Tujuan Penerimaan',
-                          hint: 'Contoh: Gudang Hub Surabaya',
-                          required: true,
                         ),
-                        const SizedBox(height: 18),
-                        const _SectionTitle(title: 'Kondisi Fisik'),
-                        const SizedBox(height: 9),
-                        _ConditionSelector(
-                          selected: _condition,
-                          onChanged: (value) {
-                            setState(() => _condition = value);
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        _TextArea(
-                          controller: _qualityCtrl,
-                          label: 'Catatan Pemeriksaan',
-                          hint:
-                              'Contoh: kemasan utuh, aroma normal, tidak ada buah pecah',
+                        const SizedBox(height: 12),
+                        _FormSection(
+                          icon: Icons.health_and_safety_outlined,
+                          title: 'Kondisi Fisik',
+                          subtitle: 'Nilai kondisi durian saat tiba di gudang',
+                          child: Column(
+                            children: [
+                              _ConditionSelector(
+                                selected: _condition,
+                                onChanged: (value) {
+                                  setState(() => _condition = value);
+                                },
+                              ),
+                              const SizedBox(height: 6),
+                              _TextArea(
+                                controller: _qualityCtrl,
+                                label: 'Catatan Pemeriksaan',
+                                hint:
+                                    'Contoh: kemasan utuh, aroma normal, tidak ada buah pecah',
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 22),
                         PrimaryPillButton(
@@ -332,6 +348,22 @@ class _ManifestSummary extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF1FF),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Pemeriksaan',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF2563EB),
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -392,19 +424,75 @@ class _ManifestMetric extends StatelessWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title});
+class _FormSection extends StatelessWidget {
+  const _FormSection({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
 
+  final IconData icon;
   final String title;
+  final String subtitle;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w900,
-        color: AppColors.black,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryContainer.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 18, color: AppColors.primary),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.placeholder,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, color: _borderColor),
+          ),
+          child,
+        ],
       ),
     );
   }
@@ -425,30 +513,47 @@ class _NumberField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
-      decoration: InputDecoration(
-        labelText: label,
-        suffixText: suffix,
-        filled: true,
-        fillColor: AppColors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: _borderColor),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: _borderColor),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(
-            color: AppColors.primaryContainer,
-            width: 2,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: AppColors.subtitle,
           ),
         ),
-      ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.numberWithOptions(decimal: decimal),
+          decoration: InputDecoration(
+            suffixText: suffix,
+            filled: true,
+            fillColor: const Color(0xFFF8FAF7),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(
+                color: AppColors.primaryContainer,
+                width: 1.5,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -531,6 +636,24 @@ class _ConditionSelector extends StatelessWidget {
     return Column(
       children: DistributorReceiptCondition.values.map((condition) {
         final isSelected = selected == condition;
+        final color = switch (condition) {
+          DistributorReceiptCondition.good => AppColors.primary,
+          DistributorReceiptCondition.minorDamage => const Color(0xFFB45309),
+          DistributorReceiptCondition.damaged => const Color(0xFFC83B3B),
+        };
+        final icon = switch (condition) {
+          DistributorReceiptCondition.good => Icons.check_circle_outline,
+          DistributorReceiptCondition.minorDamage =>
+            Icons.warning_amber_rounded,
+          DistributorReceiptCondition.damaged => Icons.cancel_outlined,
+        };
+        final description = switch (condition) {
+          DistributorReceiptCondition.good => 'Utuh dan sesuai pemeriksaan',
+          DistributorReceiptCondition.minorDamage =>
+            'Ada kerusakan kecil, masih dapat ditangani',
+          DistributorReceiptCondition.damaged =>
+            'Rusak berat atau tidak sesuai penerimaan',
+        };
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: InkWell(
@@ -540,37 +663,51 @@ class _ConditionSelector extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AppColors.primaryContainer.withValues(alpha: 0.08)
-                    : AppColors.white,
+                    ? color.withValues(alpha: 0.08)
+                    : const Color(0xFFF8FAF7),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: isSelected ? AppColors.primaryContainer : _borderColor,
-                  width: isSelected ? 2 : 1,
+                  color: isSelected ? color : _borderColor,
+                  width: isSelected ? 1.5 : 1,
                 ),
               ),
               child: Row(
                 children: [
                   Icon(
-                    isSelected
-                        ? Icons.check_circle_rounded
-                        : Icons.radio_button_unchecked_rounded,
+                    icon,
                     size: 21,
-                    color: isSelected
-                        ? AppColors.primary
-                        : AppColors.placeholder,
+                    color: isSelected ? color : AppColors.placeholder,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      condition.label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: isSelected
-                            ? AppColors.primary
-                            : AppColors.subtitle,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          condition.label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: isSelected ? color : AppColors.subtitle,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          description,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.placeholder,
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
+                  Icon(
+                    isSelected
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    size: 18,
+                    color: isSelected ? color : AppColors.placeholder,
                   ),
                 ],
               ),
@@ -615,7 +752,7 @@ class _TextArea extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hint,
             filled: true,
-            fillColor: AppColors.white,
+            fillColor: const Color(0xFFF8FAF7),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: _borderColor),
@@ -670,7 +807,7 @@ class _TextField extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hint,
             filled: true,
-            fillColor: AppColors.white,
+            fillColor: const Color(0xFFF8FAF7),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: _borderColor),

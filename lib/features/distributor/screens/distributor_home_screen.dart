@@ -115,11 +115,55 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
         .where((batch) => !pendingCodes.contains(batch.code))
         .toList();
     final inspectionShipments = _repo.activeShipments;
-    final totalIncomingCount =
-        pendingTransactions.length +
-        collectorReadyShipments.length +
-        farmerReadyBatches.length +
-        inspectionShipments.length;
+    final incomingItems = <_IncomingStockItem>[
+      ...pendingTransactions.map(
+        (transaction) => _IncomingStockItem(
+          code: transaction.itemCode,
+          source: '${transaction.source.label} - ${transaction.supplierLabel}',
+          quantity:
+              '${_formatWeight(transaction.expectedWeightKg)} / ${transaction.expectedFruitCount} butir',
+          statusLabel: 'Lanjutkan validasi',
+          icon: transaction.source == DistributorAcquisitionSource.farmer
+              ? Icons.agriculture_outlined
+              : Icons.inventory_2_outlined,
+          onTap: () => _openPendingValidation(transaction),
+        ),
+      ),
+      ...collectorReadyShipments.map(
+        (shipment) => _IncomingStockItem(
+          code: shipment.code,
+          source: 'Pengepul - ${shipment.collectorId}',
+          quantity:
+              '${_formatWeight(shipment.totalWeightKg)} / ${shipment.totalFruitCount} butir',
+          statusLabel: 'Belum divalidasi',
+          icon: Icons.inventory_2_outlined,
+          onTap: () => _openCollectorValidation(shipment),
+        ),
+      ),
+      ...farmerReadyBatches.map(
+        (batch) => _IncomingStockItem(
+          code: batch.code,
+          source: 'Petani - ${batch.farmName}',
+          quantity:
+              '${_formatWeight(batch.quantity)} / ${batch.fruitCount ?? 0} butir',
+          statusLabel: 'Belum divalidasi',
+          icon: Icons.agriculture_outlined,
+          onTap: () => _openFarmerValidation(batch),
+        ),
+      ),
+      ...inspectionShipments.map(
+        (shipment) => _IncomingStockItem(
+          code: shipment.code,
+          source: 'Pengepul - ${shipment.collectorId}',
+          quantity:
+              '${_formatWeight(shipment.totalWeightKg)} / ${shipment.totalFruitCount} butir',
+          statusLabel: 'Perlu pemeriksaan',
+          icon: Icons.fact_check_outlined,
+          onTap: () => _openReceipt(shipment),
+        ),
+      ),
+    ];
+    final totalIncomingCount = incomingItems.length;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -175,58 +219,17 @@ class _DistributorHomeScreenState extends State<DistributorHomeScreen>
                           const SizedBox(height: 10),
                           if (totalIncomingCount == 0)
                             const _EmptyIncomingStock()
-                          else ...[
-                            ...pendingTransactions.map(
-                              (transaction) => _IncomingBatchCard(
-                                code: transaction.itemCode,
-                                source:
-                                    '${transaction.source.label} - ${transaction.supplierLabel}',
-                                quantity:
-                                    '${_formatWeight(transaction.expectedWeightKg)} / ${transaction.expectedFruitCount} butir',
-                                status: 'Validasi belum selesai',
-                                icon:
-                                    transaction.source ==
-                                        DistributorAcquisitionSource.farmer
-                                    ? Icons.agriculture_outlined
-                                    : Icons.inventory_2_outlined,
-                                onTap: () =>
-                                    _openPendingValidation(transaction),
+                          else
+                            ...incomingItems.map(
+                              (item) => _IncomingBatchCard(
+                                code: item.code,
+                                source: item.source,
+                                quantity: item.quantity,
+                                status: item.statusLabel,
+                                icon: item.icon,
+                                onTap: item.onTap,
                               ),
                             ),
-                            ...collectorReadyShipments.map(
-                              (shipment) => _IncomingBatchCard(
-                                code: shipment.code,
-                                source: 'Pengepul - ${shipment.collectorId}',
-                                quantity:
-                                    '${_formatWeight(shipment.totalWeightKg)} / ${shipment.totalFruitCount} butir',
-                                status: 'Siap divalidasi',
-                                icon: Icons.inventory_2_outlined,
-                                onTap: () => _openCollectorValidation(shipment),
-                              ),
-                            ),
-                            ...farmerReadyBatches.map(
-                              (batch) => _IncomingBatchCard(
-                                code: batch.code,
-                                source: 'Petani - ${batch.farmName}',
-                                quantity:
-                                    '${_formatWeight(batch.quantity)} / ${batch.fruitCount ?? 0} butir',
-                                status: 'Siap divalidasi',
-                                icon: Icons.agriculture_outlined,
-                                onTap: () => _openFarmerValidation(batch),
-                              ),
-                            ),
-                            ...inspectionShipments.map(
-                              (shipment) => _IncomingBatchCard(
-                                code: shipment.code,
-                                source: 'Pengepul - ${shipment.collectorId}',
-                                quantity:
-                                    '${_formatWeight(shipment.totalWeightKg)} / ${shipment.totalFruitCount} butir',
-                                status: 'Perlu pemeriksaan',
-                                icon: Icons.fact_check_outlined,
-                                onTap: () => _openReceipt(shipment),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),
@@ -506,6 +509,24 @@ class _ScanStockCard extends StatelessWidget {
   }
 }
 
+class _IncomingStockItem {
+  const _IncomingStockItem({
+    required this.code,
+    required this.source,
+    required this.quantity,
+    required this.statusLabel,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String code;
+  final String source;
+  final String quantity;
+  final String statusLabel;
+  final IconData icon;
+  final VoidCallback onTap;
+}
+
 class _IncomingBatchCard extends StatelessWidget {
   const _IncomingBatchCard({
     required this.code,
@@ -526,7 +547,7 @@ class _IncomingBatchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isInspection = status == 'Perlu pemeriksaan';
-    final isPending = status == 'Validasi belum selesai';
+    final isPending = status == 'Lanjutkan validasi';
     final statusColor = isInspection
         ? const Color(0xFF2563EB)
         : isPending
@@ -542,7 +563,7 @@ class _IncomingBatchCard extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(8),
           child: Ink(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFFE1E6DF)),
@@ -551,8 +572,8 @@ class _IncomingBatchCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 46,
-                  height: 46,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(8),
@@ -573,9 +594,9 @@ class _IncomingBatchCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.black,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.primary,
                               ),
                             ),
                           ),
@@ -592,39 +613,61 @@ class _IncomingBatchCard extends StatelessWidget {
                             child: Text(
                               status,
                               style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
                                 color: statusColor,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        source,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.subtitle,
-                        ),
+                      const SizedBox(height: 7),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.account_tree_outlined,
+                            size: 14,
+                            color: AppColors.placeholder,
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              source,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.subtitle,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        quantity,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.placeholder,
-                        ),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.scale_outlined,
+                            size: 14,
+                            color: AppColors.placeholder,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            quantity,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.placeholder,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 4),
-                Padding(
-                  padding: const EdgeInsets.only(top: 28),
+                Align(
+                  alignment: Alignment.center,
                   child: Icon(
                     Icons.chevron_right_rounded,
                     size: 20,

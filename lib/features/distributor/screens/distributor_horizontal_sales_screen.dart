@@ -533,15 +533,11 @@ class _SaleFormSheetState extends State<_SaleFormSheet> {
   late String? _warehouseId = widget.warehouses.isEmpty
       ? null
       : widget.warehouses.first.id;
-  late String? _partnerId = widget.partners.isEmpty
-      ? null
-      : widget.partners.first.id;
+  String? _partnerId;
   late final _itemCtrl = TextEditingController(text: widget.defaultItemCode);
   final _weightCtrl = TextEditingController();
   final _fruitCtrl = TextEditingController();
-  late final _destinationCtrl = TextEditingController(
-    text: widget.partners.isEmpty ? '' : widget.partners.first.address,
-  );
+  final _destinationCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
 
   @override
@@ -592,65 +588,96 @@ class _SaleFormSheetState extends State<_SaleFormSheet> {
     return null;
   }
 
+  Future<void> _openPartnerPicker() async {
+    final partner = await showModalBottomSheet<DistributorPartner>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _DistributorPickerSheet(
+        partners: widget.partners,
+        selectedId: _partnerId,
+      ),
+    );
+    if (partner == null) return;
+    setState(() {
+      _partnerId = partner.id;
+      _destinationCtrl.text = partner.address;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final selectedPartner = _partnerFor(_partnerId);
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 18),
+    return SafeArea(
+      top: false,
       child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(20, 10, 20, bottom + 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const _SheetTitle(
-              title: 'Buat T1 Jual Distributor',
-              subtitle: 'Pilih stok, gudang asal, dan distributor tujuan.',
+            Center(
+              child: Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD1D5DB),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 18),
+            _SheetTitle(
+              title: 'Buat T1 Jual Distributor',
+              subtitle: 'Pilih stok dan akun distributor penerima.',
+              onClose: () => Navigator.pop(context),
+            ),
+            const SizedBox(height: 18),
+            const _FormLabel(label: 'Gudang asal'),
+            const SizedBox(height: 6),
             DropdownButtonFormField<String>(
               initialValue: _warehouseId,
               isExpanded: true,
-              decoration: _inputDecoration('Gudang Asal'),
+              decoration: _inputDecoration(),
               items: widget.warehouses
                   .map(
                     (warehouse) => DropdownMenuItem(
                       value: warehouse.id,
-                      child: Text(warehouse.name),
+                      child: Text(
+                        warehouse.name,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   )
                   .toList(),
               onChanged: (value) => setState(() => _warehouseId = value),
             ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: _partnerId,
-              isExpanded: true,
-              decoration: _inputDecoration('Distributor Tujuan'),
-              items: widget.partners
-                  .map(
-                    (partner) => DropdownMenuItem(
-                      value: partner.id,
-                      child: Text('${partner.name} - ${partner.city}'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  _partnerId = value;
-                  final partner = _partnerFor(value);
-                  if (partner != null) _destinationCtrl.text = partner.address;
-                });
-              },
+            const SizedBox(height: 12),
+            const _FormLabel(label: 'Distributor tujuan'),
+            const SizedBox(height: 6),
+            _PartnerPickerField(
+              partner: selectedPartner,
+              onTap: _openPartnerPicker,
             ),
             const SizedBox(height: 10),
+            _DestinationAddress(partner: selectedPartner),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Divider(height: 1, color: _borderColor),
+            ),
             _TextField(
               controller: _itemCtrl,
               label: 'Kode Stok / Batch',
               hint: 'Contoh: PGL-2026-000903',
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: _NumberField(
@@ -670,20 +697,17 @@ class _SaleFormSheetState extends State<_SaleFormSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            _TextField(
-              controller: _destinationCtrl,
-              label: 'Lokasi Tujuan',
-              hint: 'Alamat/gudang distributor tujuan',
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             _TextArea(
               controller: _noteCtrl,
               label: 'Catatan Penjualan',
               hint: 'Contoh: pemerataan stok lintas kota',
             ),
             const SizedBox(height: 16),
-            PrimaryPillButton(label: 'SIMPAN T1', onPressed: _submit),
+            PrimaryPillButton(
+              label: 'SIMPAN T1',
+              onPressed: selectedPartner == null ? null : _submit,
+            ),
           ],
         ),
       ),
@@ -692,34 +716,442 @@ class _SaleFormSheetState extends State<_SaleFormSheet> {
 }
 
 class _SheetTitle extends StatelessWidget {
-  const _SheetTitle({required this.title, required this.subtitle});
+  const _SheetTitle({
+    required this.title,
+    required this.subtitle,
+    required this.onClose,
+  });
 
   final String title;
   final String subtitle;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-            color: AppColors.black,
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.primaryContainer.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(
+            Icons.swap_horiz_rounded,
+            size: 22,
+            color: AppColors.primary,
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: const TextStyle(
-            fontSize: 12,
-            height: 1.35,
-            color: AppColors.placeholder,
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.black,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.placeholder,
+                ),
+              ),
+            ],
           ),
+        ),
+        IconButton(
+          onPressed: onClose,
+          tooltip: 'Tutup',
+          icon: const Icon(Icons.close_rounded),
         ),
       ],
+    );
+  }
+}
+
+class _FormLabel extends StatelessWidget {
+  const _FormLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: AppColors.subtitle,
+      ),
+    );
+  }
+}
+
+class _PartnerPickerField extends StatelessWidget {
+  const _PartnerPickerField({required this.partner, required this.onTap});
+
+  final DistributorPartner? partner;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF8FAF7),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 62),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: partner == null
+                  ? _borderColor
+                  : AppColors.primaryContainer,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.business_outlined,
+                size: 21,
+                color: partner == null
+                    ? AppColors.placeholder
+                    : AppColors.primary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      partner?.name ?? 'Pilih akun distributor',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: partner == null
+                            ? AppColors.subtitle
+                            : AppColors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      partner == null
+                          ? 'Cari menggunakan ID, nama, atau kota'
+                          : 'ID ${partner!.id}  |  ${partner!.city}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: partner == null
+                            ? FontWeight.w400
+                            : FontWeight.w700,
+                        color: partner == null
+                            ? AppColors.placeholder
+                            : AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: AppColors.placeholder,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DestinationAddress extends StatelessWidget {
+  const _DestinationAddress({required this.partner});
+
+  final DistributorPartner? partner;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAF7),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.location_on_outlined,
+            size: 19,
+            color: AppColors.placeholder,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Alamat akun terdaftar',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.placeholder,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  partner?.address ?? 'Alamat tampil setelah akun dipilih',
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.4,
+                    fontWeight: partner == null
+                        ? FontWeight.w400
+                        : FontWeight.w600,
+                    color: partner == null
+                        ? AppColors.placeholder
+                        : AppColors.subtitle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (partner != null)
+            const Icon(
+              Icons.lock_outline_rounded,
+              size: 15,
+              color: AppColors.placeholder,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DistributorPickerSheet extends StatefulWidget {
+  const _DistributorPickerSheet({
+    required this.partners,
+    required this.selectedId,
+  });
+
+  final List<DistributorPartner> partners;
+  final String? selectedId;
+
+  @override
+  State<_DistributorPickerSheet> createState() =>
+      _DistributorPickerSheetState();
+}
+
+class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
+  final _searchCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.removeListener(_refresh);
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _refresh() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchCtrl.text.trim().toLowerCase();
+    final visiblePartners = widget.partners.where((partner) {
+      return query.isEmpty ||
+          partner.id.toLowerCase().contains(query) ||
+          partner.name.toLowerCase().contains(query) ||
+          partner.city.toLowerCase().contains(query);
+    }).toList();
+
+    return FractionallySizedBox(
+      heightFactor: 0.72,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD1D5DB),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Pilih Distributor Tujuan',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.black,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Cari akun distributor yang sudah terdaftar',
+                style: TextStyle(fontSize: 11, color: AppColors.placeholder),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 46,
+                child: TextField(
+                  controller: _searchCtrl,
+                  autofocus: true,
+                  decoration: _inputDecoration().copyWith(
+                    hintText: 'Masukkan ID, nama, atau kota',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                    suffixIcon: query.isEmpty
+                        ? null
+                        : IconButton(
+                            onPressed: _searchCtrl.clear,
+                            tooltip: 'Hapus pencarian',
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: visiblePartners.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Akun distributor tidak ditemukan.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.placeholder,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: visiblePartners.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final partner = visiblePartners[index];
+                          final selected = partner.id == widget.selectedId;
+                          return Material(
+                            color: selected
+                                ? AppColors.primaryContainer.withValues(
+                                    alpha: 0.08,
+                                  )
+                                : AppColors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            child: InkWell(
+                              onTap: () => Navigator.pop(context, partner),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: selected
+                                        ? AppColors.primaryContainer
+                                        : _borderColor,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 38,
+                                      height: 38,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.10,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.business_outlined,
+                                        size: 20,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 11),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            partner.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
+                                              color: AppColors.black,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            '${partner.id}  |  ${partner.city}',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.primary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            partner.address,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              color: AppColors.placeholder,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(
+                                      selected
+                                          ? Icons.check_circle_rounded
+                                          : Icons.chevron_right_rounded,
+                                      size: 20,
+                                      color: selected
+                                          ? AppColors.primary
+                                          : AppColors.placeholder,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -737,10 +1169,17 @@ class _TextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      textCapitalization: TextCapitalization.characters,
-      decoration: _inputDecoration(label).copyWith(hintText: hint),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FormLabel(label: label),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          textCapitalization: TextCapitalization.characters,
+          decoration: _inputDecoration().copyWith(hintText: hint),
+        ),
+      ],
     );
   }
 }
@@ -760,16 +1199,23 @@ class _NumberField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
-      inputFormatters: [
-        if (decimal)
-          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))
-        else
-          FilteringTextInputFormatter.digitsOnly,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FormLabel(label: label),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.numberWithOptions(decimal: decimal),
+          inputFormatters: [
+            if (decimal)
+              FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))
+            else
+              FilteringTextInputFormatter.digitsOnly,
+          ],
+          decoration: _inputDecoration().copyWith(suffixText: suffix),
+        ),
       ],
-      decoration: _inputDecoration(label).copyWith(suffixText: suffix),
     );
   }
 }
@@ -787,27 +1233,40 @@ class _TextArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      maxLines: 3,
-      decoration: _inputDecoration(label).copyWith(hintText: hint),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FormLabel(label: label),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: _inputDecoration().copyWith(hintText: hint),
+        ),
+      ],
     );
   }
 }
 
-InputDecoration _inputDecoration(String label) {
+InputDecoration _inputDecoration() {
   return InputDecoration(
-    labelText: label,
     filled: true,
-    fillColor: _pageBackground,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+    fillColor: const Color(0xFFF8FAF7),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: const BorderSide(color: _borderColor),
+    ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
       borderSide: const BorderSide(color: _borderColor),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: AppColors.primaryContainer, width: 2),
+      borderSide: const BorderSide(
+        color: AppColors.primaryContainer,
+        width: 1.5,
+      ),
     ),
   );
 }

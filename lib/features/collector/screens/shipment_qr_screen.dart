@@ -190,6 +190,11 @@ class _ShipmentInfoCard extends StatelessWidget {
                       '${shipment.destinationName!.trim()}'
                 : shipment.destinationType.label,
           ),
+          if (shipment.destinationUserId?.trim().isNotEmpty == true)
+            _InfoRow(
+              label: 'ID Penerima',
+              value: shipment.destinationUserId!.trim(),
+            ),
           if (shipment.destinationLocation?.trim().isNotEmpty == true)
             _InfoRow(
               label: 'Lokasi',

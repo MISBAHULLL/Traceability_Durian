@@ -935,15 +935,19 @@ class CollectorRepository extends ChangeNotifier {
   CollectorShipmentBatch? createShipmentBatch({
     required List<String> sourceBatchCodes,
     required ShipmentDestinationType destinationType,
+    String? destinationUserId,
     String? destinationName,
     String? destinationLocation,
     String? warehouseNote,
   }) {
     final cleanCodes = sourceBatchCodes.toSet().toList();
     if (cleanCodes.isEmpty) return null;
+    final cleanDestinationUserId = destinationUserId?.trim();
     final cleanDestinationName = destinationName?.trim();
     final cleanDestinationLocation = destinationLocation?.trim();
-    if (cleanDestinationName == null ||
+    if (cleanDestinationUserId == null ||
+        cleanDestinationUserId.isEmpty ||
+        cleanDestinationName == null ||
         cleanDestinationName.isEmpty ||
         cleanDestinationLocation == null ||
         cleanDestinationLocation.isEmpty) {
@@ -971,6 +975,7 @@ class CollectorRepository extends ChangeNotifier {
       packagedAt: DateTime.now(),
       status: CollectorShipmentStatus.readyToShip,
       destinationType: destinationType,
+      destinationUserId: cleanDestinationUserId,
       destinationName: cleanDestinationName,
       destinationLocation: cleanDestinationLocation,
       warehouseNote: warehouseNote?.trim().isEmpty == true
@@ -1008,6 +1013,7 @@ class CollectorRepository extends ChangeNotifier {
           : TraceBatchRelationType.splitFrom,
       metadata: {
         'Kode pengiriman': shipment.code,
+        'ID penerima': shipment.destinationUserId ?? '-',
         'Tujuan': shipment.destinationName ?? shipment.destinationType.label,
         'Lokasi tujuan': shipment.destinationLocation ?? '-',
       },

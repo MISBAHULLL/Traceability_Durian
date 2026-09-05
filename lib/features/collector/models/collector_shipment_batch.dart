@@ -52,6 +52,7 @@ class CollectorShipmentBatch {
     required this.packagedAt,
     required this.status,
     this.destinationType = ShipmentDestinationType.distributor,
+    this.destinationUserId,
     this.destinationName,
     this.destinationLocation,
     this.warehouseNote,
@@ -70,6 +71,7 @@ class CollectorShipmentBatch {
   final DateTime packagedAt;
   final CollectorShipmentStatus status;
   final ShipmentDestinationType destinationType;
+  final String? destinationUserId;
   final String? destinationName;
   final String? destinationLocation;
   final String? warehouseNote;
@@ -82,6 +84,7 @@ class CollectorShipmentBatch {
   CollectorShipmentBatch copyWith({
     CollectorShipmentStatus? status,
     ShipmentDestinationType? destinationType,
+    String? destinationUserId,
     String? destinationName,
     String? destinationLocation,
     String? warehouseNote,
@@ -100,6 +103,7 @@ class CollectorShipmentBatch {
       packagedAt: packagedAt,
       status: status ?? this.status,
       destinationType: destinationType ?? this.destinationType,
+      destinationUserId: destinationUserId ?? this.destinationUserId,
       destinationName: destinationName ?? this.destinationName,
       destinationLocation: destinationLocation ?? this.destinationLocation,
       warehouseNote: warehouseNote ?? this.warehouseNote,
@@ -120,6 +124,7 @@ class CollectorShipmentBatch {
     'packagedAt': packagedAt.toIso8601String(),
     'status': status.name,
     'destinationType': destinationType.name,
+    'destinationUserId': destinationUserId,
     'destinationName': destinationName,
     'destinationLocation': destinationLocation,
     'warehouseNote': warehouseNote,
@@ -162,6 +167,7 @@ class CollectorShipmentBatch {
         (e) => e.name == json['destinationType'],
         orElse: () => ShipmentDestinationType.distributor,
       ),
+      destinationUserId: json['destinationUserId'] as String?,
       destinationName: json['destinationName'] as String?,
       destinationLocation: json['destinationLocation'] as String?,
       warehouseNote: json['warehouseNote'] as String?,

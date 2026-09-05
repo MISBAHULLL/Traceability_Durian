@@ -976,93 +976,118 @@ class _BatchControlsState extends State<_BatchControls> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: _borderColor),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.filter_list_rounded,
-                size: 17,
-                color: AppColors.placeholder,
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.filter_list_rounded,
+                  size: 17,
+                  color: AppColors.primary,
+                ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               const Text(
-                'Filter',
+                'Status Batch',
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.black,
+                ),
+              ),
+              const Spacer(),
+              if (widget.activeFilter != _BatchAllocationFilter.semua)
+                IconButton(
+                  onPressed: () =>
+                      widget.onFilterChanged(_BatchAllocationFilter.semua),
+                  tooltip: 'Reset filter',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.restart_alt_rounded,
+                    size: 19,
+                    color: AppColors.primary,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 11),
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: _BatchAllocationFilter.values.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final filter = _BatchAllocationFilter.values[index];
+                return _FilterPill(
+                  label: filter.label,
+                  selected: widget.activeFilter == filter,
+                  onTap: () => widget.onFilterChanged(filter),
+                );
+              },
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, color: _borderColor),
+          ),
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.sort_rounded,
+                  size: 17,
                   color: AppColors.subtitle,
                 ),
               ),
               const SizedBox(width: 10),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: _BatchAllocationFilter.values.map((filter) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: _FilterPill(
-                          label: filter.label,
-                          selected: widget.activeFilter == filter,
-                          onTap: () => widget.onFilterChanged(filter),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Icon(
-                Icons.sort_rounded,
-                size: 17,
-                color: AppColors.placeholder,
-              ),
-              const SizedBox(width: 8),
               const Text(
                 'Urutkan',
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.subtitle,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.black,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: _SortDropdownButton(
-                    label: widget.activeSort.label,
-                    expanded: _sortMenuOpen,
-                    onTap: () {
-                      setState(() => _sortMenuOpen = !_sortMenuOpen);
-                    },
-                  ),
-                ),
+              const Spacer(),
+              _SortDropdownButton(
+                label: widget.activeSort.label,
+                expanded: _sortMenuOpen,
+                onTap: () {
+                  setState(() => _sortMenuOpen = !_sortMenuOpen);
+                },
               ),
             ],
           ),
           if (_sortMenuOpen) ...[
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.only(left: 33),
-              child: _SortDropdownMenu(
-                activeSort: widget.activeSort,
-                onChanged: (sort) {
-                  setState(() => _sortMenuOpen = false);
-                  widget.onSortChanged(sort);
-                },
-              ),
+            const SizedBox(height: 10),
+            _SortDropdownMenu(
+              activeSort: widget.activeSort,
+              onChanged: (sort) {
+                setState(() => _sortMenuOpen = false);
+                widget.onSortChanged(sort);
+              },
             ),
           ],
         ],
@@ -1085,14 +1110,14 @@ class _SortDropdownButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(8),
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.primary),
+          color: AppColors.primary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.32)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1102,7 +1127,7 @@ class _SortDropdownButton extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: AppColors.white,
+                color: AppColors.primary,
               ),
             ),
             const SizedBox(width: 6),
@@ -1111,7 +1136,7 @@ class _SortDropdownButton extends StatelessWidget {
                   ? Icons.keyboard_arrow_up_rounded
                   : Icons.keyboard_arrow_down_rounded,
               size: 16,
-              color: AppColors.white,
+              color: AppColors.primary,
             ),
           ],
         ),
@@ -1202,13 +1227,13 @@ class _FilterPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(8),
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? AppColors.primary : _mutedSurface,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: selected ? AppColors.primary : _borderColor,
           ),

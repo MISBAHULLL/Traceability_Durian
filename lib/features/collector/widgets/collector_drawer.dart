@@ -10,7 +10,6 @@ import '../screens/collector_about_screen.dart';
 import '../screens/collector_help_screen.dart';
 import '../screens/collector_history_screen.dart';
 import '../screens/collector_profile_screen.dart';
-import '../screens/collector_scan_qr_screen.dart';
 import '../screens/collector_shipments_screen.dart';
 import '../screens/collector_stock_screen.dart';
 import '../screens/collector_warehouses_screen.dart';
@@ -45,11 +44,6 @@ class CollectorDrawer extends StatelessWidget {
                   icon: Icons.home_rounded,
                   label: 'Beranda',
                   onTap: () => Navigator.pop(context),
-                ),
-                _DrawerItem(
-                  icon: Icons.qr_code_scanner_rounded,
-                  label: 'Scan QR',
-                  onTap: () => _go(context, const CollectorScanQrScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.fact_check_outlined,

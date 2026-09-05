@@ -79,7 +79,7 @@ class _OwnershipHistoryScreenState extends State<OwnershipHistoryScreen> {
     final items = _historyItems;
 
     return Scaffold(
-      backgroundColor: _pageBackground,
+      backgroundColor: AppColors.homeHeaderSurface,
       body: SafeArea(
         child: Column(
           children: [
@@ -88,26 +88,29 @@ class _OwnershipHistoryScreenState extends State<OwnershipHistoryScreen> {
               child: AppTopBar(title: 'Riwayat Perpindahan'),
             ),
             Expanded(
-              child: items.isEmpty
-                  ? const _EmptyHistory()
-                  : ListView(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                      children: [
-                        _HistorySummary(items: items),
-                        const SizedBox(height: 18),
-                        const _SectionTitle(),
-                        const SizedBox(height: 12),
-                        ...List.generate(items.length, (index) {
-                          return _OwnershipTimelineItem(
-                            item: items[index],
-                            isLast: index == items.length - 1,
-                            onOpenBatch: () => _openBatch(items[index].code),
-                            onOpenTrace: () => _openTrace(items[index].code),
-                          );
-                        }),
-                      ],
-                    ),
+              child: ColoredBox(
+                color: _pageBackground,
+                child: items.isEmpty
+                    ? const _EmptyHistory()
+                    : ListView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                        children: [
+                          _HistorySummary(items: items),
+                          const SizedBox(height: 18),
+                          const _SectionTitle(),
+                          const SizedBox(height: 12),
+                          ...List.generate(items.length, (index) {
+                            return _OwnershipTimelineItem(
+                              item: items[index],
+                              isLast: index == items.length - 1,
+                              onOpenBatch: () => _openBatch(items[index].code),
+                              onOpenTrace: () => _openTrace(items[index].code),
+                            );
+                          }),
+                        ],
+                      ),
+              ),
             ),
           ],
         ),

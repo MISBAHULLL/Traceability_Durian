@@ -388,8 +388,6 @@ class _OperationalSummaryGrid extends StatelessWidget {
   final VoidCallback onOpenScan;
   final VoidCallback onOpenStock;
 
-  static const double _gap = 8;
-
   String _formatWeight(double value) {
     return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
   }
@@ -398,49 +396,57 @@ class _OperationalSummaryGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final itemWidth = (constraints.maxWidth - _gap) / 2;
+        final itemWidth = constraints.maxWidth > 360
+            ? 230.0
+            : constraints.maxWidth * 0.68;
 
-        return Wrap(
-          spacing: _gap,
-          runSpacing: _gap,
-          children: [
-            _SummaryMetricCard(
-              width: itemWidth,
-              icon: Icons.move_to_inbox_outlined,
-              title: 'Durian Masuk Hari Ini',
-              value: '$incomingTodayCount batch',
-              detail: '${_formatWeight(incomingTodayWeight)} kg diterima',
-              color: AppColors.primary,
-              onTap: onOpenStock,
-            ),
-            _SummaryMetricCard(
-              width: itemWidth,
-              icon: Icons.pending_actions_outlined,
-              title: 'Transaksi Menunggu',
-              value: '$pendingCount batch',
-              detail: 'perlu scan dan verifikasi',
-              color: const Color(0xFFB45309),
-              onTap: onOpenScan,
-            ),
-            _SummaryMetricCard(
-              width: itemWidth,
-              icon: Icons.inventory_2_outlined,
-              title: 'Batch Aktif',
-              value: '$activeBatchCount batch',
-              detail: 'stok siap dikelola',
-              color: const Color(0xFF1D6FA4),
-              onTap: onOpenStock,
-            ),
-            _SummaryMetricCard(
-              width: itemWidth,
-              icon: Icons.scale_outlined,
-              title: 'Ringkasan Stok',
-              value: '${_formatWeight(totalWeightKg)} kg',
-              detail: '$totalFruitCount butir tercatat',
-              color: const Color(0xFF6B21A8),
-              onTap: onOpenStock,
-            ),
-          ],
+        return SizedBox(
+          height: 84,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            children: [
+              _SummaryMetricCard(
+                width: itemWidth,
+                icon: Icons.move_to_inbox_outlined,
+                title: 'Durian Masuk Hari Ini',
+                value: '$incomingTodayCount batch',
+                detail: '${_formatWeight(incomingTodayWeight)} kg diterima',
+                color: AppColors.primary,
+                onTap: onOpenStock,
+              ),
+              const SizedBox(width: 8),
+              _SummaryMetricCard(
+                width: itemWidth,
+                icon: Icons.pending_actions_outlined,
+                title: 'Transaksi Menunggu',
+                value: '$pendingCount batch',
+                detail: 'perlu scan dan verifikasi',
+                color: const Color(0xFFB45309),
+                onTap: onOpenScan,
+              ),
+              const SizedBox(width: 8),
+              _SummaryMetricCard(
+                width: itemWidth,
+                icon: Icons.inventory_2_outlined,
+                title: 'Batch Aktif',
+                value: '$activeBatchCount batch',
+                detail: 'stok siap dikelola',
+                color: const Color(0xFF1D6FA4),
+                onTap: onOpenStock,
+              ),
+              const SizedBox(width: 8),
+              _SummaryMetricCard(
+                width: itemWidth,
+                icon: Icons.scale_outlined,
+                title: 'Ringkasan Stok',
+                value: '${_formatWeight(totalWeightKg)} kg',
+                detail: '$totalFruitCount butir tercatat',
+                color: const Color(0xFF6B21A8),
+                onTap: onOpenStock,
+              ),
+            ],
+          ),
         );
       },
     );
@@ -470,7 +476,7 @@ class _SummaryMetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
-      height: 74,
+      height: 84,
       child: Material(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(14),

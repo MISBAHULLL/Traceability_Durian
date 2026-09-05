@@ -115,40 +115,55 @@ class _CollectorHistoryScreenState extends State<CollectorHistoryScreen> {
 
     return Scaffold(
       backgroundColor: _pageBackground,
-      body: SafeArea(
-        child: Column(
-          children: [
-            const ColoredBox(
-              color: AppColors.white,
+      body: Column(
+        children: [
+          const ColoredBox(
+            color: AppColors.white,
+            child: SafeArea(
+              bottom: false,
               child: AppTopBar(title: 'Audit Trail Pengepul'),
             ),
-            _AuditFilterPanel(
-              searchCtrl: _searchCtrl,
-              selectedType: _selectedType,
-              selectedActor: _selectedActor,
-              actors: actors,
-              period: _period,
-              totalCount: allEvents.length,
-              visibleCount: visibleEvents.length,
-              onTypeChanged: (value) => setState(() => _selectedType = value),
-              onActorChanged: (value) => setState(() => _selectedActor = value),
-              onPeriodChanged: (value) => setState(() => _period = value),
-              onClear: _clearFilters,
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  _AuditFilterPanel(
+                    searchCtrl: _searchCtrl,
+                    selectedType: _selectedType,
+                    selectedActor: _selectedActor,
+                    actors: actors,
+                    period: _period,
+                    totalCount: allEvents.length,
+                    visibleCount: visibleEvents.length,
+                    onTypeChanged: (value) =>
+                        setState(() => _selectedType = value),
+                    onActorChanged: (value) =>
+                        setState(() => _selectedActor = value),
+                    onPeriodChanged: (value) => setState(() => _period = value),
+                    onClear: _clearFilters,
+                  ),
+                  Expanded(
+                    child: visibleEvents.isEmpty
+                        ? const _EmptyAuditState()
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                            itemCount: visibleEvents.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              return _AuditEventCard(
+                                event: visibleEvents[index],
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
             ),
-            Expanded(
-              child: visibleEvents.isEmpty
-                  ? const _EmptyAuditState()
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
-                      itemCount: visibleEvents.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        return _AuditEventCard(event: visibleEvents[index]);
-                      },
-                    ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -184,152 +199,298 @@ class _AuditFilterPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.white,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  '$visibleCount dari $totalCount event',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.subtitle,
-                  ),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryContainer.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ),
-              TextButton.icon(
-                onPressed: onClear,
-                icon: const Icon(Icons.refresh_rounded, size: 16),
-                label: const Text('Reset'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: searchCtrl,
-            textCapitalization: TextCapitalization.characters,
-            decoration: InputDecoration(
-              hintText: 'Cari kode batch/PGL, aksi, atau catatan',
-              prefixIcon: const Icon(Icons.search_rounded, size: 20),
-              filled: true,
-              fillColor: _pageBackground,
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: _borderColor),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: _borderColor),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<CollectorAuditEventType?>(
-                  initialValue: selectedType,
-                  isExpanded: true,
-                  items: [
-                    const DropdownMenuItem(
-                      value: null,
-                      child: Text(
-                        'Semua tipe',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    ...CollectorAuditEventType.values.map(
-                      (type) => DropdownMenuItem(
-                        value: type,
-                        child: Text(
-                          type.label,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
-                  onChanged: onTypeChanged,
-                  decoration: _filterDecoration('Tipe event'),
+                child: const Icon(
+                  Icons.tune_rounded,
+                  size: 19,
+                  color: AppColors.primary,
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: DropdownButtonFormField<String?>(
-                  initialValue: selectedActor,
-                  isExpanded: true,
-                  items: [
-                    const DropdownMenuItem(
-                      value: null,
-                      child: Text(
-                        'Semua aktor',
-                        overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Filter Audit',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.black,
                       ),
                     ),
-                    ...actors.map(
-                      (actor) => DropdownMenuItem(
-                        value: actor,
-                        child: Text(actor, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$visibleCount dari $totalCount event ditampilkan',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.placeholder,
                       ),
                     ),
                   ],
-                  onChanged: onActorChanged,
-                  decoration: _filterDecoration('Aktor'),
+                ),
+              ),
+              IconButton(
+                onPressed: onClear,
+                tooltip: 'Reset filter',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  size: 20,
+                  color: AppColors.primary,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: _AuditPeriod.values.map((item) {
-                final selected = item == period;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    selected: selected,
-                    label: Text(item.label),
-                    onSelected: (_) => onPeriodChanged(item),
-                    selectedColor: const Color(0xFFEAF4E6),
-                    backgroundColor: AppColors.white,
-                    side: BorderSide(
-                      color: selected ? AppColors.primary : _borderColor,
-                    ),
-                    labelStyle: TextStyle(
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 46,
+            child: TextField(
+              controller: searchCtrl,
+              textCapitalization: TextCapitalization.characters,
+              decoration: InputDecoration(
+                hintText: 'Cari kode batch, PGL, atau aktivitas',
+                hintStyle: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.placeholder,
+                ),
+                prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                suffixIcon: searchCtrl.text.isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: searchCtrl.clear,
+                        tooltip: 'Hapus pencarian',
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                      ),
+                filled: true,
+                fillColor: _pageBackground,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: _borderColor),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: _borderColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: AppColors.primaryContainer,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _FilterField(
+                  label: 'Tipe event',
+                  child: DropdownButtonFormField<CollectorAuditEventType?>(
+                    key: ValueKey(selectedType),
+                    initialValue: selectedType,
+                    isExpanded: true,
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('Semua tipe'),
+                      ),
+                      ...CollectorAuditEventType.values.map(
+                        (type) => DropdownMenuItem(
+                          value: type,
+                          child: Text(
+                            type.label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: onTypeChanged,
+                    decoration: _filterDecoration(),
+                    style: const TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: selected ? AppColors.primary : AppColors.subtitle,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      color: AppColors.subtitle,
                     ),
                   ),
-                );
-              }).toList(),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _FilterField(
+                  label: 'Aktor',
+                  child: DropdownButtonFormField<String?>(
+                    key: ValueKey(selectedActor),
+                    initialValue: selectedActor,
+                    isExpanded: true,
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('Semua aktor'),
+                      ),
+                      ...actors.map(
+                        (actor) => DropdownMenuItem(
+                          value: actor,
+                          child: Text(actor, overflow: TextOverflow.ellipsis),
+                        ),
+                      ),
+                    ],
+                    onChanged: onActorChanged,
+                    decoration: _filterDecoration(),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.subtitle,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Periode',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.placeholder,
             ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: _AuditPeriod.values.map((item) {
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: item == _AuditPeriod.thirtyDays ? 0 : 6,
+                  ),
+                  child: _PeriodButton(
+                    label: item.label,
+                    selected: item == period,
+                    onTap: () => onPeriodChanged(item),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),
     );
   }
 
-  InputDecoration _filterDecoration(String label) {
+  InputDecoration _filterDecoration() {
     return InputDecoration(
-      labelText: label,
       filled: true,
       fillColor: _pageBackground,
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      floatingLabelStyle: const TextStyle(fontSize: 11),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: _borderColor),
+      ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: const BorderSide(color: _borderColor),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: AppColors.primaryContainer),
+      ),
+    );
+  }
+}
+
+class _FilterField extends StatelessWidget {
+  const _FilterField({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: AppColors.placeholder,
+          ),
+        ),
+        const SizedBox(height: 6),
+        child,
+      ],
+    );
+  }
+}
+
+class _PeriodButton extends StatelessWidget {
+  const _PeriodButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: Material(
+        color: selected
+            ? AppColors.primaryContainer.withValues(alpha: 0.10)
+            : AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: selected ? AppColors.primary : _borderColor,
+              ),
+            ),
+            child: Text(
+              label,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: selected ? AppColors.primary : AppColors.subtitle,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -353,7 +514,7 @@ class _AuditEventCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 13),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -363,15 +524,26 @@ class _AuditEventCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        event.objectCode,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.primary,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              event.objectCode,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _TypeBadge(label: event.type.label, color: color),
+                        ],
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 5),
                       Text(
                         event.action,
                         style: const TextStyle(
@@ -389,31 +561,34 @@ class _AuditEventCard extends StatelessWidget {
                           color: AppColors.subtitle,
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      _AuditDetailLine(
+                        icon: Icons.schedule_outlined,
+                        value: _formatDateTime(event.occurredAt),
+                      ),
+                      const SizedBox(height: 7),
+                      _AuditDetailLine(
+                        icon: Icons.person_outline_rounded,
+                        value: '${event.actorRole} - ${event.actorName}',
+                      ),
+                      if (event.locationLabel?.trim().isNotEmpty == true) ...[
+                        const SizedBox(height: 7),
+                        _AuditDetailLine(
+                          icon: Icons.location_on_outlined,
+                          value: event.locationLabel!.trim(),
+                        ),
+                      ],
+                      if (event.statusLabel?.trim().isNotEmpty == true) ...[
+                        const SizedBox(height: 7),
+                        _AuditDetailLine(
+                          icon: Icons.verified_outlined,
+                          value: event.statusLabel!.trim(),
+                          valueColor: color,
+                        ),
+                      ],
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                _TypeBadge(label: event.type.label, color: color),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: _borderColor),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 11, 14, 12),
-            child: Column(
-              children: [
-                _InfoRow(
-                  label: 'Waktu',
-                  value: _formatDateTime(event.occurredAt),
-                ),
-                _InfoRow(
-                  label: 'Aktor',
-                  value: '${event.actorRole} - ${event.actorName}',
-                ),
-                if (event.locationLabel?.trim().isNotEmpty == true)
-                  _InfoRow(label: 'Lokasi', value: event.locationLabel!.trim()),
-                if (event.statusLabel?.trim().isNotEmpty == true)
-                  _InfoRow(label: 'Status', value: event.statusLabel!.trim()),
               ],
             ),
           ),
@@ -425,12 +600,29 @@ class _AuditEventCard extends StatelessWidget {
                 color: Color(0xFFF8F9F7),
                 border: Border(top: BorderSide(color: _borderColor)),
               ),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: event.metadata.entries.map((entry) {
-                  return _MetadataPill(label: entry.key, value: entry.value);
-                }).toList(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Detail aktivitas',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: event.metadata.entries.map((entry) {
+                      return _MetadataPill(
+                        label: entry.key,
+                        value: entry.value,
+                      );
+                    }).toList(),
+                  ),
+                ],
               ),
             ),
         ],
@@ -516,43 +708,36 @@ class _TypeBadge extends StatelessWidget {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
+class _AuditDetailLine extends StatelessWidget {
+  const _AuditDetailLine({
+    required this.icon,
+    required this.value,
+    this.valueColor,
+  });
 
-  final String label;
+  final IconData icon;
   final String value;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 82,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.placeholder,
-              ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 15, color: AppColors.placeholder),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 11,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+              color: valueColor ?? AppColors.subtitle,
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                fontSize: 11,
-                height: 1.35,
-                fontWeight: FontWeight.w700,
-                color: AppColors.subtitle,
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -566,18 +751,30 @@ class _MetadataPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      constraints: const BoxConstraints(minHeight: 30),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: _borderColor),
       ),
-      child: Text(
-        '$label: $value',
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: AppColors.subtitle,
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(
+            fontSize: 10,
+            height: 1.35,
+            color: AppColors.subtitle,
+          ),
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            TextSpan(
+              text: value,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ],
         ),
       ),
     );

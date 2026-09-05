@@ -807,6 +807,34 @@ class _ProductCard extends StatelessWidget {
                       text: 'Waktu Panen : ${_formatDate(product.harvestDate)}',
                     ),
                     _Bullet(text: 'Pemilik Pohon : ${product.treeOwner}'),
+                    if (product.category == ProductCategory.durianSegar) ...[
+                      const SizedBox(height: 7),
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.fact_check_outlined,
+                            size: 14,
+                            color: AppColors.primary,
+                          ),
+                          SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              'Terima & verifikasi batch',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 17,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

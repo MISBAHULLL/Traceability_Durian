@@ -1594,7 +1594,7 @@ class _StockActionStrip extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onAdvancedGrading,
               icon: const Icon(Icons.call_split_outlined, size: 16),
-              label: const Text('Grading'),
+              label: const Text('Sortir Ulang'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primary,
                 side: const BorderSide(color: _borderColor),

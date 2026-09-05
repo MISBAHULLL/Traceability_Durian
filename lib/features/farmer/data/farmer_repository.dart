@@ -1287,7 +1287,7 @@ class FarmerRepository extends ChangeNotifier {
     _appendBatchEvent(
       batchCode: code,
       type: BatchEventType.batchGraded,
-      title: 'Grading Lanjutan',
+      title: 'Sortir Ulang Stok',
       actorLabel: cleanGradedBy,
       timestamp: DateTime.now(),
       status: existing.status,

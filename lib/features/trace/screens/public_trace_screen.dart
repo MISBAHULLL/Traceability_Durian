@@ -754,142 +754,338 @@ class _TraceContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasPhoto = batch.photoPath != null && batch.photoPath!.isNotEmpty;
-
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _TraceStatusHeader(batch: batch),
-          const SizedBox(height: 16),
-          _TraceRouteMap(stops: routeStops, loading: routeLoading),
-          const SizedBox(height: 16),
-          if (hasPhoto) ...[
-            BatchPhoto(
-              path: batch.photoPath,
-              width: double.infinity,
-              height: 190,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            const SizedBox(height: 16),
-          ],
-          _TraceSection(
-            title: 'Informasi Durian',
-            children: [
-              _TraceInfoRow(label: 'Kode Batch', value: batch.code),
-              _TraceInfoRow(label: 'Varietas', value: batch.variety),
-              _TraceInfoRow(
-                label: 'Total Berat',
-                value: '${batch.quantity.toStringAsFixed(0)} ${batch.unit}',
-              ),
-              if (batch.fruitCount != null)
-                _TraceInfoRow(
-                  label: 'Jumlah Buah',
-                  value: '${batch.fruitCount} butir',
+          _TraceBatchSummaryCard(
+            batch: batch,
+            createdLabel: _formatDateTime(batch.createdAt ?? batch.harvestDate),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => _TraceBatchInformationScreen(batch: batch),
                 ),
-              _TraceInfoRow(
-                label: 'Grade Awal Petani',
-                value: 'Grade ${batch.grade}',
-              ),
-              // [FE - Component Rendering] Data sortir pengepul ditampilkan
-              // sebagai hasil verifikasi, bukan pengganti data awal petani.
-              if (batch.verifiedGrade != null &&
-                  batch.verifiedGrade!.isNotEmpty)
-                _TraceInfoRow(
-                  label: 'Grade Pengepul',
-                  value: 'Grade ${batch.verifiedGrade}',
-                ),
-              if (batch.receivedQuantity != null)
-                _TraceInfoRow(
-                  label: 'Berat Diterima',
-                  value:
-                      '${batch.receivedQuantity!.toStringAsFixed(0)} ${batch.unit}',
-                ),
-              if (batch.receivedFruitCount != null)
-                _TraceInfoRow(
-                  label: 'Jumlah Diterima',
-                  value: '${batch.receivedFruitCount} butir',
-                ),
-              // [FE - Component Rendering] Komposisi grade memperlihatkan
-              // hasil sortir pengepul sebagai event tambahan traceability.
-              if (batch.gradeBreakdown.isNotEmpty)
-                _TraceInfoRow(
-                  label: 'Komposisi Grade',
-                  value: batch.gradeBreakdown
-                      .map((item) {
-                        final weight = item.weightKg % 1 == 0
-                            ? item.weightKg.toStringAsFixed(0)
-                            : item.weightKg.toStringAsFixed(2);
-                        return '${item.grade}: $weight kg / ${item.fruitCount} butir';
-                      })
-                      .join('\n'),
-                ),
-              if (batch.verifiedBy != null && batch.verifiedBy!.isNotEmpty)
-                _TraceInfoRow(
-                  label: 'Diverifikasi Oleh',
-                  value: batch.verifiedBy!,
-                ),
-              if (batch.verifiedAt != null)
-                _TraceInfoRow(
-                  label: 'Waktu Verifikasi',
-                  value: _formatDateTime(batch.verifiedAt!),
-                ),
-              _TraceInfoRow(
-                label: 'Tanggal Panen',
-                value: _formatDate(batch.harvestDate),
-              ),
-              _TraceInfoRow(label: 'Asal Kebun', value: batch.farmName),
-              if (batch.maturityLevel != null &&
-                  batch.maturityLevel!.isNotEmpty)
-                _TraceInfoRow(label: 'Kematangan', value: batch.maturityLevel!),
-              if (batch.shelfLifeEstimate != null &&
-                  batch.shelfLifeEstimate!.isNotEmpty)
-                _TraceInfoRow(
-                  label: 'Masa Simpan',
-                  value: batch.shelfLifeEstimate!,
-                ),
-              if (batch.harvestMethod != null &&
-                  batch.harvestMethod!.isNotEmpty)
-                _TraceInfoRow(
-                  label: 'Metode Panen',
-                  value: batch.harvestMethod!,
-                ),
-            ],
+              );
+            },
           ),
           const SizedBox(height: 16),
-          if (_hasHandlingInfo(batch)) ...[
-            _TraceSection(
-              title: 'Catatan Kualitas',
-              children: [
-                if (batch.storageSuggestion != null &&
-                    batch.storageSuggestion!.isNotEmpty)
-                  _TraceInfoRow(
-                    label: 'Saran Simpan',
-                    value: batch.storageSuggestion!,
-                  ),
-                if (batch.notes != null && batch.notes!.isNotEmpty)
-                  _TraceInfoRow(label: 'Catatan', value: batch.notes!),
-                if (batch.qualityNotes != null &&
-                    batch.qualityNotes!.isNotEmpty)
-                  _TraceInfoRow(
-                    label: 'Catatan Sortir',
-                    value: batch.qualityNotes!,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
+          _TraceRouteMap(stops: routeStops, loading: routeLoading),
         ],
       ),
     );
   }
+}
 
-  bool _hasHandlingInfo(HarvestBatch batch) {
-    return (batch.storageSuggestion != null &&
-            batch.storageSuggestion!.isNotEmpty) ||
-        (batch.notes != null && batch.notes!.isNotEmpty) ||
-        (batch.qualityNotes != null && batch.qualityNotes!.isNotEmpty);
+class _TraceBatchSummaryCard extends StatelessWidget {
+  const _TraceBatchSummaryCard({
+    required this.batch,
+    required this.createdLabel,
+    required this.onTap,
+  });
+
+  final HarvestBatch batch;
+  final String createdLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: Color(0xFFE1E6DF)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 118,
+          child: Row(
+            children: [
+              BatchPhoto(
+                path: batch.photoPath,
+                width: 116,
+                height: 118,
+                borderRadius: BorderRadius.zero,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Durian ${batch.variety}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.black,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: batch.status.background,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              batch.status.label,
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: batch.status.color,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Dibuat $createdLabel',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.placeholder,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${batch.quantity.toStringAsFixed(0)} ${batch.unit} dari ${batch.farmName}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          height: 1.3,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.subtitle,
+                        ),
+                      ),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              batch.code,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            size: 20,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TraceBatchInformationScreen extends StatelessWidget {
+  const _TraceBatchInformationScreen({required this.batch});
+
+  final HarvestBatch batch;
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  String _formatDateTime(DateTime date) {
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '${_formatDate(date)}, $hour:$minute';
+  }
+
+  bool get _hasHandlingInfo {
+    return (batch.storageSuggestion?.isNotEmpty ?? false) ||
+        (batch.notes?.isNotEmpty ?? false) ||
+        (batch.qualityNotes?.isNotEmpty ?? false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const AppTopBar(title: 'Informasi Durian'),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    BatchPhoto(
+                      path: batch.photoPath,
+                      width: double.infinity,
+                      height: 190,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    const SizedBox(height: 16),
+                    _TraceStatusHeader(batch: batch),
+                    const SizedBox(height: 16),
+                    _TraceSection(
+                      title: 'Informasi Durian',
+                      children: [
+                        _TraceInfoRow(label: 'Kode Batch', value: batch.code),
+                        _TraceInfoRow(label: 'Varietas', value: batch.variety),
+                        _TraceInfoRow(
+                          label: 'Total Berat',
+                          value:
+                              '${batch.quantity.toStringAsFixed(0)} ${batch.unit}',
+                        ),
+                        if (batch.fruitCount != null)
+                          _TraceInfoRow(
+                            label: 'Jumlah Buah',
+                            value: '${batch.fruitCount} butir',
+                          ),
+                        _TraceInfoRow(
+                          label: 'Grade Awal Petani',
+                          value: 'Grade ${batch.grade}',
+                        ),
+                        if (batch.verifiedGrade?.isNotEmpty ?? false)
+                          _TraceInfoRow(
+                            label: 'Grade Pengepul',
+                            value: 'Grade ${batch.verifiedGrade}',
+                          ),
+                        if (batch.receivedQuantity != null)
+                          _TraceInfoRow(
+                            label: 'Berat Diterima',
+                            value:
+                                '${batch.receivedQuantity!.toStringAsFixed(0)} ${batch.unit}',
+                          ),
+                        if (batch.receivedFruitCount != null)
+                          _TraceInfoRow(
+                            label: 'Jumlah Diterima',
+                            value: '${batch.receivedFruitCount} butir',
+                          ),
+                        if (batch.gradeBreakdown.isNotEmpty)
+                          _TraceInfoRow(
+                            label: 'Komposisi Grade',
+                            value: batch.gradeBreakdown
+                                .map((item) {
+                                  final weight = item.weightKg % 1 == 0
+                                      ? item.weightKg.toStringAsFixed(0)
+                                      : item.weightKg.toStringAsFixed(2);
+                                  return '${item.grade}: $weight kg / ${item.fruitCount} butir';
+                                })
+                                .join('\n'),
+                          ),
+                        if (batch.verifiedBy?.isNotEmpty ?? false)
+                          _TraceInfoRow(
+                            label: 'Diverifikasi Oleh',
+                            value: batch.verifiedBy!,
+                          ),
+                        if (batch.verifiedAt != null)
+                          _TraceInfoRow(
+                            label: 'Waktu Verifikasi',
+                            value: _formatDateTime(batch.verifiedAt!),
+                          ),
+                        _TraceInfoRow(
+                          label: 'Batch Dibuat',
+                          value: _formatDateTime(
+                            batch.createdAt ?? batch.harvestDate,
+                          ),
+                        ),
+                        _TraceInfoRow(
+                          label: 'Tanggal Panen',
+                          value: _formatDate(batch.harvestDate),
+                        ),
+                        _TraceInfoRow(
+                          label: 'Asal Kebun',
+                          value: batch.farmName,
+                        ),
+                        if (batch.maturityLevel?.isNotEmpty ?? false)
+                          _TraceInfoRow(
+                            label: 'Kematangan',
+                            value: batch.maturityLevel!,
+                          ),
+                        if (batch.shelfLifeEstimate?.isNotEmpty ?? false)
+                          _TraceInfoRow(
+                            label: 'Masa Simpan',
+                            value: batch.shelfLifeEstimate!,
+                          ),
+                        if (batch.harvestMethod?.isNotEmpty ?? false)
+                          _TraceInfoRow(
+                            label: 'Metode Panen',
+                            value: batch.harvestMethod!,
+                          ),
+                      ],
+                    ),
+                    if (_hasHandlingInfo) ...[
+                      const SizedBox(height: 16),
+                      _TraceSection(
+                        title: 'Catatan Kualitas',
+                        children: [
+                          if (batch.storageSuggestion?.isNotEmpty ?? false)
+                            _TraceInfoRow(
+                              label: 'Saran Simpan',
+                              value: batch.storageSuggestion!,
+                            ),
+                          if (batch.notes?.isNotEmpty ?? false)
+                            _TraceInfoRow(
+                              label: 'Catatan',
+                              value: batch.notes!,
+                            ),
+                          if (batch.qualityNotes?.isNotEmpty ?? false)
+                            _TraceInfoRow(
+                              label: 'Catatan Sortir',
+                              value: batch.qualityNotes!,
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

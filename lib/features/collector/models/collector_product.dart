@@ -1,3 +1,5 @@
+import '../../../core/network/backend_api_client.dart';
+
 // [DB - Model/Entity] Enum ini merepresentasikan kategori produk yang
 // ditampilkan sebagai chip filter di Beranda Pengepul (mengikuti prototype:
 // Durian Segar, Durian Olahan, Bibit Durian).
@@ -111,24 +113,26 @@ class CollectorProduct {
   /// Deserialisasi dari Map.
   factory CollectorProduct.fromJson(Map<String, dynamic> json) =>
       CollectorProduct(
-        code: json['code'] as String,
-        name: json['name'] as String,
+        code: backendString(json, const ['code']),
+        name: backendString(json, const ['name']),
         category: ProductCategory.values.firstWhere(
-          (e) => e.name == json['category'],
+          (e) => e.name == backendString(json, const ['category']),
           orElse: () => ProductCategory.durianSegar,
         ),
-        weightRange: json['weightRange'] as String,
-        taste: json['taste'] as String,
-        fleshDescription: json['fleshDescription'] as String,
-        location: json['location'] as String,
-        harvestDate: DateTime.parse(json['harvestDate'] as String),
-        treeOwner: json['treeOwner'] as String,
-        grade: json['grade'] as String?,
-        fruitCount: (json['fruitCount'] as num?)?.toInt(),
-        maturityLevel: json['maturityLevel'] as String?,
-        shelfLifeEstimate: json['shelfLifeEstimate'] as String?,
-        storageSuggestion: json['storageSuggestion'] as String?,
-        imagePath: json['imagePath'] as String?,
+        weightRange: backendString(json, const ['weightRange'], '-'),
+        taste: backendString(json, const ['taste'], '-'),
+        fleshDescription: backendString(json, const ['fleshDescription'], '-'),
+        location: backendString(json, const ['location']),
+        harvestDate:
+            backendDateTime(json, const ['harvestDate', 'harvest_date']) ??
+            DateTime.now(),
+        treeOwner: backendString(json, const ['treeOwner', 'tree_owner'], '-'),
+        grade: backendNullableString(json, const ['grade', 'verifiedGrade', 'verified_grade']),
+        fruitCount: backendInt(json, const ['fruitCount', 'fruit_count']),
+        maturityLevel: backendNullableString(json, const ['maturityLevel', 'maturity_level']),
+        shelfLifeEstimate: backendNullableString(json, const ['shelfLifeEstimate', 'shelf_life_estimate']),
+        storageSuggestion: backendNullableString(json, const ['storageSuggestion', 'storage_suggestion']),
+        imagePath: backendNullableString(json, const ['imagePath', 'photo_path']),
       );
 
   // [DB - Model/Entity] Equality berbasis kode+kategori membuat item dropdown
@@ -236,17 +240,17 @@ class CollectorProfile {
   /// Deserialisasi dari Map.
   factory CollectorProfile.fromJson(Map<String, dynamic> json) =>
       CollectorProfile(
-        collectorId: json['collectorId'] as String,
-        fullName: json['fullName'] as String,
-        roleLabel: json['roleLabel'] as String,
-        businessName: (json['businessName'] as String?) ?? '',
-        contact: (json['contact'] as String?) ?? '',
-        email: (json['email'] as String?) ?? '',
-        location: (json['location'] as String?) ?? '',
-        village: (json['village'] as String?) ?? '',
-        district: (json['district'] as String?) ?? '',
-        city: (json['city'] as String?) ?? '',
-        address: (json['address'] as String?) ?? '',
-        avatarPath: json['avatarPath'] as String?,
+        collectorId: backendString(json, const ['collectorId', 'id'], 'collector-unknown'),
+        fullName: backendString(json, const ['fullName', 'full_name']),
+        roleLabel: backendString(json, const ['roleLabel'], 'Pengepul'),
+        businessName: backendString(json, const ['businessName'], ''),
+        contact: backendString(json, const ['contact', 'phone']),
+        email: backendString(json, const ['email'], ''),
+        location: backendString(json, const ['location']),
+        village: backendString(json, const ['village']),
+        district: backendString(json, const ['district']),
+        city: backendString(json, const ['city']),
+        address: backendString(json, const ['address']),
+        avatarPath: backendNullableString(json, const ['avatarPath', 'avatar_path']),
       );
 }

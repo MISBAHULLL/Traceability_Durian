@@ -1,3 +1,4 @@
+import '../../../core/network/backend_api_client.dart';
 import 'package:flutter/material.dart';
 
 import 'consumer_product.dart';
@@ -167,26 +168,39 @@ class ConsumerTransaction {
   factory ConsumerTransaction.fromJson(Map<String, dynamic> json) {
     final rawProduct = json['product'];
     return ConsumerTransaction(
-      id: json['id'] as String? ?? '',
+      id: backendString(json, const ['id']),
       product: rawProduct is Map
           ? ConsumerProduct.fromJson(Map<String, dynamic>.from(rawProduct))
-          : ConsumerProduct.fromJson(const {}),
+          : ConsumerProduct.fromJson({
+              'code': backendString(json, const ['product_code', 'productCode']),
+              'name': backendString(json, const ['product_name_snapshot', 'productName'], 'Produk UMKM'),
+              'category': 'paket',
+              'status': 'readyToSell',
+              'priceLabel': backendNullableString(json, const ['totalLabel', 'total_label']) ?? '-',
+              'shortDescription': '',
+              'umkmName': '',
+              'location': '',
+              'rating': 0,
+              'stockLabel': '',
+            }),
       status: consumerTransactionStatusFromJson(json['status']),
-      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
-      totalLabel: json['totalLabel'] as String? ?? '-',
+      quantity: backendInt(json, const ['quantity']),
+      totalLabel: backendString(json, const ['totalLabel', 'total_label'], '-'),
       createdAt:
-          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          backendDateTime(json, const ['createdAt', 'created_at']) ??
           DateTime.now(),
-      buyerAddress: json['buyerAddress'] as String? ?? '',
-      buyerCoordinates: json['buyerCoordinates'] as String? ?? '',
-      paymentMethod: json['paymentMethod'] as String? ?? '-',
-      paymentStatus: json['paymentStatus'] == null
+      buyerAddress: backendString(json, const ['buyerAddress', 'buyer_address']),
+      buyerCoordinates: backendString(json, const ['buyerCoordinates', 'buyer_coordinates']),
+      paymentMethod: backendString(json, const ['paymentMethod', 'payment_method'], '-'),
+      paymentStatus: json['paymentStatus'] == null && json['payment_status'] == null
           ? null
-          : consumerPaymentStatusFromJson(json['paymentStatus']),
-      qrCodeData: json['qrCodeData'] as String? ?? '',
-      bankName: json['bankName'] as String?,
-      accountNumber: json['accountNumber'] as String?,
-      note: json['note'] as String?,
+          : consumerPaymentStatusFromJson(
+              json['paymentStatus'] ?? json['payment_status'],
+            ),
+      qrCodeData: backendString(json, const ['qrCodeData', 'qr_code_data']),
+      bankName: backendNullableString(json, const ['bankName', 'bank_name']),
+      accountNumber: backendNullableString(json, const ['accountNumber', 'account_number']),
+      note: backendNullableString(json, const ['note']),
     );
   }
 }

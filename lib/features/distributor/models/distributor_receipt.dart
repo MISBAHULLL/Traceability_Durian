@@ -1,3 +1,5 @@
+import '../../../core/network/backend_api_client.dart';
+
 // [DB - Model/Entity] Enum ini merepresentasikan kondisi fisik umum saat
 // manifest pengepul tiba dan diperiksa oleh distributor.
 enum DistributorReceiptCondition { good, minorDamage, damaged }
@@ -65,21 +67,26 @@ class DistributorReceipt {
 
   factory DistributorReceipt.fromJson(Map<String, dynamic> json) {
     return DistributorReceipt(
-      shipmentCode: json['shipmentCode'] as String,
-      distributorId: json['distributorId'] as String,
-      expectedWeightKg: (json['expectedWeightKg'] as num).toDouble(),
-      expectedFruitCount: (json['expectedFruitCount'] as num).toInt(),
-      receivedWeightKg: (json['receivedWeightKg'] as num).toDouble(),
-      receivedFruitCount: (json['receivedFruitCount'] as num).toInt(),
+      shipmentCode: backendString(json, const ['shipmentCode', 'shipment_code']),
+      distributorId: backendString(json, const ['distributorId', 'distributor_id'], ''),
+      expectedWeightKg: backendDouble(json, const ['expectedWeightKg', 'expected_weight_kg']),
+      expectedFruitCount: backendInt(json, const ['expectedFruitCount', 'expected_fruit_count']),
+      receivedWeightKg: backendDouble(json, const ['receivedWeightKg', 'received_weight_kg']),
+      receivedFruitCount: backendInt(json, const ['receivedFruitCount', 'received_fruit_count']),
       condition: DistributorReceiptCondition.values.firstWhere(
-        (value) => value.name == json['condition'],
+        (value) => value.name == backendString(json, const ['condition']),
         orElse: () => DistributorReceiptCondition.good,
       ),
-      receivedAt: DateTime.parse(json['receivedAt'] as String),
-      destinationLocation:
-          json['destinationLocation'] as String? ?? 'Gudang Distributor',
-      discrepancyNote: json['discrepancyNote'] as String?,
-      qualityNote: json['qualityNote'] as String?,
+      receivedAt:
+          backendDateTime(json, const ['receivedAt', 'received_at']) ??
+          DateTime.now(),
+      destinationLocation: backendString(
+        json,
+        const ['destinationLocation', 'destination_location'],
+        'Gudang Distributor',
+      ),
+      discrepancyNote: backendNullableString(json, const ['discrepancyNote', 'discrepancy_note']),
+      qualityNote: backendNullableString(json, const ['qualityNote', 'quality_note']),
     );
   }
 }

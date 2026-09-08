@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
+import '../../../core/network/backend_api_client.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
@@ -34,175 +37,115 @@ import '../models/collector_warehouse_transfer.dart';
 class CollectorRepository extends ChangeNotifier {
   CollectorRepository._seed() {
     _loadFromLocal();
-    _products = _buildSeedProducts();
-    _syncDistributedSourceBatches();
-    _ensureShipmentLineageBackfilled();
     _farmerRepo.addListener(_onFarmerRepoChanged);
+    unawaited(refreshFromBackend());
   }
 
   // [FE - State Management] Loader ini me-restore profil pengepul dari
   // SharedPreferences agar edit profil bertahan setelah aplikasi restart.
   void _loadFromLocal() {
-    _currentCollectorId =
-        LocalStorageService.loadString('collector_current_id') ??
-        _kSeedCollectorId;
-
-    final profileJson = LocalStorageService.loadJson('collector_profile');
-    if (profileJson != null) {
-      _profile = CollectorProfile.fromJson(profileJson);
-    } else {
-      _profile = _kSeedProfile;
-    }
-
-    final shipmentsJsonList = LocalStorageService.loadJsonList(
-      'collector_shipment_batches',
-    );
-    if (shipmentsJsonList != null) {
-      _shipmentBatches = shipmentsJsonList
-          .map((e) => CollectorShipmentBatch.fromJson(e))
-          .toList();
-    } else {
-      _shipmentBatches = _buildSeedShipmentBatches();
-    }
-
-    _shipmentCounter =
-        LocalStorageService.loadInt('collector_shipment_counter') ??
-        _shipmentBatches.length;
-
-    final purchaseJsonList = LocalStorageService.loadJsonList(
-      'collector_purchase_transactions',
-    );
-    if (purchaseJsonList != null) {
-      _purchaseTransactions = purchaseJsonList
-          .map((e) => CollectorPurchaseTransaction.fromJson(e))
-          .toList();
-    } else {
-      _purchaseTransactions = [];
-    }
-    _purchaseTransactionCounter =
-        LocalStorageService.loadInt('collector_purchase_transaction_counter') ??
-        _purchaseTransactions.length;
-
-    final warehousesJsonList = LocalStorageService.loadJsonList(
-      'collector_warehouses',
-    );
-    if (warehousesJsonList != null) {
-      _warehouses = warehousesJsonList
-          .map((e) => CollectorWarehouse.fromJson(e))
-          .toList();
-    } else {
-      _warehouses = _buildSeedWarehouses();
-    }
-    _warehouseCounter =
-        LocalStorageService.loadInt('collector_warehouse_counter') ??
-        _warehouses.length;
-
-    final auditEventsJsonList = LocalStorageService.loadJsonList(
-      'collector_audit_events',
-    );
-    if (auditEventsJsonList != null) {
-      _auditEvents = auditEventsJsonList
-          .map((e) => CollectorAuditEvent.fromJson(e))
-          .toList();
-    } else {
-      _auditEvents = [];
-    }
-
-    final incomingReceiptsJsonList = LocalStorageService.loadJsonList(
-      'collector_incoming_receipts',
-    );
-    if (incomingReceiptsJsonList != null) {
-      _incomingReceipts = incomingReceiptsJsonList
-          .map((e) => CollectorIncomingReceipt.fromJson(e))
-          .toList();
-    } else {
-      _incomingReceipts = [];
-    }
-
-    final collectorReceiptsJsonList = LocalStorageService.loadJsonList(
-      'collector_receipts',
-    );
-    if (collectorReceiptsJsonList != null) {
-      _collectorReceipts = collectorReceiptsJsonList
-          .map((e) => CollectorReceipt.fromJson(e))
-          .toList();
-    } else {
-      _collectorReceipts = [];
-    }
-
-    final warehouseTransfersJsonList = LocalStorageService.loadJsonList(
-      'collector_warehouse_transfers',
-    );
-    if (warehouseTransfersJsonList != null) {
-      _warehouseTransfers = warehouseTransfersJsonList
-          .map((e) => CollectorWarehouseTransfer.fromJson(e))
-          .toList();
-    } else {
-      _warehouseTransfers = [];
-    }
-    _warehouseTransferCounter =
-        LocalStorageService.loadInt('collector_warehouse_transfer_counter') ??
-        _warehouseTransfers.length;
-
-    final seedShipmentMigrated = _migratePrimarySeedShipment();
-    final simulationShipmentsAdded = _ensureDistributorSimulationShipments();
-
-    // [FE - State Management] Seed pengiriman baru disimpan setelah counter
-    // siap agar fresh install tidak membaca late field yang belum diinisialisasi.
-    if (shipmentsJsonList == null ||
-        seedShipmentMigrated ||
-        simulationShipmentsAdded ||
-        warehousesJsonList == null) {
-      _saveToLocal();
-    }
+    _currentCollectorId = '';
+    _profile = CollectorProfile.fromJson(const <String, dynamic>{});
+    _shipmentBatches = <CollectorShipmentBatch>[];
+    _shipmentCounter = 0;
+    _purchaseTransactions = <CollectorPurchaseTransaction>[];
+    _purchaseTransactionCounter = 0;
+    _warehouses = <CollectorWarehouse>[];
+    _warehouseCounter = 0;
+    _auditEvents = <CollectorAuditEvent>[];
+    _incomingReceipts = <CollectorIncomingReceipt>[];
+    _collectorReceipts = <CollectorReceipt>[];
+    _warehouseTransfers = <CollectorWarehouseTransfer>[];
+    _warehouseTransferCounter = 0;
+    _products = <CollectorProduct>[];
   }
 
-  // [FE - State Management] Saver ini menulis state profil pengepul ke JSON
-  // lokal setiap ada mutasi identitas, lokasi, atau avatar.
   void _saveToLocal() {
-    LocalStorageService.saveString('collector_current_id', _currentCollectorId);
-    LocalStorageService.saveJson('collector_profile', _profile.toJson());
-    LocalStorageService.saveJsonList(
-      'collector_shipment_batches',
-      _shipmentBatches.map((e) => e.toJson()).toList(),
-    );
-    LocalStorageService.saveInt('collector_shipment_counter', _shipmentCounter);
-    LocalStorageService.saveJsonList(
-      'collector_purchase_transactions',
-      _purchaseTransactions.map((e) => e.toJson()).toList(),
-    );
-    LocalStorageService.saveInt(
-      'collector_purchase_transaction_counter',
-      _purchaseTransactionCounter,
-    );
-    LocalStorageService.saveJsonList(
-      'collector_warehouses',
-      _warehouses.map((e) => e.toJson()).toList(),
-    );
-    LocalStorageService.saveInt(
-      'collector_warehouse_counter',
-      _warehouseCounter,
-    );
-    LocalStorageService.saveJsonList(
-      'collector_audit_events',
-      _auditEvents.map((e) => e.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      'collector_incoming_receipts',
-      _incomingReceipts.map((e) => e.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      'collector_receipts',
-      _collectorReceipts.map((e) => e.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      'collector_warehouse_transfers',
-      _warehouseTransfers.map((e) => e.toJson()).toList(),
-    );
-    LocalStorageService.saveInt(
-      'collector_warehouse_transfer_counter',
-      _warehouseTransferCounter,
-    );
+    return;
+  }
+
+  Future<void> refreshFromBackend() async {
+    try {
+      final profileResponse = await BackendApiClient.instance.get(
+        '/collector/profile',
+      );
+      final stockResponse = await BackendApiClient.instance.get(
+        '/collector/stock',
+      );
+      final shipmentsResponse = await BackendApiClient.instance.get(
+        '/collector/shipment-batches',
+      );
+
+      if (profileResponse.data is Map) {
+        final data = Map<String, dynamic>.from(profileResponse.data as Map);
+        final user = Map<String, dynamic>.from(data['user'] as Map? ?? const {});
+        final profile = Map<String, dynamic>.from(
+          data['profile'] as Map? ?? const {},
+        );
+        _profile = CollectorProfile.fromJson({
+          'collectorId': user['id']?.toString() ?? profile['user_id']?.toString() ?? _profile.collectorId,
+          'fullName': profile['business_name'] ?? user['full_name'] ?? '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim(),
+          'roleLabel': 'Pengepul Durian',
+          'businessName': profile['business_name'] ?? '',
+          'contact': profile['contact'] ?? user['phone'] ?? '',
+          'email': user['email'] ?? '',
+          'location': profile['address'] ?? '',
+          'district': profile['district'] ?? '',
+          'city': profile['city'] ?? '',
+          'address': profile['address'] ?? '',
+          'avatarPath': profile['avatar_path'],
+        });
+      }
+
+      if (stockResponse.data is Map) {
+        _backendStockOverview = CollectorStockOverview.fromJson(
+          Map<String, dynamic>.from(stockResponse.data as Map),
+        );
+      }
+
+      if (shipmentsResponse.data is List) {
+        _shipmentBatches = (shipmentsResponse.data as List)
+            .whereType<Map>()
+            .map(
+              (item) => CollectorShipmentBatch.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList();
+        _shipmentCounter = _shipmentBatches.length;
+      }
+
+      _products = _farmerRepo.batches.map((batch) {
+        return CollectorProduct(
+          code: batch.code,
+          name: 'Durian ${batch.variety}',
+          category: ProductCategory.durianSegar,
+          weightRange: batch.receivedQuantity != null
+              ? '${batch.receivedQuantity!.toStringAsFixed(0)} kg'
+              : '${batch.quantity.toStringAsFixed(0)} kg',
+          taste: batch.grade == 'A' ? 'Manis legit' : 'Manis segar',
+          fleshDescription: 'Batch asal ${batch.farmName}',
+          location: batch.farmName,
+          harvestDate: batch.harvestDate,
+          treeOwner: _farmerRepo.profile.fullName,
+          grade: batch.grade,
+          fruitCount: batch.fruitCount,
+          maturityLevel: batch.maturityLevel,
+          shelfLifeEstimate: batch.shelfLifeEstimate,
+          storageSuggestion: batch.storageSuggestion,
+        );
+      }).toList();
+
+      _currentCollectorId = _profile.collectorId;
+      _syncDistributedSourceBatches();
+      _ensureShipmentLineageBackfilled();
+      _saveToLocal();
+      notifyListeners();
+    } on BackendApiException catch (_) {
+      // Gunakan cache lokal bila backend belum tersedia.
+    } catch (_) {
+      // Gunakan cache lokal bila backend belum tersedia.
+    }
   }
 
   // [FE - State Management] Sinkronisasi ini menjaga data lama/local storage:
@@ -447,6 +390,7 @@ class CollectorRepository extends ChangeNotifier {
   List<CollectorReceipt> _collectorReceipts = <CollectorReceipt>[];
   late List<CollectorWarehouse> _warehouses;
   late List<CollectorWarehouseTransfer> _warehouseTransfers;
+  CollectorStockOverview? _backendStockOverview;
   late int _shipmentCounter;
   late int _purchaseTransactionCounter;
   late int _warehouseCounter;
@@ -862,7 +806,8 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - State Management] Overview stok ini menjadi DTO mock untuk dashboard
   // gudang; nantinya bisa diganti langsung oleh response backend.
-  CollectorStockOverview get stockOverview => _overviewForBatches(stockBatches);
+  CollectorStockOverview get stockOverview =>
+      _backendStockOverview ?? _overviewForBatches(stockBatches);
 
   // [FE - State Management] Daftar transaksi T1 yang dibuat saat pengepul
   // memindai QR batch petani. Status initiated berarti menunggu T2.

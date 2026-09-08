@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/network/auth_api_service.dart';
+import '../../collector/screens/collector_home_screen.dart';
+import '../../consumer/screens/consumer_home_screen.dart';
+import '../../distributor/screens/distributor_home_screen.dart';
+import '../../farmer/screens/farmer_home_screen.dart';
+import '../../umkm/screens/umkm_home_screen.dart';
 import 'home_screen.dart';
 
 /// Splash screen dengan animasi fade-in → hold → fade-out mulus
@@ -55,18 +61,59 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    _controller.forward().then((_) {
-      if (!mounted) return;
-      _navigateToHome();
-    });
+    _bootstrap();
   }
 
-  void _navigateToHome() {
+  Future<void> _bootstrap() async {
+    final destinationFuture = _resolveInitialDestination();
+    await _controller.forward();
+    final destination = await destinationFuture;
+    if (!mounted) return;
+    _navigateTo(destination);
+  }
+
+  Future<Widget> _resolveInitialDestination() async {
+    final token = AuthApiService.instance.accessToken;
+    if (token == null || token.isEmpty) {
+      return const HomeScreen();
+    }
+
+    try {
+      final session = await AuthApiService.instance.restoreSession();
+      return _destinationForRole(
+            session.dashboard.isNotEmpty
+                ? session.dashboard
+                : session.user.role,
+          ) ??
+          const HomeScreen();
+    } catch (_) {
+      return const HomeScreen();
+    }
+  }
+
+  Widget? _destinationForRole(String role) {
+    switch (role) {
+      case 'petani':
+        return const FarmerHomeScreen();
+      case 'pengepul':
+        return const CollectorHomeScreen();
+      case 'distributor':
+        return const DistributorHomeScreen();
+      case 'umkm':
+        return const UmkmHomeScreen();
+      case 'konsumen':
+        return const ConsumerHomeScreen();
+      default:
+        return null;
+    }
+  }
+
+  void _navigateTo(Widget destination) {
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 900),
         reverseTransitionDuration: const Duration(milliseconds: 900),
-        pageBuilder: (_, _, _) => const HomeScreen(),
+        pageBuilder: (_, _, _) => destination,
         transitionsBuilder: (_, animation, _, child) {
           final curved = CurvedAnimation(
             parent: animation,

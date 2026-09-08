@@ -25,10 +25,21 @@ class CollectorStockOverview {
 
   factory CollectorStockOverview.fromJson(Map<String, dynamic> json) {
     return CollectorStockOverview(
-      activeBatchCount: (json['activeBatchCount'] as num).toInt(),
-      totalWeightKg: (json['totalWeightKg'] as num).toDouble(),
-      totalFruitCount: (json['totalFruitCount'] as num).toInt(),
-      gradeBreakdown: ((json['gradeBreakdown'] as List<dynamic>?) ?? [])
+      activeBatchCount: (json['activeBatchCount'] as num? ??
+              json['active_batch_count'] as num? ??
+              0)
+          .toInt(),
+      totalWeightKg: (json['totalWeightKg'] as num? ??
+              json['total_weight_kg'] as num? ??
+              0)
+          .toDouble(),
+      totalFruitCount: (json['totalFruitCount'] as num? ??
+              json['total_fruit_count'] as num? ??
+              0)
+          .toInt(),
+      gradeBreakdown: ((json['gradeBreakdown'] as List<dynamic>?) ??
+              (json['grade_breakdown'] as List<dynamic>?) ??
+              [])
           .whereType<Map>()
           .map(
             (item) => CollectorStockBreakdown.fromJson(
@@ -36,7 +47,9 @@ class CollectorStockOverview {
             ),
           )
           .toList(),
-      varietyBreakdown: ((json['varietyBreakdown'] as List<dynamic>?) ?? [])
+      varietyBreakdown: ((json['varietyBreakdown'] as List<dynamic>?) ??
+              (json['variety_breakdown'] as List<dynamic>?) ??
+              [])
           .whereType<Map>()
           .map(
             (item) => CollectorStockBreakdown.fromJson(

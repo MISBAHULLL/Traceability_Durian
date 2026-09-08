@@ -1,3 +1,4 @@
+import '../../../core/network/backend_api_client.dart';
 import 'collector_stock_summary.dart';
 
 // [DB - Model/Entity] Enum ini merepresentasikan status batch pengiriman
@@ -129,15 +130,21 @@ class CollectorShipmentBatch {
   };
 
   factory CollectorShipmentBatch.fromJson(Map<String, dynamic> json) {
+    final sourceBatchCodes = ((json['sourceBatchCodes'] as List<dynamic>?) ??
+            (json['source_batch_codes'] as List<dynamic>?) ??
+            [])
+        .map((e) => e.toString())
+        .toList();
+
     return CollectorShipmentBatch(
-      code: json['code'] as String,
-      collectorId: json['collectorId'] as String,
-      sourceBatchCodes: ((json['sourceBatchCodes'] as List<dynamic>?) ?? [])
-          .map((e) => e.toString())
-          .toList(),
-      totalWeightKg: (json['totalWeightKg'] as num).toDouble(),
-      totalFruitCount: (json['totalFruitCount'] as num).toInt(),
-      gradeBreakdown: ((json['gradeBreakdown'] as List<dynamic>?) ?? [])
+      code: backendString(json, const ['code']),
+      collectorId: backendString(json, const ['collectorId', 'collector_id'], ''),
+      sourceBatchCodes: sourceBatchCodes,
+      totalWeightKg: backendDouble(json, const ['totalWeightKg', 'total_weight_kg']),
+      totalFruitCount: backendInt(json, const ['totalFruitCount', 'total_fruit_count']),
+      gradeBreakdown: ((json['gradeBreakdown'] as List<dynamic>?) ??
+              (json['grade_breakdown'] as List<dynamic>?) ??
+              [])
           .whereType<Map>()
           .map(
             (item) => CollectorStockBreakdown.fromJson(
@@ -145,7 +152,9 @@ class CollectorShipmentBatch {
             ),
           )
           .toList(),
-      varietyBreakdown: ((json['varietyBreakdown'] as List<dynamic>?) ?? [])
+      varietyBreakdown: ((json['varietyBreakdown'] as List<dynamic>?) ??
+              (json['variety_breakdown'] as List<dynamic>?) ??
+              [])
           .whereType<Map>()
           .map(
             (item) => CollectorStockBreakdown.fromJson(
@@ -153,27 +162,23 @@ class CollectorShipmentBatch {
             ),
           )
           .toList(),
-      packagedAt: DateTime.parse(json['packagedAt'] as String),
+      packagedAt:
+          backendDateTime(json, const ['packagedAt', 'packaged_at']) ??
+          DateTime.now(),
       status: CollectorShipmentStatus.values.firstWhere(
-        (e) => e.name == json['status'],
+        (e) => e.name == backendString(json, const ['status']),
         orElse: () => CollectorShipmentStatus.readyToShip,
       ),
       destinationType: ShipmentDestinationType.values.firstWhere(
-        (e) => e.name == json['destinationType'],
+        (e) => e.name == backendString(json, const ['destinationType', 'destination_type']),
         orElse: () => ShipmentDestinationType.distributor,
       ),
-      destinationName: json['destinationName'] as String?,
-      destinationLocation: json['destinationLocation'] as String?,
-      warehouseNote: json['warehouseNote'] as String?,
-      sentAt: json['sentAt'] == null
-          ? null
-          : DateTime.parse(json['sentAt'] as String),
-      completedAt: json['completedAt'] == null
-          ? null
-          : DateTime.parse(json['completedAt'] as String),
-      rejectedAt: json['rejectedAt'] == null
-          ? null
-          : DateTime.parse(json['rejectedAt'] as String),
+      destinationName: backendNullableString(json, const ['destinationName', 'destination_name']),
+      destinationLocation: backendNullableString(json, const ['destinationLocation', 'destination_location']),
+      warehouseNote: backendNullableString(json, const ['warehouseNote', 'warehouse_note']),
+      sentAt: backendDateTime(json, const ['sentAt', 'sent_at']),
+      completedAt: backendDateTime(json, const ['completedAt', 'completed_at']),
+      rejectedAt: backendDateTime(json, const ['rejectedAt', 'rejected_at']),
     );
   }
 }

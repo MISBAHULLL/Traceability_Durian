@@ -1,3 +1,4 @@
+import '../../../core/network/backend_api_client.dart';
 import 'package:flutter/material.dart';
 
 /// Filter kategori produk untuk beranda konsumen.
@@ -10,16 +11,48 @@ enum ConsumerProductCategory { segar, olahan, minuman, paket }
 enum ConsumerProductStatus { readyToSell, limitedStock, soldOut, promo }
 
 ConsumerProductCategory consumerProductCategoryFromJson(Object? value) {
+  final normalized = value?.toString().trim().toLowerCase();
   return ConsumerProductCategory.values.firstWhere(
-    (category) => category.name == value,
-    orElse: () => ConsumerProductCategory.olahan,
+    (category) => category.name == normalized,
+    orElse: () {
+      switch (normalized) {
+        case 'segar':
+        case 'fresh':
+          return ConsumerProductCategory.segar;
+        case 'paket':
+        case 'package':
+          return ConsumerProductCategory.paket;
+        case 'minuman':
+        case 'drink':
+          return ConsumerProductCategory.minuman;
+        case 'olahan':
+        default:
+          return ConsumerProductCategory.olahan;
+      }
+    },
   );
 }
 
 ConsumerProductStatus consumerProductStatusFromJson(Object? value) {
+  final normalized = value?.toString().trim().toLowerCase();
   return ConsumerProductStatus.values.firstWhere(
-    (status) => status.name == value,
-    orElse: () => ConsumerProductStatus.readyToSell,
+    (status) => status.name.toLowerCase() == normalized,
+    orElse: () {
+      switch (normalized) {
+        case 'aktif':
+        case 'readytosell':
+          return ConsumerProductStatus.readyToSell;
+        case 'habis':
+        case 'soldout':
+          return ConsumerProductStatus.soldOut;
+        case 'terbatas':
+        case 'limitedstock':
+          return ConsumerProductStatus.limitedStock;
+        case 'promo':
+        default:
+          return ConsumerProductStatus.promo;
+      }
+    },
   );
 }
 
@@ -172,37 +205,34 @@ class ConsumerProduct {
 
   factory ConsumerProduct.fromJson(Map<String, dynamic> json) {
     return ConsumerProduct(
-      code: json['code'] as String? ?? '',
-      name: json['name'] as String? ?? 'Produk UMKM',
+      code: backendString(json, const ['code']),
+      name: backendString(json, const ['name'], 'Produk UMKM'),
       category: consumerProductCategoryFromJson(json['category']),
       status: consumerProductStatusFromJson(json['status']),
-      priceLabel: json['priceLabel'] as String? ?? '-',
-      shortDescription: json['shortDescription'] as String? ?? '',
-      umkmName: json['umkmName'] as String? ?? '-',
-      location: json['location'] as String? ?? '',
-      rating: (json['rating'] as num?)?.toDouble() ?? 0,
-      stockLabel: json['stockLabel'] as String? ?? 'Stok belum ditentukan',
-      sourceBatchCode: json['sourceBatchCode'] as String?,
-      sourceVariety: json['sourceVariety'] as String?,
-      sourceGrade: json['sourceGrade'] as String?,
-      sourceOriginFarm: json['sourceOriginFarm'] as String?,
-      sourceHarvestDate: DateTime.tryParse(
-        json['sourceHarvestDate'] as String? ?? '',
+      priceLabel: backendString(json, const ['priceLabel', 'price_label'], '-'),
+      shortDescription: backendString(
+        json,
+        const ['shortDescription', 'short_description'],
       ),
-      sourceHarvestMethod: json['sourceHarvestMethod'] as String?,
-      sourceMaturityLevel: json['sourceMaturityLevel'] as String?,
-      sourceShelfLifeEstimate: json['sourceShelfLifeEstimate'] as String?,
-      sourceVerifiedBy: json['sourceVerifiedBy'] as String?,
-      sourceVerifiedAt: DateTime.tryParse(
-        json['sourceVerifiedAt'] as String? ?? '',
-      ),
-      sourceReceivedQuantity: (json['sourceReceivedQuantity'] as num?)
-          ?.toDouble(),
-      sourceReceivedFruitCount: (json['sourceReceivedFruitCount'] as num?)
-          ?.toInt(),
-      sourceQualityNotes: json['sourceQualityNotes'] as String?,
-      sourceNotes: json['sourceNotes'] as String?,
-      imagePath: json['imagePath'] as String?,
+      umkmName: backendString(json, const ['umkmName', 'umkm_name'], '-'),
+      location: backendString(json, const ['location']),
+      rating: backendDouble(json, const ['rating'], 0),
+      stockLabel: backendString(json, const ['stockLabel', 'stock_label'], 'Stok belum ditentukan'),
+      sourceBatchCode: backendNullableString(json, const ['sourceBatchCode', 'source_batch_code']),
+      sourceVariety: backendNullableString(json, const ['sourceVariety', 'source_variety']),
+      sourceGrade: backendNullableString(json, const ['sourceGrade', 'source_grade']),
+      sourceOriginFarm: backendNullableString(json, const ['sourceOriginFarm', 'source_origin_farm']),
+      sourceHarvestDate: backendDateTime(json, const ['sourceHarvestDate', 'source_harvest_date']),
+      sourceHarvestMethod: backendNullableString(json, const ['sourceHarvestMethod', 'source_harvest_method']),
+      sourceMaturityLevel: backendNullableString(json, const ['sourceMaturityLevel', 'source_maturity_level']),
+      sourceShelfLifeEstimate: backendNullableString(json, const ['sourceShelfLifeEstimate', 'source_shelf_life_estimate']),
+      sourceVerifiedBy: backendNullableString(json, const ['sourceVerifiedBy', 'source_verified_by']),
+      sourceVerifiedAt: backendDateTime(json, const ['sourceVerifiedAt', 'source_verified_at']),
+      sourceReceivedQuantity: backendDouble(json, const ['sourceReceivedQuantity', 'source_received_quantity']),
+      sourceReceivedFruitCount: backendInt(json, const ['sourceReceivedFruitCount', 'source_received_fruit_count']),
+      sourceQualityNotes: backendNullableString(json, const ['sourceQualityNotes', 'source_quality_notes']),
+      sourceNotes: backendNullableString(json, const ['sourceNotes', 'source_notes']),
+      imagePath: backendNullableString(json, const ['imagePath', 'photo_path', 'image_path']),
     );
   }
 }
@@ -264,13 +294,13 @@ class ConsumerProfile {
 
   factory ConsumerProfile.fromJson(Map<String, dynamic> json) {
     return ConsumerProfile(
-      consumerId: json['consumerId'] as String,
-      fullName: json['fullName'] as String,
-      roleLabel: json['roleLabel'] as String,
-      contact: (json['contact'] as String?) ?? '',
-      email: (json['email'] as String?) ?? '',
-      location: (json['location'] as String?) ?? '',
-      avatarPath: json['avatarPath'] as String?,
+      consumerId: backendString(json, const ['consumerId', 'id'], 'consumer-unknown'),
+      fullName: backendString(json, const ['fullName', 'display_name', 'full_name']),
+      roleLabel: backendString(json, const ['roleLabel'], 'Konsumen'),
+      contact: backendString(json, const ['contact', 'phone']),
+      email: backendString(json, const ['email'], ''),
+      location: backendString(json, const ['location', 'address']),
+      avatarPath: backendNullableString(json, const ['avatarPath', 'avatar_path']),
     );
   }
 }

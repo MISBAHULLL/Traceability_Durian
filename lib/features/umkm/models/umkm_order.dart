@@ -1,3 +1,5 @@
+import '../../../core/network/backend_api_client.dart';
+
 enum UmkmOrderStatus { diproses, selesai }
 
 extension UmkmOrderStatusLabel on UmkmOrderStatus {
@@ -82,19 +84,19 @@ class UmkmOrder {
 
   factory UmkmOrder.fromJson(Map<String, dynamic> json) {
     return UmkmOrder(
-      id: json['id'] as String? ?? '',
-      productName: json['productName'] as String? ?? 'Produk UMKM',
-      buyerName: json['buyerName'] as String? ?? 'Konsumen',
-      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
-      totalLabel: json['totalLabel'] as String? ?? '-',
+      id: backendString(json, const ['id', 'code']),
+      productName: backendString(json, const ['productName', 'product_name'], 'Produk UMKM'),
+      buyerName: backendString(json, const ['buyerName', 'buyer_name'], 'Konsumen'),
+      quantity: backendInt(json, const ['quantity']),
+      totalLabel: backendString(json, const ['totalLabel', 'total_label'], '-'),
       status: umkmOrderStatusFromJson(json['status']),
       createdAt:
-          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          backendDateTime(json, const ['createdAt', 'created_at']) ??
           DateTime.now(),
-      qrCodeData: json['qrCodeData'] as String? ?? '',
-      productCode: json['productCode'] as String?,
-      completedAt: DateTime.tryParse(json['completedAt'] as String? ?? ''),
-      note: json['note'] as String?,
+      qrCodeData: backendString(json, const ['qrCodeData', 'qr_code_data']),
+      productCode: backendNullableString(json, const ['productCode', 'product_code']),
+      completedAt: backendDateTime(json, const ['completedAt', 'completed_at']),
+      note: backendNullableString(json, const ['note']),
     );
   }
 }

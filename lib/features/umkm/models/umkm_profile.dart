@@ -1,3 +1,4 @@
+import '../../../core/network/backend_api_client.dart';
 import 'dart:typed_data';
 
 class UmkmProfile {
@@ -65,14 +66,14 @@ class UmkmProfile {
   factory UmkmProfile.fromJson(Map<String, dynamic> json) {
     final rawBytes = json['imageBytes'];
     return UmkmProfile(
-      umkmId: json['umkmId'] as String? ?? 'umkm-001',
-      name: json['name'] as String? ?? 'UMKM Durian',
-      ownerName: json['ownerName'] as String? ?? '-',
-      contact: json['contact'] as String? ?? '',
-      email: json['email'] as String? ?? '',
-      location: json['location'] as String? ?? '',
-      about: json['about'] as String? ?? '',
-      imagePath: json['imagePath'] as String?,
+      umkmId: backendString(json, const ['umkmId', 'id'], 'umkm-001'),
+      name: backendString(json, const ['name'], 'UMKM Durian'),
+      ownerName: backendString(json, const ['ownerName', 'owner_name'], '-'),
+      contact: backendString(json, const ['contact', 'phone']),
+      email: backendString(json, const ['email']),
+      location: backendString(json, const ['location', 'address']),
+      about: backendString(json, const ['about']),
+      imagePath: backendNullableString(json, const ['imagePath', 'image_path']),
       imageBytes: rawBytes is List
           ? Uint8List.fromList(
               rawBytes.whereType<num>().map((item) => item.toInt()).toList(),

@@ -58,119 +58,24 @@ class TraceabilityRepository extends ChangeNotifier {
   late int _receivingBatchCounter;
 
   void _loadFromLocal() {
-    _batches =
-        LocalStorageService.loadJsonList(
-          'traceability_batches',
-        )?.map(TraceBatch.fromJson).toList() ??
-        [];
-    _events =
-        LocalStorageService.loadJsonList(
-          'traceability_events',
-        )?.map(TraceBatchEvent.fromJson).toList() ??
-        [];
-    _handovers =
-        LocalStorageService.loadJsonList(
-          'traceability_handovers',
-        )?.map(TraceHandover.fromJson).toList() ??
-        [];
-    _handoverItems =
-        LocalStorageService.loadJsonList(
-          'traceability_handover_items',
-        )?.map(TraceHandoverItem.fromJson).toList() ??
-        [];
-    _handoverReceipts =
-        LocalStorageService.loadJsonList(
-          'traceability_handover_receipts',
-        )?.map(TraceHandoverReceipt.fromJson).toList() ??
-        [];
-    _relations =
-        LocalStorageService.loadJsonList(
-          'traceability_relations',
-        )?.map(TraceBatchRelation.fromJson).toList() ??
-        [];
-    _movements =
-        LocalStorageService.loadJsonList(
-          'traceability_movements',
-        )?.map(TraceQuantityMovement.fromJson).toList() ??
-        [];
-
-    _eventCounter =
-        LocalStorageService.loadInt('traceability_event_counter') ??
-        _events.length;
-    _handoverCounter =
-        LocalStorageService.loadInt('traceability_handover_counter') ??
-        _handovers.length;
-    _handoverItemCounter =
-        LocalStorageService.loadInt('traceability_handover_item_counter') ??
-        _handoverItems.length;
-    _receiptCounter =
-        LocalStorageService.loadInt('traceability_receipt_counter') ??
-        _handoverReceipts.length;
-    _relationCounter =
-        LocalStorageService.loadInt('traceability_relation_counter') ??
-        _relations.length;
-    _movementCounter =
-        LocalStorageService.loadInt('traceability_movement_counter') ??
-        _movements.length;
-    _receivingBatchCounter =
-        LocalStorageService.loadInt('traceability_receiving_batch_counter') ??
-        _batches.length;
+    _batches = <TraceBatch>[];
+    _events = <TraceBatchEvent>[];
+    _handovers = <TraceHandover>[];
+    _handoverItems = <TraceHandoverItem>[];
+    _handoverReceipts = <TraceHandoverReceipt>[];
+    _relations = <TraceBatchRelation>[];
+    _movements = <TraceQuantityMovement>[];
+    _eventCounter = 0;
+    _handoverCounter = 0;
+    _handoverItemCounter = 0;
+    _receiptCounter = 0;
+    _relationCounter = 0;
+    _movementCounter = 0;
+    _receivingBatchCounter = 0;
   }
 
   void _saveToLocal() {
-    LocalStorageService.saveJsonList(
-      'traceability_batches',
-      _batches.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      'traceability_events',
-      _events.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      'traceability_handovers',
-      _handovers.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      'traceability_handover_items',
-      _handoverItems.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      'traceability_handover_receipts',
-      _handoverReceipts.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      'traceability_relations',
-      _relations.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      'traceability_movements',
-      _movements.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveInt('traceability_event_counter', _eventCounter);
-    LocalStorageService.saveInt(
-      'traceability_handover_counter',
-      _handoverCounter,
-    );
-    LocalStorageService.saveInt(
-      'traceability_handover_item_counter',
-      _handoverItemCounter,
-    );
-    LocalStorageService.saveInt(
-      'traceability_receipt_counter',
-      _receiptCounter,
-    );
-    LocalStorageService.saveInt(
-      'traceability_relation_counter',
-      _relationCounter,
-    );
-    LocalStorageService.saveInt(
-      'traceability_movement_counter',
-      _movementCounter,
-    );
-    LocalStorageService.saveInt(
-      'traceability_receiving_batch_counter',
-      _receivingBatchCounter,
-    );
+    return;
   }
 
   List<TraceBatch> get batches => List.unmodifiable(_batches);

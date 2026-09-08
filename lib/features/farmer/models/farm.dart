@@ -1,3 +1,5 @@
+import '../../../core/network/backend_api_client.dart';
+
 // [DB - Model/Entity] Model ini merepresentasikan kebun durian milik petani
 // sebagai entitas lokasi yang direlasikan ke HarvestBatch.
 /// Model kebun durian milik petani.
@@ -93,16 +95,16 @@ class Farm {
   // [DB - Model/Entity] Factory ini membangun kembali entitas kebun dari JSON
   // lokal yang dibaca oleh FarmerRepository.
   factory Farm.fromJson(Map<String, dynamic> json) => Farm(
-    id: json['id'] as String,
-    farmerId: json['farmerId'] as String,
-    name: json['name'] as String,
-    province: json['province'] as String,
-    city: json['city'] as String,
-    district: json['district'] as String,
-    village: json['village'] as String,
-    address: json['address'] as String,
-    latitude: (json['latitude'] as num?)?.toDouble(),
-    longitude: (json['longitude'] as num?)?.toDouble(),
+    id: backendString(json, const ['id']),
+    farmerId: backendString(json, const ['farmerId', 'farmer_id', 'farmerUserId']),
+    name: backendString(json, const ['name']),
+    province: backendString(json, const ['province']),
+    city: backendString(json, const ['city']),
+    district: backendString(json, const ['district']),
+    village: backendString(json, const ['village']),
+    address: backendString(json, const ['address']),
+    latitude: backendDouble(json, const ['latitude']),
+    longitude: backendDouble(json, const ['longitude']),
   );
 
   @override

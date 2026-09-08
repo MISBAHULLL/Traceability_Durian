@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
+import '../../../core/network/backend_api_client.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
@@ -24,6 +27,7 @@ import '../models/umkm_stock_order.dart';
 class UmkmRepository extends ChangeNotifier {
   UmkmRepository._seed() {
     _loadFromLocal();
+    unawaited(refreshFromBackend());
   }
 
   static final UmkmRepository instance = UmkmRepository._seed();
@@ -111,33 +115,16 @@ class UmkmRepository extends ChangeNotifier {
       _materialStocks(availableOnly: false);
 
   void _loadFromLocal() {
-    _profile = _loadObject(_profileKey, UmkmProfile.fromJson) ?? _seedProfile;
-    _products = _loadList(_productsKey, UmkmProduct.fromJson);
-    _orders = _loadList(_ordersKey, UmkmOrder.fromJson);
-    _purchases = _loadList(_purchasesKey, UmkmPurchase.fromJson);
-    _materialInventories = _loadList(
-      _materialInventoriesKey,
-      UmkmMaterialInventory.fromJson,
-    );
-    _materialMovements = _loadList(
-      _materialMovementsKey,
-      UmkmMaterialMovement.fromJson,
-    );
-    _productionRecords = _loadList(
-      _productionRecordsKey,
-      UmkmProductionRecord.fromJson,
-    );
-    _stockOffers = _loadList(_stockOffersKey, UmkmStockOffer.fromJson);
-    _stockOrders = _loadList(_stockOrdersKey, UmkmStockOrder.fromJson);
-    _collectorDeliveryReceipts
-      ..clear()
-      ..addAll(
-        _loadList(
-              _collectorDeliveryReceiptsKey,
-              CollectorDeliveryReceipt.fromJson,
-            ) ??
-            const <CollectorDeliveryReceipt>[],
-      );
+    _profile = UmkmProfile.fromJson(const <String, dynamic>{});
+    _products = <UmkmProduct>[];
+    _orders = <UmkmOrder>[];
+    _purchases = <UmkmPurchase>[];
+    _materialInventories = <UmkmMaterialInventory>[];
+    _materialMovements = <UmkmMaterialMovement>[];
+    _productionRecords = <UmkmProductionRecord>[];
+    _stockOffers = <UmkmStockOffer>[];
+    _stockOrders = <UmkmStockOrder>[];
+    _collectorDeliveryReceipts.clear();
   }
 
   T? _loadObject<T>(
@@ -171,43 +158,54 @@ class UmkmRepository extends ChangeNotifier {
   }
 
   void _saveToLocal() {
-    LocalStorageService.saveJson(_profileKey, profile.toJson());
-    LocalStorageService.saveJsonList(
-      _productsKey,
-      products.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      _ordersKey,
-      orders.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      _purchasesKey,
-      purchases.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      _materialInventoriesKey,
-      materialInventories.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      _materialMovementsKey,
-      materialMovements.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      _productionRecordsKey,
-      productionRecords.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      _stockOffersKey,
-      stockOffers.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      _stockOrdersKey,
-      stockOrders.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      _collectorDeliveryReceiptsKey,
-      _collectorDeliveryReceipts.map((item) => item.toJson()).toList(),
-    );
+    return;
+  }
+
+  Future<void> refreshFromBackend() async {
+    try {
+      final profileResponse = await BackendApiClient.instance.get('/umkm/profile');
+      final productsResponse = await BackendApiClient.instance.get('/umkm/products');
+      final ordersResponse = await BackendApiClient.instance.get('/umkm/orders');
+
+      if (profileResponse.data is Map) {
+        final data = Map<String, dynamic>.from(profileResponse.data as Map);
+        final user = Map<String, dynamic>.from(data['user'] as Map? ?? const {});
+        final profile = Map<String, dynamic>.from(
+          data['profile'] as Map? ?? const {},
+        );
+        _profile = UmkmProfile.fromJson({
+          'umkmId': user['id']?.toString() ?? profile['user_id']?.toString() ?? _seedProfile.umkmId,
+          'name': profile['name'] ?? user['full_name'] ?? _seedProfile.name,
+          'ownerName': profile['owner_name'] ?? user['full_name'] ?? _seedProfile.ownerName,
+          'contact': profile['contact'] ?? user['phone'] ?? '',
+          'email': user['email'] ?? '',
+          'location': profile['address'] ?? '',
+          'about': profile['about'] ?? '',
+          'imagePath': profile['image_path'],
+        });
+      }
+
+      if (productsResponse.data is List) {
+        _products = (productsResponse.data as List)
+            .whereType<Map>()
+            .map((item) => UmkmProduct.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      if (ordersResponse.data is List) {
+        _orders = (ordersResponse.data as List)
+            .whereType<Map>()
+            .map((item) => UmkmOrder.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      _saveToLocal();
+      notifyListeners();
+    } on BackendApiException catch (_) {
+      // cache lokal saja
+    } catch (_) {
+      // cache lokal saja
+    }
   }
 
   List<UmkmTraceMaterialStock> _materialStocks({required bool availableOnly}) {

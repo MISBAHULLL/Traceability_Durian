@@ -1,3 +1,5 @@
+import '../../../core/network/backend_api_client.dart';
+
 enum UmkmProductStatus { aktif, habis }
 
 extension UmkmProductStatusLabel on UmkmProductStatus {
@@ -72,18 +74,17 @@ class UmkmProduct {
 
   factory UmkmProduct.fromJson(Map<String, dynamic> json) {
     return UmkmProduct(
-      id: json['id'] as String? ?? '',
-      code: json['code'] as String? ?? '',
-      name: json['name'] as String? ?? 'Produk UMKM',
-      category: json['category'] as String? ?? 'Olahan',
-      priceLabel: json['priceLabel'] as String? ?? '-',
-      stockLabel: json['stockLabel'] as String? ?? 'Stok belum ditentukan',
-      description: json['description'] as String? ?? '',
+      id: backendString(json, const ['id', 'code']),
+      code: backendString(json, const ['code']),
+      name: backendString(json, const ['name'], 'Produk UMKM'),
+      category: backendString(json, const ['category'], 'Olahan'),
+      priceLabel: backendString(json, const ['priceLabel', 'price_label'], '-'),
+      stockLabel: backendString(json, const ['stockLabel', 'stock_label'], 'Stok belum ditentukan'),
+      description: backendString(json, const ['description', 'short_description'], ''),
       status: umkmProductStatusFromJson(json['status']),
-      qrCodeData:
-          json['qrCodeData'] as String? ?? json['code'] as String? ?? '',
-      imagePath: json['imagePath'] as String?,
-      sourceMaterials: ((json['sourceMaterials'] as List<dynamic>?) ?? [])
+      qrCodeData: backendString(json, const ['qrCodeData', 'qr_code_data'], backendString(json, const ['code'])),
+      imagePath: backendNullableString(json, const ['imagePath', 'photo_path', 'image_path']),
+      sourceMaterials: ((json['sourceMaterials'] as List<dynamic>?) ?? (json['source_materials'] as List<dynamic>?) ?? [])
           .whereType<Map>()
           .map(
             (item) =>
@@ -124,11 +125,11 @@ class UmkmProductMaterial {
 
   factory UmkmProductMaterial.fromJson(Map<String, dynamic> json) {
     return UmkmProductMaterial(
-      purchaseId: json['purchaseId'] as String? ?? '',
-      traceCode: json['traceCode'] as String? ?? '',
-      supplierName: json['supplierName'] as String? ?? '-',
-      productName: json['productName'] as String? ?? 'Durian',
-      quantityKg: (json['quantityKg'] as num?)?.toDouble() ?? 0,
+      purchaseId: backendString(json, const ['purchaseId', 'traceCode', 'trace_code']),
+      traceCode: backendString(json, const ['traceCode', 'source_code_snapshot', 'sourceCode']),
+      supplierName: backendString(json, const ['supplierName', 'supplier_name'], '-'),
+      productName: backendString(json, const ['productName', 'product_name'], 'Durian'),
+      quantityKg: backendDouble(json, const ['quantityKg', 'quantity_kg'], 0),
     );
   }
 }

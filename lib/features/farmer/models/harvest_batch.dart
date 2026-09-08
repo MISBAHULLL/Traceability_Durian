@@ -1,3 +1,4 @@
+import '../../../core/network/backend_api_client.dart';
 import 'package:flutter/material.dart';
 
 // [DB - Model/Entity] Enum ini merepresentasikan state machine status batch
@@ -169,9 +170,9 @@ class BatchGradeBreakdown {
 
   factory BatchGradeBreakdown.fromJson(Map<String, dynamic> json) {
     return BatchGradeBreakdown(
-      grade: json['grade'] as String,
-      weightKg: (json['weightKg'] as num).toDouble(),
-      fruitCount: (json['fruitCount'] as num).toInt(),
+      grade: backendString(json, const ['grade', 'gradeLabel']),
+      weightKg: backendDouble(json, const ['weightKg', 'weight_kg']),
+      fruitCount: backendInt(json, const ['fruitCount', 'fruit_count']),
     );
   }
 }
@@ -409,53 +410,54 @@ class HarvestBatch {
   // [DB - Model/Entity] Factory ini membangun kembali batch dari JSON lokal
   // dan menjaga status state machine melalui enum BatchStatus.
   factory HarvestBatch.fromJson(Map<String, dynamic> json) => HarvestBatch(
-    code: json['code'] as String,
-    farmerId: json['farmerId'] as String,
-    farmId: json['farmId'] as String,
-    variety: json['variety'] as String,
-    grade: json['grade'] as String,
-    quantity: (json['quantity'] as num).toDouble(),
-    unit: json['unit'] as String,
-    fruitCount: (json['fruitCount'] as num?)?.toInt(),
-    harvestDate: DateTime.parse(json['harvestDate'] as String),
-    farmName: json['farmName'] as String,
+    code: backendString(json, const ['code']),
+    farmerId: backendString(json, const ['farmerId', 'farmer_id']),
+    farmId: backendString(json, const ['farmId', 'farm_id']),
+    variety: backendString(json, const ['variety']),
+    grade: backendString(json, const ['grade']),
+    quantity: backendDouble(json, const ['quantity', 'quantityKg', 'quantity_kg']),
+    unit: backendString(json, const ['unit'], 'kg'),
+    fruitCount: backendInt(json, const ['fruitCount', 'fruit_count']),
+    harvestDate: backendDateTime(json, const ['harvestDate', 'harvest_date']) ??
+        DateTime.now(),
+    farmName: backendString(
+      json,
+      const ['farmName', 'farm_name_snapshot'],
+      'Tidak diketahui',
+    ),
     status: BatchStatus.values.firstWhere(
-      (e) => e.name == json['status'],
+      (e) => e.name == backendString(json, const ['status']),
       orElse: () => BatchStatus.draft,
     ),
-    fertilizer: json['fertilizer'] as String?,
-    harvestMethod: json['harvestMethod'] as String?,
-    maturityLevel: json['maturityLevel'] as String?,
-    shelfLifeEstimate: json['shelfLifeEstimate'] as String?,
-    storageSuggestion: json['storageSuggestion'] as String?,
-    notes: json['notes'] as String?,
-    createdAt: json['createdAt'] != null
-        ? DateTime.parse(json['createdAt'] as String)
-        : null,
-    photoPath: json['photoPath'] as String?,
-    receivedQuantity: (json['receivedQuantity'] as num?)?.toDouble(),
-    receivedFruitCount: (json['receivedFruitCount'] as num?)?.toInt(),
-    warehouseId: json['warehouseId'] as String?,
-    verifiedGrade: json['verifiedGrade'] as String?,
-    gradeBreakdown: ((json['gradeBreakdown'] as List<dynamic>?) ?? [])
+    fertilizer: backendNullableString(json, const ['fertilizer']),
+    harvestMethod: backendNullableString(json, const ['harvestMethod', 'harvest_method']),
+    maturityLevel: backendNullableString(json, const ['maturityLevel', 'maturity_level']),
+    shelfLifeEstimate: backendNullableString(json, const ['shelfLifeEstimate', 'shelf_life_estimate']),
+    storageSuggestion: backendNullableString(json, const ['storageSuggestion', 'storage_suggestion']),
+    notes: backendNullableString(json, const ['notes']),
+    createdAt: backendDateTime(json, const ['createdAt', 'created_at']),
+    photoPath: backendNullableString(json, const ['photoPath', 'photo_path']),
+    receivedQuantity: backendDouble(json, const ['receivedQuantity', 'received_quantity_kg']),
+    receivedFruitCount: backendInt(json, const ['receivedFruitCount', 'received_fruit_count']),
+    warehouseId: backendNullableString(json, const ['warehouseId', 'warehouse_id']),
+    verifiedGrade: backendNullableString(json, const ['verifiedGrade', 'verified_grade']),
+    gradeBreakdown: backendListOfMaps(json, const ['gradeBreakdown', 'grade_breakdowns'])
         .whereType<Map>()
         .map(
           (item) =>
               BatchGradeBreakdown.fromJson(Map<String, dynamic>.from(item)),
         )
         .toList(),
-    verificationPhotoPath: json['verificationPhotoPath'] as String?,
-    qualityNotes: json['qualityNotes'] as String?,
-    verifiedBy: json['verifiedBy'] as String?,
-    verifiedByRole: batchReceiverRoleFromJson(json['verifiedByRole']),
-    verifiedAt: json['verifiedAt'] != null
-        ? DateTime.parse(json['verifiedAt'] as String)
-        : null,
-    rejectionReason: json['rejectionReason'] as String?,
-    rejectedBy: json['rejectedBy'] as String?,
-    rejectedAt: json['rejectedAt'] != null
-        ? DateTime.parse(json['rejectedAt'] as String)
-        : null,
+    verificationPhotoPath: backendNullableString(json, const ['verificationPhotoPath', 'verification_photo_path']),
+    qualityNotes: backendNullableString(json, const ['qualityNotes', 'quality_notes']),
+    verifiedBy: backendNullableString(json, const ['verifiedBy', 'verified_by']),
+    verifiedByRole: batchReceiverRoleFromJson(
+      backendString(json, const ['verifiedByRole', 'verified_by_role']),
+    ),
+    verifiedAt: backendDateTime(json, const ['verifiedAt', 'verified_at']),
+    rejectionReason: backendNullableString(json, const ['rejectionReason', 'rejection_reason']),
+    rejectedBy: backendNullableString(json, const ['rejectedBy', 'rejected_by']),
+    rejectedAt: backendDateTime(json, const ['rejectedAt', 'rejected_at']),
   );
 }
 
@@ -552,15 +554,15 @@ class FarmerProfile {
   // [DB - Model/Entity] Factory ini memulihkan profil petani dari JSON lokal
   // dan tetap aman untuk field email/avatar yang opsional.
   factory FarmerProfile.fromJson(Map<String, dynamic> json) => FarmerProfile(
-    farmerId: json['farmerId'] as String,
-    fullName: json['fullName'] as String,
-    roleLabel: json['roleLabel'] as String,
-    location: json['location'] as String,
-    village: json['village'] as String,
-    district: json['district'] as String,
-    city: json['city'] as String,
-    contact: json['contact'] as String,
-    email: json['email'] as String?,
-    avatarPath: json['avatarPath'] as String?,
+    farmerId: backendString(json, const ['farmerId', 'id'], 'farmer-unknown'),
+    fullName: backendString(json, const ['fullName', 'full_name']),
+    roleLabel: backendString(json, const ['roleLabel'], 'Petani'),
+    location: backendString(json, const ['location']),
+    village: backendString(json, const ['village']),
+    district: backendString(json, const ['district']),
+    city: backendString(json, const ['city']),
+    contact: backendString(json, const ['contact', 'phone']),
+    email: backendNullableString(json, const ['email']),
+    avatarPath: backendNullableString(json, const ['avatarPath', 'avatar_path']),
   );
 }

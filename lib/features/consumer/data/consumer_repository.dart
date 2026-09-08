@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
+import '../../../core/network/backend_api_client.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../collector/data/collector_repository.dart';
 import '../../collector/models/collector_delivery_receipt.dart';
@@ -22,11 +25,9 @@ import '../models/consumer_transaction.dart';
 class ConsumerRepository extends ChangeNotifier {
   ConsumerRepository._seed() {
     _loadFromLocal();
-    _products = _buildSeedProducts();
-    _transactions ??= _buildSeedTransactions(_products);
-    _syncTransactionsFromUmkmOrders();
     UmkmRepository.instance.addListener(_onCatalogChanged);
     TraceabilityRepository.instance.addListener(_onCatalogChanged);
+    unawaited(refreshFromBackend());
   }
 
   static final ConsumerRepository instance = ConsumerRepository._seed();
@@ -103,25 +104,12 @@ class ConsumerRepository extends ChangeNotifier {
   }
 
   void _loadFromLocal() {
-    _currentConsumerId =
-        LocalStorageService.loadString(_currentConsumerIdKey) ??
-        _kSeedConsumerId;
-
-    _profile =
-        _loadObject(_profileKey, ConsumerProfile.fromJson) ?? _kSeedProfile;
-
-    _collectorDeliveryReceipts =
-        _loadList(
-          _collectorDeliveryReceiptsKey,
-          CollectorDeliveryReceipt.fromJson,
-        ) ??
-        <CollectorDeliveryReceipt>[];
-
-    _transactions = _loadList(_transactionsKey, ConsumerTransaction.fromJson);
-
-    _auditLogs =
-        _loadList(_auditLogsKey, ConsumerAuditEntry.fromJson) ??
-        <ConsumerAuditEntry>[];
+    _currentConsumerId = '';
+    _profile = ConsumerProfile.fromJson(const <String, dynamic>{});
+    _products = <ConsumerProduct>[];
+    _transactions = <ConsumerTransaction>[];
+    _collectorDeliveryReceipts = <CollectorDeliveryReceipt>[];
+    _auditLogs = <ConsumerAuditEntry>[];
   }
 
   T? _loadObject<T>(
@@ -155,22 +143,68 @@ class ConsumerRepository extends ChangeNotifier {
   }
 
   void _saveToLocal() {
-    LocalStorageService.saveString(_currentConsumerIdKey, _currentConsumerId);
-    LocalStorageService.saveJson(_profileKey, _profile.toJson());
-    LocalStorageService.saveJsonList(
-      _collectorDeliveryReceiptsKey,
-      _collectorDeliveryReceipts.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      _transactionsKey,
-      (_transactions ?? <ConsumerTransaction>[])
-          .map((item) => item.toJson())
-          .toList(),
-    );
-    LocalStorageService.saveJsonList(
-      _auditLogsKey,
-      _auditLogs.map((item) => item.toJson()).toList(),
-    );
+    return;
+  }
+
+  Future<void> refreshFromBackend() async {
+    try {
+      final profileResponse = await BackendApiClient.instance.get(
+        '/consumer/profile',
+      );
+      final productsResponse = await BackendApiClient.instance.get(
+        '/consumer/products',
+      );
+      final transactionsResponse = await BackendApiClient.instance.get(
+        '/consumer/transactions',
+      );
+
+      if (profileResponse.data is Map) {
+        final data = Map<String, dynamic>.from(profileResponse.data as Map);
+        final user = Map<String, dynamic>.from(data['user'] as Map? ?? const {});
+        final profile = Map<String, dynamic>.from(
+          data['profile'] as Map? ?? const {},
+        );
+        _profile = ConsumerProfile.fromJson({
+          'consumerId': user['id']?.toString() ?? profile['user_id']?.toString() ?? _profile.consumerId,
+          'fullName': profile['display_name'] ?? user['full_name'] ?? '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim(),
+          'roleLabel': 'Konsumen Durian',
+          'contact': profile['phone'] ?? user['phone'] ?? '',
+          'email': user['email'] ?? '',
+          'location': profile['address'] ?? '',
+          'avatarPath': profile['avatar_path'],
+        });
+      }
+
+      if (productsResponse.data is List) {
+        _products = (productsResponse.data as List)
+            .whereType<Map>()
+            .map(
+              (item) => ConsumerProduct.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList();
+      }
+
+      if (transactionsResponse.data is List) {
+        _transactions = (transactionsResponse.data as List)
+            .whereType<Map>()
+            .map(
+              (item) => ConsumerTransaction.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList();
+      }
+
+      _currentConsumerId = _profile.consumerId;
+      _saveToLocal();
+      notifyListeners();
+    } on BackendApiException catch (_) {
+      // Gunakan cache lokal jika backend belum tersedia.
+    } catch (_) {
+      // Gunakan cache lokal jika backend belum tersedia.
+    }
   }
 
   static List<ConsumerProduct> _buildSeedProducts() {

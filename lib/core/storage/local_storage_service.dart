@@ -88,4 +88,8 @@ class LocalStorageService {
   static Future<bool> clear() {
     return _prefs!.clear();
   }
+
+  static Future<bool> remove(String key) {
+    return _prefs!.remove(key);
+  }
 }

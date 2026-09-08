@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import '../../../core/network/backend_api_client.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../collector/data/collector_repository.dart';
 import '../../collector/models/collector_shipment_batch.dart';
@@ -19,10 +22,9 @@ import '../models/distributor_warehouse.dart';
 class DistributorRepository extends ChangeNotifier {
   DistributorRepository._() {
     _loadFromLocal();
-    // Dengarkan perubahan dari CollectorRepository agar metrik dan daftar
-    // pengiriman ter-refresh secara real-time.
     CollectorRepository.instance.addListener(_onCollectorRepoChanged);
     FarmerRepository.instance.addListener(_onFarmerRepoChanged);
+    unawaited(refreshFromBackend());
   }
 
   static final DistributorRepository instance = DistributorRepository._();
@@ -75,157 +77,87 @@ class DistributorRepository extends ChangeNotifier {
     super.dispose();
   }
 
-  // ── Local Storage & Session ────────────────────────────────────────────────
-
   void _loadFromLocal() {
-    _currentDistributorId =
-        LocalStorageService.loadString('distributor_current_id') ??
-        _kSeedDistributorId;
-
-    final profileJson = LocalStorageService.loadJson('distributor_profile');
-    if (profileJson != null) {
-      _profile = DistributorProfile.fromJson(profileJson);
-    } else {
-      _profile = _kSeedProfile;
-    }
-
-    final receiptJsonList = LocalStorageService.loadJsonList(
-      'distributor_receipts',
-    );
-    _receipts =
-        receiptJsonList?.map(DistributorReceipt.fromJson).toList() ?? [];
-
-    final rejectionReceiptJsonList = LocalStorageService.loadJsonList(
-      'distributor_rejection_receipts',
-    );
-    _rejectionReceipts =
-        rejectionReceiptJsonList
-            ?.map(DistributorRejectionReceipt.fromJson)
-            .toList() ??
-        [];
-    _rejectionReceiptCounter =
-        LocalStorageService.loadInt('distributor_rejection_receipt_counter') ??
-        _rejectionReceipts.length;
-
-    final acquisitionJsonList = LocalStorageService.loadJsonList(
-      'distributor_acquisition_transactions',
-    );
-    _acquisitionTransactions =
-        acquisitionJsonList
-            ?.map(DistributorAcquisitionTransaction.fromJson)
-            .toList() ??
-        [];
-    _acquisitionTransactionCounter =
-        LocalStorageService.loadInt(
-          'distributor_acquisition_transaction_counter',
-        ) ??
-        _acquisitionTransactions.length;
-
-    final warehouseJsonList = LocalStorageService.loadJsonList(
-      'distributor_warehouses',
-    );
-    _warehouses =
-        warehouseJsonList?.map(DistributorWarehouse.fromJson).toList() ??
-        _buildSeedWarehouses();
-    _warehouseCounter =
-        LocalStorageService.loadInt('distributor_warehouse_counter') ??
-        _warehouses.length;
-
-    final transferJsonList = LocalStorageService.loadJsonList(
-      'distributor_warehouse_transfers',
-    );
-    _warehouseTransfers =
-        transferJsonList?.map(DistributorWarehouseTransfer.fromJson).toList() ??
-        [];
-    _warehouseTransferCounter =
-        LocalStorageService.loadInt('distributor_warehouse_transfer_counter') ??
-        _warehouseTransfers.length;
-
-    final horizontalSaleJsonList = LocalStorageService.loadJsonList(
-      'distributor_horizontal_sales',
-    );
-    _horizontalSales =
-        horizontalSaleJsonList
-            ?.map(DistributorHorizontalSale.fromJson)
-            .toList() ??
-        [];
-    _horizontalSaleCounter =
-        LocalStorageService.loadInt('distributor_horizontal_sale_counter') ??
-        _horizontalSales.length;
-
-    final auditJsonList = LocalStorageService.loadJsonList(
-      'distributor_audit_events',
-    );
-    _auditEvents =
-        auditJsonList?.map(DistributorAuditEvent.fromJson).toList() ??
-        _buildSeedAuditEvents();
-    _auditEventCounter =
-        LocalStorageService.loadInt('distributor_audit_event_counter') ??
-        _auditEvents.length;
-
-    if (warehouseJsonList == null || auditJsonList == null) {
-      _saveToLocal();
-    }
+    _currentDistributorId = '';
+    _profile = DistributorProfile.fromJson(const <String, dynamic>{});
+    _receipts = <DistributorReceipt>[];
+    _rejectionReceipts = <DistributorRejectionReceipt>[];
+    _acquisitionTransactions = <DistributorAcquisitionTransaction>[];
+    _warehouses = <DistributorWarehouse>[];
+    _warehouseTransfers = <DistributorWarehouseTransfer>[];
+    _horizontalSales = <DistributorHorizontalSale>[];
+    _auditEvents = <DistributorAuditEvent>[];
+    _acquisitionTransactionCounter = 0;
+    _warehouseCounter = 0;
+    _warehouseTransferCounter = 0;
+    _horizontalSaleCounter = 0;
+    _auditEventCounter = 0;
+    _rejectionReceiptCounter = 0;
   }
 
   void _saveToLocal() {
-    LocalStorageService.saveString(
-      'distributor_current_id',
-      _currentDistributorId,
-    );
-    LocalStorageService.saveJson('distributor_profile', _profile.toJson());
-    LocalStorageService.saveJsonList(
-      'distributor_receipts',
-      _receipts.map((receipt) => receipt.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      'distributor_rejection_receipts',
-      _rejectionReceipts.map((receipt) => receipt.toJson()).toList(),
-    );
-    LocalStorageService.saveInt(
-      'distributor_rejection_receipt_counter',
-      _rejectionReceiptCounter,
-    );
-    LocalStorageService.saveJsonList(
-      'distributor_acquisition_transactions',
-      _acquisitionTransactions.map((item) => item.toJson()).toList(),
-    );
-    LocalStorageService.saveInt(
-      'distributor_acquisition_transaction_counter',
-      _acquisitionTransactionCounter,
-    );
-    LocalStorageService.saveJsonList(
-      'distributor_warehouses',
-      _warehouses.map((warehouse) => warehouse.toJson()).toList(),
-    );
-    LocalStorageService.saveInt(
-      'distributor_warehouse_counter',
-      _warehouseCounter,
-    );
-    LocalStorageService.saveJsonList(
-      'distributor_warehouse_transfers',
-      _warehouseTransfers.map((transfer) => transfer.toJson()).toList(),
-    );
-    LocalStorageService.saveInt(
-      'distributor_warehouse_transfer_counter',
-      _warehouseTransferCounter,
-    );
-    LocalStorageService.saveJsonList(
-      'distributor_horizontal_sales',
-      _horizontalSales.map((sale) => sale.toJson()).toList(),
-    );
-    LocalStorageService.saveInt(
-      'distributor_horizontal_sale_counter',
-      _horizontalSaleCounter,
-    );
-    LocalStorageService.saveJsonList(
-      'distributor_audit_events',
-      _auditEvents.map((event) => event.toJson()).toList(),
-    );
-    LocalStorageService.saveInt(
-      'distributor_audit_event_counter',
-      _auditEventCounter,
-    );
+    return;
+  }
+
+  Future<void> refreshFromBackend() async {
+    try {
+      final profileResponse = await BackendApiClient.instance.get(
+        '/distributor/profile',
+      );
+      if (profileResponse.data is Map) {
+        final data = Map<String, dynamic>.from(profileResponse.data as Map);
+        final user = Map<String, dynamic>.from(data['user'] as Map? ?? const {});
+        final profile = Map<String, dynamic>.from(
+          data['profile'] as Map? ?? const {},
+        );
+        _profile = DistributorProfile.fromJson({
+          'distributorId': user['id']?.toString() ?? profile['user_id']?.toString() ?? _profile.distributorId,
+          'fullName': profile['business_name'] ?? user['full_name'] ?? '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim(),
+          'roleLabel': 'Distributor Durian',
+          'businessName': profile['business_name'] ?? '',
+          'contact': profile['contact'] ?? user['phone'] ?? '',
+          'email': user['email'] ?? '',
+          'location': profile['address'] ?? '',
+          'village': profile['village'] ?? '',
+          'district': profile['district'] ?? '',
+          'city': profile['city'] ?? '',
+          'address': profile['address'] ?? '',
+          'avatarPath': profile['avatar_path'],
+        });
+      }
+
+      final receipts = <DistributorReceipt>[];
+      for (final shipment in allShipments) {
+        try {
+          final detail = await BackendApiClient.instance.get(
+            '/distributor/shipments/${shipment.code}',
+          );
+          if (detail.data is Map) {
+            final data = Map<String, dynamic>.from(detail.data as Map);
+            final receipt = data['receipt'];
+            if (receipt is Map) {
+              final receiptJson = Map<String, dynamic>.from(receipt);
+              receiptJson['distributorId'] = _currentDistributorId;
+              final parsed = DistributorReceipt.fromJson(receiptJson);
+              receipts.add(parsed);
+            }
+          }
+        } catch (_) {
+          continue;
+        }
+      }
+      if (receipts.isNotEmpty) {
+        _receipts = receipts;
+      }
+
+      _currentDistributorId = _profile.distributorId;
+      _saveToLocal();
+      notifyListeners();
+    } on BackendApiException catch (_) {
+      // Cache lokal tetap dipakai.
+    } catch (_) {
+      // Cache lokal tetap dipakai.
+    }
   }
 
   /// Registrasi data distributor baru setelah mendaftar via form registrasi.

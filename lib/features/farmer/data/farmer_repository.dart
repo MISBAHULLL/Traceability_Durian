@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
+import '../../../core/network/backend_api_client.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../traceability/data/traceability_repository.dart';
 import '../../traceability/models/traceability_models.dart';
@@ -29,6 +32,7 @@ class FarmerRepository extends ChangeNotifier {
   FarmerRepository._seed() {
     _loadFromLocal();
     TraceabilityRepository.instance.addListener(_onTraceabilityChanged);
+    unawaited(refreshFromBackend());
   }
 
   void _onTraceabilityChanged() {
@@ -41,48 +45,13 @@ class FarmerRepository extends ChangeNotifier {
     super.dispose();
   }
 
-  // [FE - State Management] Loader ini me-restore state mock dari
-  // SharedPreferences; jika storage kosong, repository memakai seed default.
   void _loadFromLocal() {
-    _currentFarmerId =
-        LocalStorageService.loadString('farmer_current_id') ?? _kSeedFarmerId;
-
-    final profileJson = LocalStorageService.loadJson('farmer_profile');
-    if (profileJson != null) {
-      _profile = FarmerProfile.fromJson(profileJson);
-    } else {
-      _profile = _kSeedProfile;
-    }
-
-    final farmsJsonList = LocalStorageService.loadJsonList('farmer_farms');
-    if (farmsJsonList != null) {
-      _farms = farmsJsonList.map((e) => Farm.fromJson(e)).toList();
-    } else {
-      _farms = _buildSeedFarms();
-    }
-
-    final batchesJsonList = LocalStorageService.loadJsonList('farmer_batches');
-    if (batchesJsonList != null) {
-      _batches = batchesJsonList.map((e) => HarvestBatch.fromJson(e)).toList();
-    } else {
-      _batches = _buildSeedBatches();
-    }
-
-    final eventsJsonList = LocalStorageService.loadJsonList(
-      'farmer_batch_events',
-    );
-    if (eventsJsonList != null) {
-      _batchEvents = eventsJsonList.map((e) => BatchEvent.fromJson(e)).toList();
-    } else {
-      _batchEvents = <BatchEvent>[];
-    }
-
-    _batchCounter =
-        LocalStorageService.loadInt('farmer_batch_counter') ?? _batches.length;
-    _ensureSeedRejectedBatch();
-    _ensureSeedShipmentSourceBatches();
-    _ensureEventStoreBackfilled();
-    _syncCoreTraceabilityBatches();
+    _currentFarmerId = '';
+    _profile = FarmerProfile.fromJson(const <String, dynamic>{});
+    _farms = <Farm>[];
+    _batches = <HarvestBatch>[];
+    _batchEvents = <BatchEvent>[];
+    _batchCounter = 0;
   }
 
   // [FE - State Management] Migrasi seed ini menjaga data demo tetap lengkap
@@ -137,24 +106,76 @@ class FarmerRepository extends ChangeNotifier {
     _saveToLocal();
   }
 
-  // [FE - State Management] Saver ini menulis semua state penting petani ke
-  // JSON lokal setiap ada mutasi agar data tetap ada setelah restart aplikasi.
   void _saveToLocal() {
-    LocalStorageService.saveString('farmer_current_id', _currentFarmerId);
-    LocalStorageService.saveJson('farmer_profile', _profile.toJson());
-    LocalStorageService.saveJsonList(
-      'farmer_farms',
-      _farms.map((e) => e.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      'farmer_batches',
-      _batches.map((e) => e.toJson()).toList(),
-    );
-    LocalStorageService.saveJsonList(
-      'farmer_batch_events',
-      _batchEvents.map((e) => e.toJson()).toList(),
-    );
-    LocalStorageService.saveInt('farmer_batch_counter', _batchCounter);
+    return;
+  }
+
+  Future<void> refreshFromBackend() async {
+    try {
+      final profileResponse = await BackendApiClient.instance.get(
+        '/farmer/profile',
+      );
+      final farmsResponse = await BackendApiClient.instance.get('/farmer/farms');
+      final batchesResponse = await BackendApiClient.instance.get(
+        '/farmer/batches',
+      );
+
+      if (profileResponse.data is Map) {
+        final data = Map<String, dynamic>.from(
+          profileResponse.data as Map,
+        );
+        final user = Map<String, dynamic>.from(
+          data['user'] as Map? ?? const {},
+        );
+        final profile = Map<String, dynamic>.from(
+          data['profile'] as Map? ?? const {},
+        );
+        _profile = FarmerProfile.fromJson({
+          'farmerId': user['id']?.toString() ?? profile['user_id']?.toString() ?? _profile.farmerId,
+          'fullName': profile['full_name'] ?? user['full_name'] ?? '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim(),
+          'roleLabel': profile['role_label'] ?? 'Petani',
+          'location': profile['location'] ?? [
+            user['city'],
+            user['district'],
+            user['province'],
+          ].whereType<String>().join(', '),
+          'village': profile['village'] ?? '',
+          'district': profile['district'] ?? '',
+          'city': profile['city'] ?? '',
+          'contact': profile['contact'] ?? user['phone'] ?? '',
+          'email': user['email'] ?? profile['email'],
+          'avatarPath': profile['avatar_path'],
+        });
+      }
+
+      if (farmsResponse.data is List) {
+        _farms = (farmsResponse.data as List)
+            .whereType<Map>()
+            .map((item) => Farm.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      if (batchesResponse.data is List) {
+        _batches = (batchesResponse.data as List)
+            .whereType<Map>()
+            .map(
+              (item) => HarvestBatch.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList();
+      }
+
+      _currentFarmerId = _profile.farmerId;
+      _batchCounter = _batches.length;
+      _saveToLocal();
+      _syncCoreTraceabilityBatches();
+      notifyListeners();
+    } on BackendApiException catch (_) {
+      // Tetap pakai cache lokal bila backend belum siap.
+    } catch (_) {
+      // Tetap pakai cache lokal bila backend belum siap.
+    }
   }
 
   // [FE - State Management] Adapter sementara menuju core traceability.

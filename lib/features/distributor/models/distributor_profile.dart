@@ -1,3 +1,5 @@
+import '../../../core/network/backend_api_client.dart';
+
 // [DB - Model/Entity] Model ini merepresentasikan data profil distributor
 // yang disimpan secara lokal di SharedPreferences pada fase FE-only.
 class DistributorProfile {
@@ -86,17 +88,17 @@ class DistributorProfile {
   /// Deserialisasi dari Map.
   factory DistributorProfile.fromJson(Map<String, dynamic> json) =>
       DistributorProfile(
-        distributorId: json['distributorId'] as String,
-        fullName: json['fullName'] as String,
-        roleLabel: json['roleLabel'] as String,
-        businessName: (json['businessName'] as String?) ?? '',
-        contact: (json['contact'] as String?) ?? '',
-        email: (json['email'] as String?) ?? '',
-        location: (json['location'] as String?) ?? '',
-        village: (json['village'] as String?) ?? '',
-        district: (json['district'] as String?) ?? '',
-        city: (json['city'] as String?) ?? '',
-        address: (json['address'] as String?) ?? '',
-        avatarPath: json['avatarPath'] as String?,
+        distributorId: backendString(json, const ['distributorId', 'id'], 'distributor-unknown'),
+        fullName: backendString(json, const ['fullName', 'full_name']),
+        roleLabel: backendString(json, const ['roleLabel'], 'Distributor Durian'),
+        businessName: backendString(json, const ['businessName'], ''),
+        contact: backendString(json, const ['contact', 'phone']),
+        email: backendString(json, const ['email'], ''),
+        location: backendString(json, const ['location']),
+        village: backendString(json, const ['village']),
+        district: backendString(json, const ['district']),
+        city: backendString(json, const ['city']),
+        address: backendString(json, const ['address']),
+        avatarPath: backendNullableString(json, const ['avatarPath', 'avatar_path']),
       );
 }

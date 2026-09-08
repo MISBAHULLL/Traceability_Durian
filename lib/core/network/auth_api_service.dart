@@ -1,15 +1,15 @@
-import 'dart:convert';
+import 'dart:async';
 
-import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
+import 'app_api_config.dart';
 import '../storage/local_storage_service.dart';
+import 'backend_api_client.dart';
 import '../../features/collector/data/collector_repository.dart';
 import '../../features/consumer/data/consumer_repository.dart';
 import '../../features/distributor/data/distributor_repository.dart';
 import '../../features/farmer/data/farmer_repository.dart';
 import '../../features/umkm/data/umkm_repository.dart';
-import '../../features/umkm/models/umkm_profile.dart';
-import 'app_api_config.dart';
 
 class AuthApiException implements Exception {
   AuthApiException(this.message, {this.statusCode});
@@ -97,9 +97,9 @@ class AuthApiResult {
   final String dashboard;
 
   factory AuthApiResult.fromResponse(Map<String, dynamic> json) {
-    final data = Map<String, dynamic>.from(
-      (json['data'] as Map?)?.cast<String, dynamic>() ?? const {},
-    );
+    final data = json['data'] is Map
+        ? Map<String, dynamic>.from(json['data'] as Map)
+        : json;
     return AuthApiResult(
       success: json['success'] == true,
       message: (json['message'] ?? '').toString(),
@@ -120,12 +120,18 @@ class AuthApiService {
   static const String _userKey = 'auth_user';
   static const String _dashboardKey = 'auth_dashboard';
 
-  final http.Client _client = http.Client();
+  String? get accessToken => LocalStorageService.loadString(_tokenKey);
+  String? get dashboard => LocalStorageService.loadString(_dashboardKey);
 
-  Map<String, String> get _headers => const {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
-  };
+  AuthApiUser? get activeUser {
+    final raw = LocalStorageService.loadJson(_userKey);
+    if (raw == null) return null;
+    try {
+      return AuthApiUser.fromJson(raw);
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<AuthApiResult> login({
     required String identifier,
@@ -163,31 +169,41 @@ class AuthApiService {
     String endpoint,
     Map<String, dynamic> body,
   ) async {
-    final response = await _client.post(
-      AppApiConfig.uri(endpoint),
-      headers: _headers,
-      body: jsonEncode(body),
-    );
+    try {
+      final response = await BackendApiClient.instance.post(
+        endpoint,
+        body: body,
+        authenticated: false,
+      );
 
-    final decoded = _decodeJson(response.body);
-    final message =
-        _extractMessage(decoded) ??
-        _defaultMessageForStatus(response.statusCode);
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      if (decoded is! Map<String, dynamic>) {
+      if (response.data is! Map<String, dynamic>) {
         throw AuthApiException(
           'Response backend tidak valid.',
           statusCode: response.statusCode,
         );
       }
-      final result = AuthApiResult.fromResponse(decoded);
+
+      final result = AuthApiResult.fromResponse(
+        <String, dynamic>{
+          'success': response.success,
+          'message': response.message,
+          'data': response.data,
+        },
+      );
+      if (kDebugMode) {
+        debugPrint(
+          '[AUTH] ${endpoint == AuthEndpoints.login ? 'login' : 'register'} '
+          'ok for ${result.user.email} | ${result.user.firstName} ${result.user.lastName} '
+          '| role=${result.user.role} | dashboard=${result.dashboard}',
+        );
+      }
       await _persistSession(result);
       _syncActiveProfile(result.user);
+      await _refreshRoleData(result.user.role);
       return result;
+    } on BackendApiException catch (e) {
+      throw AuthApiException(e.message, statusCode: e.statusCode);
     }
-
-    throw AuthApiException(message, statusCode: response.statusCode);
   }
 
   Future<void> _persistSession(AuthApiResult result) async {
@@ -197,100 +213,89 @@ class AuthApiService {
   }
 
   void _syncActiveProfile(AuthApiUser user) {
-    final fullName = '${user.firstName} ${user.lastName}'.trim();
-    final phone = user.phone.startsWith('0')
-        ? user.phone.substring(1)
-        : user.phone;
-
-    switch (user.role) {
-      case 'petani':
-        FarmerRepository.instance.registerFarmer(
-          firstName: user.firstName,
-          lastName: user.lastName,
-          phone: phone,
-          email: user.email,
-        );
-        break;
-      case 'pengepul':
-        CollectorRepository.instance.registerCollector(
-          firstName: user.firstName,
-          lastName: user.lastName,
-          phone: phone,
-          email: user.email,
-        );
-        break;
-      case 'distributor':
-        DistributorRepository.instance.registerDistributor(
-          firstName: user.firstName,
-          lastName: user.lastName,
-          phone: phone,
-          email: user.email,
-        );
-        break;
-      case 'umkm':
-        UmkmRepository.instance.updateProfile(
-          UmkmProfile(
-            umkmId:
-                'umkm-auth-${user.id ?? DateTime.now().millisecondsSinceEpoch}',
-            name: fullName.isEmpty ? 'UMKM Durian' : fullName,
-            ownerName: fullName.isEmpty ? 'Pemilik UMKM' : fullName,
-            contact: user.phone,
-            email: user.email,
-            location: '',
-            about: 'Profil aktif dari backend.',
-          ),
-        );
-        break;
-      case 'konsumen':
-        ConsumerRepository.instance.registerConsumer(
-          firstName: user.firstName,
-          lastName: user.lastName,
-          phone: phone,
-          email: user.email,
-        );
-        break;
+    if (kDebugMode) {
+      debugPrint(
+        '[AUTH] syncing active profile from backend user: '
+        '${user.email} (${user.role})',
+      );
     }
   }
 
-  dynamic _decodeJson(String body) {
-    if (body.trim().isEmpty) return null;
+  Future<AuthApiResult> restoreSession() async {
+    final response = await BackendApiClient.instance.get(
+      AuthEndpoints.me,
+    );
+    if (response.data is! Map<String, dynamic>) {
+      throw AuthApiException('Response backend tidak valid.');
+    }
+    final data = response.data as Map<String, dynamic>;
+    final result = AuthApiResult(
+      success: response.success,
+      message: response.message,
+      user: AuthApiUser.fromJson(
+        Map<String, dynamic>.from(data['user'] as Map? ?? const {}),
+      ),
+      token: accessToken ?? '',
+      dashboard: (data['dashboard'] ?? '').toString(),
+    );
+    if (kDebugMode) {
+      debugPrint(
+        '[AUTH] session restored for ${result.user.email} | '
+        '${result.user.firstName} ${result.user.lastName} | '
+        'role=${result.user.role} | dashboard=${result.dashboard}',
+      );
+    }
+    _syncActiveProfile(result.user);
+    await _refreshRoleData(result.user.role);
+    return result;
+  }
+
+  Future<void> logout() async {
     try {
-      return jsonDecode(body);
+      await BackendApiClient.instance.post(AuthEndpoints.logout);
     } catch (_) {
-      return null;
+      // Logout lokal tetap dibersihkan walau backend sedang offline.
+    } finally {
+      await LocalStorageService.remove(_tokenKey);
+      await LocalStorageService.remove(_dashboardKey);
+      await LocalStorageService.remove(_userKey);
     }
   }
 
-  String? _extractMessage(dynamic decoded) {
-    if (decoded is Map<String, dynamic>) {
-      final message = decoded['message'];
-      if (message is String && message.trim().isNotEmpty) {
-        return message;
+  Future<void> _refreshRoleData(String role) async {
+    try {
+      switch (role) {
+        case 'petani':
+          await FarmerRepository.instance.refreshFromBackend();
+          break;
+        case 'pengepul':
+          await Future.wait([
+            CollectorRepository.instance.refreshFromBackend(),
+            FarmerRepository.instance.refreshFromBackend(),
+          ]);
+          break;
+        case 'distributor':
+          await Future.wait([
+            CollectorRepository.instance.refreshFromBackend(),
+            DistributorRepository.instance.refreshFromBackend(),
+            FarmerRepository.instance.refreshFromBackend(),
+          ]);
+          break;
+        case 'umkm':
+          await Future.wait([
+            UmkmRepository.instance.refreshFromBackend(),
+            FarmerRepository.instance.refreshFromBackend(),
+          ]);
+          break;
+        case 'konsumen':
+          await Future.wait([
+            ConsumerRepository.instance.refreshFromBackend(),
+            UmkmRepository.instance.refreshFromBackend(),
+          ]);
+          break;
       }
-      final errors = decoded['errors'];
-      if (errors is Map && errors.isNotEmpty) {
-        final firstValue = errors.values.first;
-        if (firstValue is List && firstValue.isNotEmpty) {
-          return firstValue.first.toString();
-        }
-        return firstValue?.toString();
-      }
-    }
-    return null;
-  }
-
-  String _defaultMessageForStatus(int statusCode) {
-    switch (statusCode) {
-      case 401:
-        return 'Password salah';
-      case 403:
-        return 'Role tidak sesuai';
-      case 404:
-        return 'Akun tidak ditemukan';
-      case 422:
-        return 'Data tidak valid';
-      default:
-        return 'Terjadi kesalahan pada server';
+    } catch (_) {
+      // Backend refresh gagal tidak boleh menghalangi login.
     }
   }
 }

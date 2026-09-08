@@ -112,7 +112,7 @@ class _DistributorAuditTrailScreenState
     final actors = _repo.auditActors;
 
     return Scaffold(
-      backgroundColor: _pageBackground,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -121,52 +121,55 @@ class _DistributorAuditTrailScreenState
               child: AppTopBar(title: 'Audit Trail'),
             ),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                children: [
-                  _AuditSummary(
-                    totalCount: allEvents.length,
-                    visibleCount: events.length,
-                    actorCount: actors.length,
-                  ),
-                  const SizedBox(height: 14),
-                  _AuditFilterPanel(
-                    searchController: _searchController,
-                    actors: actors,
-                    searchQuery: _searchQuery,
-                    selectedActor: _actorFilter,
-                    selectedType: _typeFilter,
-                    selectedPeriod: _period,
-                    onSearchChanged: (value) =>
-                        setState(() => _searchQuery = value),
-                    onActorChanged: (value) =>
-                        setState(() => _actorFilter = value),
-                    onTypeChanged: (value) =>
-                        setState(() => _typeFilter = value),
-                    onPeriodChanged: (value) => setState(() => _period = value),
-                    onReset: () {
-                      setState(() {
-                        _searchController.clear();
-                        _searchQuery = '';
-                        _actorFilter = null;
-                        _typeFilter = null;
-                        _period = _AuditPeriod.all;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _SectionHeader(title: 'Event Audit', count: events.length),
-                  const SizedBox(height: 8),
-                  if (events.isEmpty)
-                    const _EmptyAuditState()
-                  else
-                    ...events.map(
-                      (event) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _AuditEventCard(event: event),
-                      ),
+              child: ColoredBox(
+                color: _pageBackground,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                  children: [
+                    _AuditFilterPanel(
+                      searchController: _searchController,
+                      actors: actors,
+                      totalCount: allEvents.length,
+                      visibleCount: events.length,
+                      searchQuery: _searchQuery,
+                      selectedActor: _actorFilter,
+                      selectedType: _typeFilter,
+                      selectedPeriod: _period,
+                      onSearchChanged: (value) =>
+                          setState(() => _searchQuery = value),
+                      onActorChanged: (value) =>
+                          setState(() => _actorFilter = value),
+                      onTypeChanged: (value) =>
+                          setState(() => _typeFilter = value),
+                      onPeriodChanged: (value) =>
+                          setState(() => _period = value),
+                      onReset: () {
+                        setState(() {
+                          _searchController.clear();
+                          _searchQuery = '';
+                          _actorFilter = null;
+                          _typeFilter = null;
+                          _period = _AuditPeriod.all;
+                        });
+                      },
                     ),
-                ],
+                    const SizedBox(height: 14),
+                    _SectionHeader(
+                      title: 'Riwayat Aktivitas',
+                      count: events.length,
+                    ),
+                    const SizedBox(height: 8),
+                    if (events.isEmpty)
+                      const _EmptyAuditState()
+                    else
+                      ...events.map(
+                        (event) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _AuditEventCard(event: event),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -176,79 +179,12 @@ class _DistributorAuditTrailScreenState
   }
 }
 
-class _AuditSummary extends StatelessWidget {
-  const _AuditSummary({
-    required this.totalCount,
-    required this.visibleCount,
-    required this.actorCount,
-  });
-
-  final int totalCount;
-  final int visibleCount;
-  final int actorCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 88, 168, 53),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _SummaryMetric(label: 'Total', value: '$totalCount'),
-          ),
-          Container(width: 1, height: 38, color: const Color(0xFF8BCB70)),
-          Expanded(
-            child: _SummaryMetric(label: 'Tampil', value: '$visibleCount'),
-          ),
-          Container(width: 1, height: 38, color: const Color(0xFF8BCB70)),
-          Expanded(
-            child: _SummaryMetric(label: 'Aktor', value: '$actorCount'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryMetric extends StatelessWidget {
-  const _SummaryMetric({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              color: AppColors.white,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11, color: Color(0xFFEAF7E5)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _AuditFilterPanel extends StatelessWidget {
   const _AuditFilterPanel({
     required this.searchController,
     required this.actors,
+    required this.totalCount,
+    required this.visibleCount,
     required this.searchQuery,
     required this.selectedActor,
     required this.selectedType,
@@ -262,6 +198,8 @@ class _AuditFilterPanel extends StatelessWidget {
 
   final TextEditingController searchController;
   final List<String> actors;
+  final int totalCount;
+  final int visibleCount;
   final String searchQuery;
   final String? selectedActor;
   final DistributorAuditEventType? selectedType;
@@ -274,8 +212,13 @@ class _AuditFilterPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasActiveFilter =
+        searchQuery.trim().isNotEmpty ||
+        selectedActor != null ||
+        selectedType != null ||
+        selectedPeriod != _AuditPeriod.all;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(8),
@@ -286,111 +229,179 @@ class _AuditFilterPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(
-                child: Text(
-                  'Filter Audit',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.black,
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.tune_rounded,
+                  size: 19,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Filter Audit',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$visibleCount dari $totalCount event ditampilkan',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.placeholder,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (hasActiveFilter)
+                IconButton(
+                  onPressed: onReset,
+                  tooltip: 'Reset filter',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.restart_alt_rounded,
+                    size: 19,
+                    color: AppColors.primary,
                   ),
                 ),
-              ),
-              TextButton.icon(
-                onPressed: onReset,
-                icon: const Icon(Icons.refresh_rounded, size: 16),
-                label: const Text('Reset'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  textStyle: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
             ],
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: searchController,
-            onChanged: onSearchChanged,
-            textInputAction: TextInputAction.search,
-            decoration:
-                _filterDecoration(
-                  'Cari kode batch/PGL, aksi, atau catatan',
-                ).copyWith(
-                  prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                  suffixIcon: searchQuery.trim().isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: 'Bersihkan pencarian',
-                          icon: const Icon(Icons.close_rounded, size: 18),
-                          onPressed: () {
-                            searchController.clear();
-                            onSearchChanged('');
-                          },
-                        ),
-                ),
-          ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<String?>(
-            key: ValueKey('actor-${selectedActor ?? 'all'}'),
-            initialValue: selectedActor,
-            isExpanded: true,
-            decoration: _filterDecoration('Aktor'),
-            items: [
-              const DropdownMenuItem<String?>(
-                value: null,
-                child: Text('Semua aktor'),
-              ),
-              ...actors.map(
-                (actor) =>
-                    DropdownMenuItem<String?>(value: actor, child: Text(actor)),
-              ),
-            ],
-            onChanged: onActorChanged,
-          ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<DistributorAuditEventType?>(
-            key: ValueKey('type-${selectedType?.name ?? 'all'}'),
-            initialValue: selectedType,
-            isExpanded: true,
-            decoration: _filterDecoration('Tipe Event'),
-            items: [
-              const DropdownMenuItem<DistributorAuditEventType?>(
-                value: null,
-                child: Text('Semua tipe'),
-              ),
-              ...DistributorAuditEventType.values.map(
-                (type) => DropdownMenuItem<DistributorAuditEventType?>(
-                  value: type,
-                  child: Text(type.label),
-                ),
-              ),
-            ],
-            onChanged: onTypeChanged,
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _AuditPeriod.values.map((period) {
-              final selected = selectedPeriod == period;
-              return ChoiceChip(
-                label: Text(period.label),
-                selected: selected,
-                onSelected: (_) => onPeriodChanged(period),
-                selectedColor: AppColors.primaryContainer.withValues(
-                  alpha: 0.14,
-                ),
-                backgroundColor: _pageBackground,
-                side: BorderSide(
-                  color: selected ? AppColors.primary : _borderColor,
-                ),
-                labelStyle: TextStyle(
+          SizedBox(
+            height: 44,
+            child: TextField(
+              controller: searchController,
+              onChanged: onSearchChanged,
+              textInputAction: TextInputAction.search,
+              style: const TextStyle(fontSize: 12),
+              decoration: _filterDecoration().copyWith(
+                hintText: 'Cari kode batch, transaksi, atau aktivitas',
+                hintStyle: const TextStyle(
                   fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: selected ? AppColors.primary : AppColors.placeholder,
+                  color: AppColors.placeholder,
+                ),
+                prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                suffixIcon: searchQuery.trim().isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Bersihkan pencarian',
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        onPressed: () {
+                          searchController.clear();
+                          onSearchChanged('');
+                        },
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _FilterField(
+                  label: 'Aktor',
+                  child: DropdownButtonFormField<String?>(
+                    key: ValueKey('actor-${selectedActor ?? 'all'}'),
+                    initialValue: selectedActor,
+                    isExpanded: true,
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                    decoration: _filterDecoration(),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Semua aktor'),
+                      ),
+                      ...actors.map(
+                        (actor) => DropdownMenuItem<String?>(
+                          value: actor,
+                          child: Text(
+                            actor,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: onActorChanged,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.subtitle,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _FilterField(
+                  label: 'Tipe event',
+                  child: DropdownButtonFormField<DistributorAuditEventType?>(
+                    key: ValueKey('type-${selectedType?.name ?? 'all'}'),
+                    initialValue: selectedType,
+                    isExpanded: true,
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                    decoration: _filterDecoration(),
+                    items: [
+                      const DropdownMenuItem<DistributorAuditEventType?>(
+                        value: null,
+                        child: Text('Semua tipe'),
+                      ),
+                      ...DistributorAuditEventType.values.map(
+                        (type) => DropdownMenuItem<DistributorAuditEventType?>(
+                          value: type,
+                          child: Text(
+                            type.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: onTypeChanged,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.subtitle,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Periode',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: AppColors.placeholder,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: _AuditPeriod.values.map((period) {
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: period == _AuditPeriod.last30Days ? 0 : 6,
+                  ),
+                  child: _PeriodButton(
+                    label: period.label,
+                    selected: selectedPeriod == period,
+                    onTap: () => onPeriodChanged(period),
+                  ),
                 ),
               );
             }).toList(),
@@ -401,21 +412,101 @@ class _AuditFilterPanel extends StatelessWidget {
   }
 }
 
-InputDecoration _filterDecoration(String label) {
+InputDecoration _filterDecoration() {
   return InputDecoration(
-    labelText: label,
     filled: true,
     fillColor: _pageBackground,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: const BorderSide(color: _borderColor),
+    ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
       borderSide: const BorderSide(color: _borderColor),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: AppColors.primaryContainer, width: 2),
+      borderSide: const BorderSide(
+        color: AppColors.primaryContainer,
+        width: 1.5,
+      ),
     ),
   );
+}
+
+class _FilterField extends StatelessWidget {
+  const _FilterField({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: AppColors.placeholder,
+          ),
+        ),
+        const SizedBox(height: 6),
+        child,
+      ],
+    );
+  }
+}
+
+class _PeriodButton extends StatelessWidget {
+  const _PeriodButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 34,
+      child: Material(
+        color: selected
+            ? AppColors.primaryContainer.withValues(alpha: 0.10)
+            : AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: selected ? AppColors.primary : _borderColor,
+              ),
+            ),
+            child: Text(
+              label,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: selected ? AppColors.primary : AppColors.subtitle,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _SectionHeader extends StatelessWidget {
@@ -447,15 +538,23 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _AuditEventCard extends StatelessWidget {
+class _AuditEventCard extends StatefulWidget {
   const _AuditEventCard({required this.event});
 
   final DistributorAuditEvent event;
 
   @override
+  State<_AuditEventCard> createState() => _AuditEventCardState();
+}
+
+class _AuditEventCardState extends State<_AuditEventCard> {
+  bool _showDetails = false;
+
+  @override
   Widget build(BuildContext context) {
+    final event = widget.event;
+    final color = _eventColor(event.type);
     return Container(
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(8),
@@ -464,67 +563,154 @@ class _AuditEventCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryContainer.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(8),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(event.type.icon, size: 21, color: color),
                 ),
-                child: Icon(
-                  event.type.icon,
-                  size: 21,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      event.action,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.black,
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              event.action,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                height: 1.3,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.black,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _TypeBadge(label: event.type.label, color: color),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      event.description,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        height: 1.35,
-                        color: AppColors.placeholder,
+                      const SizedBox(height: 4),
+                      Text(
+                        event.objectCode,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: color,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 7),
+                      Text(
+                        event.description,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          height: 1.4,
+                          color: AppColors.subtitle,
+                        ),
+                      ),
+                      const SizedBox(height: 11),
+                      _EventInfoLine(
+                        icon: Icons.schedule_outlined,
+                        value: _formatDateTime(event.occurredAt),
+                      ),
+                      const SizedBox(height: 6),
+                      _EventInfoLine(
+                        icon: Icons.person_outline_rounded,
+                        value: '${event.actorRole} - ${event.actorName}',
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              _TypeBadge(label: event.type.label),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const Divider(height: 1, color: _borderColor),
-          const SizedBox(height: 9),
-          _InfoRow(label: 'Aktor', value: event.actorName),
-          _InfoRow(label: 'Waktu', value: _formatDateTime(event.occurredAt)),
-          _InfoRow(label: 'Objek', value: event.objectCode),
-          if (event.metadata.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: event.metadata.entries.map((entry) {
-                return _MetadataChip(label: entry.key, value: entry.value);
-              }).toList(),
+              ],
             ),
-          ],
+          ),
+          if (event.metadata.isNotEmpty)
+            Container(
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: _borderColor)),
+              ),
+              child: Column(
+                children: [
+                  Material(
+                    color: const Color(0xFFF8F9F7),
+                    borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(8),
+                    ),
+                    child: InkWell(
+                      onTap: () {
+                        setState(() => _showDetails = !_showDetails);
+                      },
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(8),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.subject_rounded,
+                              size: 16,
+                              color: AppColors.placeholder,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Detail event (${event.metadata.length})',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.subtitle,
+                                ),
+                              ),
+                            ),
+                            AnimatedRotation(
+                              turns: _showDetails ? 0.5 : 0,
+                              duration: const Duration(milliseconds: 180),
+                              child: const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                size: 19,
+                                color: AppColors.placeholder,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_showDetails)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 13),
+                      color: const Color(0xFFF8F9F7),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: event.metadata.entries.map((entry) {
+                          return _MetadataChip(
+                            label: entry.key,
+                            value: entry.value,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -532,68 +718,72 @@ class _AuditEventCard extends StatelessWidget {
 }
 
 class _TypeBadge extends StatelessWidget {
-  const _TypeBadge({required this.label});
+  const _TypeBadge({required this.label, required this.color});
 
   final String label;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.primaryContainer.withValues(alpha: 0.10),
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w900,
-          color: AppColors.primary,
+          color: color,
         ),
       ),
     );
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
+class _EventInfoLine extends StatelessWidget {
+  const _EventInfoLine({required this.icon, required this.value});
 
-  final String label;
+  final IconData icon;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 58,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.placeholder,
-              ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 14, color: AppColors.placeholder),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 10,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+              color: AppColors.placeholder,
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: AppColors.subtitle,
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
+}
+
+Color _eventColor(DistributorAuditEventType type) {
+  return switch (type) {
+    DistributorAuditEventType.scan => const Color(0xFF2E7D32),
+    DistributorAuditEventType.acquisition => const Color(0xFF2563EB),
+    DistributorAuditEventType.receipt => const Color(0xFF0F766E),
+    DistributorAuditEventType.rejection => const Color(0xFFC83B3B),
+    DistributorAuditEventType.warehouse => const Color(0xFFB45309),
+    DistributorAuditEventType.transfer => const Color(0xFF475569),
+    DistributorAuditEventType.sale => const Color(0xFF7C3AED),
+    DistributorAuditEventType.profile => const Color(0xFF0369A1),
+    DistributorAuditEventType.session => const Color(0xFF64748B),
+  };
 }
 
 class _MetadataChip extends StatelessWidget {
@@ -605,6 +795,9 @@ class _MetadataChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width - 64,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: _pageBackground,

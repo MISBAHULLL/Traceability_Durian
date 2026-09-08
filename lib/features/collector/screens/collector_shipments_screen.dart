@@ -245,6 +245,13 @@ class _ShipmentCard extends StatelessWidget {
                       '${shipment.destinationName!.trim()}'
                 : shipment.destinationType.label,
           ),
+          if (shipment.destinationUserId?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            _BreakdownText(
+              title: 'ID Penerima',
+              text: shipment.destinationUserId!.trim(),
+            ),
+          ],
           if (shipment.destinationLocation?.trim().isNotEmpty == true) ...[
             const SizedBox(height: 10),
             _BreakdownText(

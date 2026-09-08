@@ -46,7 +46,7 @@ class _BatchTraceScreenState extends State<BatchTraceScreen> {
     final batch = _repo.findBatch(widget.batchCode);
 
     return Scaffold(
-      backgroundColor: _pageBackground,
+      backgroundColor: AppColors.homeHeaderSurface,
       body: SafeArea(
         child: Column(
           children: [
@@ -55,13 +55,16 @@ class _BatchTraceScreenState extends State<BatchTraceScreen> {
               child: AppTopBar(title: 'Trace Journey'),
             ),
             Expanded(
-              child: batch == null
-                  ? _TraceNotFound(batchCode: widget.batchCode)
-                  : _TraceContent(
-                      batch: batch,
-                      profileName: _repo.profile.fullName,
-                      events: _repo.eventsFor(batch.code),
-                    ),
+              child: ColoredBox(
+                color: _pageBackground,
+                child: batch == null
+                    ? _TraceNotFound(batchCode: widget.batchCode)
+                    : _TraceContent(
+                        batch: batch,
+                        profileName: _repo.profile.fullName,
+                        events: _repo.eventsFor(batch.code),
+                      ),
+              ),
             ),
           ],
         ),

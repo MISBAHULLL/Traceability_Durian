@@ -579,7 +579,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const AppTopBar(title: 'Verifikasi Batch'),
+            const AppTopBar(title: 'Verifikasi Penerimaan'),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -614,7 +614,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     const SizedBox(height: 24),
 
                     // ── Data Verifikasi Pengepul ─────────────────────────
-                    const _SectionLabel(label: 'Data Verifikasi'),
+                    const _SectionLabel(label: 'Pemeriksaan Penerimaan'),
                     const SizedBox(height: 8),
                     _WarehouseDropdown(
                       warehouses: _repo.warehouses,
@@ -739,7 +739,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    const _FieldLabel(label: 'Komposisi Grade Riil'),
+                    const _FieldLabel(label: 'Hasil Sortasi Awal'),
                     const SizedBox(height: 6),
                     _GradeCompositionInput(
                       grades: _gradeKeys,

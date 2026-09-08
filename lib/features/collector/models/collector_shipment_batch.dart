@@ -53,6 +53,7 @@ class CollectorShipmentBatch {
     required this.packagedAt,
     required this.status,
     this.destinationType = ShipmentDestinationType.distributor,
+    this.destinationUserId,
     this.destinationName,
     this.destinationLocation,
     this.warehouseNote,
@@ -71,6 +72,7 @@ class CollectorShipmentBatch {
   final DateTime packagedAt;
   final CollectorShipmentStatus status;
   final ShipmentDestinationType destinationType;
+  final String? destinationUserId;
   final String? destinationName;
   final String? destinationLocation;
   final String? warehouseNote;
@@ -83,6 +85,7 @@ class CollectorShipmentBatch {
   CollectorShipmentBatch copyWith({
     CollectorShipmentStatus? status,
     ShipmentDestinationType? destinationType,
+    String? destinationUserId,
     String? destinationName,
     String? destinationLocation,
     String? warehouseNote,
@@ -101,6 +104,7 @@ class CollectorShipmentBatch {
       packagedAt: packagedAt,
       status: status ?? this.status,
       destinationType: destinationType ?? this.destinationType,
+      destinationUserId: destinationUserId ?? this.destinationUserId,
       destinationName: destinationName ?? this.destinationName,
       destinationLocation: destinationLocation ?? this.destinationLocation,
       warehouseNote: warehouseNote ?? this.warehouseNote,
@@ -121,6 +125,7 @@ class CollectorShipmentBatch {
     'packagedAt': packagedAt.toIso8601String(),
     'status': status.name,
     'destinationType': destinationType.name,
+    'destinationUserId': destinationUserId,
     'destinationName': destinationName,
     'destinationLocation': destinationLocation,
     'warehouseNote': warehouseNote,
@@ -173,12 +178,28 @@ class CollectorShipmentBatch {
         (e) => e.name == backendString(json, const ['destinationType', 'destination_type']),
         orElse: () => ShipmentDestinationType.distributor,
       ),
+<<<<<<< HEAD
       destinationName: backendNullableString(json, const ['destinationName', 'destination_name']),
       destinationLocation: backendNullableString(json, const ['destinationLocation', 'destination_location']),
       warehouseNote: backendNullableString(json, const ['warehouseNote', 'warehouse_note']),
       sentAt: backendDateTime(json, const ['sentAt', 'sent_at']),
       completedAt: backendDateTime(json, const ['completedAt', 'completed_at']),
       rejectedAt: backendDateTime(json, const ['rejectedAt', 'rejected_at']),
+=======
+      destinationUserId: json['destinationUserId'] as String?,
+      destinationName: json['destinationName'] as String?,
+      destinationLocation: json['destinationLocation'] as String?,
+      warehouseNote: json['warehouseNote'] as String?,
+      sentAt: json['sentAt'] == null
+          ? null
+          : DateTime.parse(json['sentAt'] as String),
+      completedAt: json['completedAt'] == null
+          ? null
+          : DateTime.parse(json['completedAt'] as String),
+      rejectedAt: json['rejectedAt'] == null
+          ? null
+          : DateTime.parse(json['rejectedAt'] as String),
+>>>>>>> 37fe941842acd4ae68acc8c2f6bb7d39c457a4ae
     );
   }
 }

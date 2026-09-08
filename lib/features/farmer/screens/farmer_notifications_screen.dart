@@ -91,7 +91,9 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
     final notifications = _filteredNotifications;
 
     return Scaffold(
-      backgroundColor: _pageBackground,
+      // Warna scaffold mengisi area status bar di luar SafeArea sehingga
+      // header terlihat sebagai satu bidang sampai tepi atas layar.
+      backgroundColor: AppColors.homeHeaderSurface,
       body: SafeArea(
         child: Column(
           children: [
@@ -99,28 +101,45 @@ class _FarmerNotificationsScreenState extends State<FarmerNotificationsScreen> {
               color: AppColors.homeHeaderSurface,
               child: AppTopBar(title: 'Notifikasi'),
             ),
-            _FilterBar(
-              activeFilter: _activeFilter,
-              onChanged: (filter) => setState(() => _activeFilter = filter),
-            ),
             Expanded(
-              child: notifications.isEmpty
-                  ? const _EmptyNotifications()
-                  : ListView.separated(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                      itemCount: notifications.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final notification = notifications[index];
-                        return _NotificationCard(
-                          notification: notification,
-                          onOpenDetail: () =>
-                              _openDetail(notification.batchCode),
-                          onOpenTrace: () => _openTrace(notification.batchCode),
-                        );
-                      },
+              child: ColoredBox(
+                color: _pageBackground,
+                child: Column(
+                  children: [
+                    _FilterBar(
+                      activeFilter: _activeFilter,
+                      onChanged: (filter) =>
+                          setState(() => _activeFilter = filter),
                     ),
+                    Expanded(
+                      child: notifications.isEmpty
+                          ? const _EmptyNotifications()
+                          : ListView.separated(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                16,
+                                16,
+                                28,
+                              ),
+                              itemCount: notifications.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (context, index) {
+                                final notification = notifications[index];
+                                return _NotificationCard(
+                                  notification: notification,
+                                  onOpenDetail: () =>
+                                      _openDetail(notification.batchCode),
+                                  onOpenTrace: () =>
+                                      _openTrace(notification.batchCode),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),

@@ -148,7 +148,7 @@ class _DistributorActiveShipmentsScreenState
         child: Column(
           children: [
             AppTopBar(
-              title: 'Stok Masuk Aktif',
+              title: 'Penerimaan Stok',
               actions: [
                 IconButton(
                   onPressed: _openScanner,
@@ -186,7 +186,7 @@ class _DistributorActiveShipmentsScreenState
                         if (showReady && pending.isNotEmpty) ...[
                           const SizedBox(height: 20),
                           _SectionHeader(
-                            title: 'T1 Menunggu T2',
+                            title: 'Validasi Belum Selesai',
                             count: pending.length,
                           ),
                           const SizedBox(height: 9),
@@ -242,7 +242,7 @@ class _DistributorActiveShipmentsScreenState
                         if (showTransit && transit.isNotEmpty) ...[
                           const SizedBox(height: 20),
                           _SectionHeader(
-                            title: 'PGL Perlu Receipt',
+                            title: 'PGL Perlu Pemeriksaan',
                             count: transit.length,
                           ),
                           const SizedBox(height: 9),
@@ -292,11 +292,17 @@ class _QueueSummary extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _QueueMetric(label: 'Siap T2', value: '$readyCount'),
+                child: _QueueMetric(
+                  label: 'Perlu validasi',
+                  value: '$readyCount',
+                ),
               ),
               Container(width: 1, height: 38, color: const Color(0xFF8BCB70)),
               Expanded(
-                child: _QueueMetric(label: 'Receipt', value: '$transitCount'),
+                child: _QueueMetric(
+                  label: 'Perlu diperiksa',
+                  value: '$transitCount',
+                ),
               ),
             ],
           ),
@@ -390,13 +396,13 @@ class _StatusFilterBar extends StatelessWidget {
             onTap: () => onChanged(_ShipmentStatusFilter.all),
           ),
           _StatusFilterButton(
-            label: 'Siap T2',
+            label: 'Validasi',
             count: readyCount,
             selected: selected == _ShipmentStatusFilter.ready,
             onTap: () => onChanged(_ShipmentStatusFilter.ready),
           ),
           _StatusFilterButton(
-            label: 'Receipt',
+            label: 'Pemeriksaan',
             count: transitCount,
             selected: selected == _ShipmentStatusFilter.transit,
             onTap: () => onChanged(_ShipmentStatusFilter.transit),
@@ -694,7 +700,7 @@ class _FilteredEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final message = switch (filter) {
       _ShipmentStatusFilter.ready => 'Tidak ada stok yang perlu divalidasi.',
-      _ShipmentStatusFilter.transit => 'Tidak ada PGL yang perlu receipt.',
+      _ShipmentStatusFilter.transit => 'Tidak ada PGL yang perlu diperiksa.',
       _ShipmentStatusFilter.all => 'Tidak ada stok masuk aktif.',
     };
 
@@ -813,7 +819,7 @@ class _ActiveShipmentCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 _StateBadge(
-                  label: isReady ? 'Siap validasi' : 'Perlu receipt',
+                  label: isReady ? 'Siap validasi' : 'Perlu diperiksa',
                   color: statusColor,
                 ),
               ],

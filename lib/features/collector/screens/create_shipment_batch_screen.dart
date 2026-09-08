@@ -7,6 +7,7 @@ import '../../../shared/widgets/top_notification_banner.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../data/collector_repository.dart';
 import '../models/collector_shipment_batch.dart';
+import '../models/shipment_recipient.dart';
 
 // [FE - Component Rendering] Screen ini menjadi form agregasi stok pengepul
 // menjadi batch pengiriman baru tanpa menyentuh backend/blockchain.
@@ -20,12 +21,11 @@ class CreateShipmentBatchScreen extends StatefulWidget {
 
 class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
   final _repo = CollectorRepository.instance;
-  final _destinationNameCtrl = TextEditingController();
-  final _destinationLocationCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   final _notification = TopNotification();
   final Set<String> _selectedCodes = {};
   ShipmentDestinationType? _destinationType;
+  ShipmentRecipient? _selectedRecipient;
   bool _isSubmitting = false;
 
   @override
@@ -38,8 +38,6 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
   void dispose() {
     _repo.removeListener(_onRepoChanged);
     _notification.dispose();
-    _destinationNameCtrl.dispose();
-    _destinationLocationCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
   }
@@ -77,16 +75,13 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
       _notification.show(context, 'Pilih tujuan pengiriman.', isError: true);
       return;
     }
-    if (_destinationNameCtrl.text.trim().isEmpty) {
+    final recipient = _selectedRecipient;
+    if (recipient == null) {
       _notification.show(
         context,
-        'Nama pihak tujuan wajib diisi.',
+        'Pilih akun penerima yang sudah terdaftar.',
         isError: true,
       );
-      return;
-    }
-    if (_destinationLocationCtrl.text.trim().isEmpty) {
-      _notification.show(context, 'Lokasi tujuan wajib diisi.', isError: true);
       return;
     }
 
@@ -97,8 +92,9 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
     final shipment = _repo.createShipmentBatch(
       sourceBatchCodes: _selectedCodes.toList(),
       destinationType: destinationType,
-      destinationName: _destinationNameCtrl.text,
-      destinationLocation: _destinationLocationCtrl.text,
+      destinationUserId: recipient.userId,
+      destinationName: recipient.name,
+      destinationLocation: recipient.address,
       warehouseNote: _noteCtrl.text,
     );
 
@@ -154,21 +150,21 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
                         _DestinationSelector(
                           selected: _destinationType,
                           onChanged: (value) {
-                            setState(() => _destinationType = value);
+                            setState(() {
+                              _destinationType = value;
+                              _selectedRecipient = null;
+                            });
                           },
                         ),
                         const SizedBox(height: 18),
                         const _SectionTitle(title: 'Detail Tujuan'),
                         const SizedBox(height: 8),
-                        _ShipmentTextField(
-                          controller: _destinationNameCtrl,
-                          hintText: 'Nama pihak tujuan',
-                        ),
-                        const SizedBox(height: 10),
-                        _ShipmentTextField(
-                          controller: _destinationLocationCtrl,
-                          hintText: 'Lokasi/alamat tujuan spesifik',
-                          maxLines: 2,
+                        _DestinationDetailPanel(
+                          destinationType: _destinationType,
+                          selected: _selectedRecipient,
+                          onChanged: (recipient) {
+                            setState(() => _selectedRecipient = recipient);
+                          },
                         ),
                         const SizedBox(height: 18),
                         const _SectionTitle(title: 'Catatan Kondisi Gudang'),
@@ -241,39 +237,390 @@ class _EmptyAvailableBatch extends StatelessWidget {
   }
 }
 
-class _ShipmentTextField extends StatelessWidget {
-  const _ShipmentTextField({
-    required this.controller,
-    required this.hintText,
-    this.maxLines = 1,
+class _DestinationDetailPanel extends StatelessWidget {
+  const _DestinationDetailPanel({
+    required this.destinationType,
+    required this.selected,
+    required this.onChanged,
   });
 
-  final TextEditingController controller;
-  final String hintText;
-  final int maxLines;
+  final ShipmentDestinationType? destinationType;
+  final ShipmentRecipient? selected;
+  final ValueChanged<ShipmentRecipient?> onChanged;
+
+  Future<void> _selectRecipient(BuildContext context) async {
+    final type = destinationType;
+    if (type == null) return;
+    final recipients = ShipmentRecipientDirectory.forDestination(type);
+    final result = await showModalBottomSheet<ShipmentRecipient>(
+      context: context,
+      backgroundColor: AppColors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => _RecipientPickerSheet(
+        destinationType: type,
+        recipients: recipients,
+        selected: selected,
+      ),
+    );
+    if (result != null) onChanged(result);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        hintText: hintText,
-        filled: true,
-        fillColor: AppColors.surface,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+    final type = destinationType;
+    if (type == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F8F6),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        child: const Row(
+          children: [
+            _DestinationIcon(
+              icon: Icons.person_search_outlined,
+              isActive: false,
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Belum ada jenis tujuan',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.subtitle,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Pilih tujuan pengiriman di atas',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: AppColors.primaryContainer,
-            width: 2,
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: selected == null
+              ? const Color(0xFFDDE2DB)
+              : AppColors.primaryContainer.withValues(alpha: 0.55),
+        ),
+      ),
+      child: Column(
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _selectRecipient(context),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(8),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    _DestinationIcon(
+                      icon: Icons.account_circle_outlined,
+                      isActive: selected != null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Akun ${type.label}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.placeholder,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            selected?.name ?? 'Pilih akun penerima',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: selected == null
+                                  ? AppColors.subtitle
+                                  : AppColors.black,
+                            ),
+                          ),
+                          if (selected != null) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              'ID ${selected!.userId}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.placeholder,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          _RecipientAddressRow(recipient: selected),
+        ],
+      ),
+    );
+  }
+}
+
+class _DestinationIcon extends StatelessWidget {
+  const _DestinationIcon({required this.icon, required this.isActive});
+
+  final IconData icon;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: isActive
+            ? AppColors.primaryContainer.withValues(alpha: 0.12)
+            : const Color(0xFFEEF1ED),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      alignment: Alignment.center,
+      child: Icon(
+        icon,
+        size: 21,
+        color: isActive ? AppColors.primary : AppColors.placeholder,
+      ),
+    );
+  }
+}
+
+class _RecipientAddressRow extends StatelessWidget {
+  const _RecipientAddressRow({required this.recipient});
+
+  final ShipmentRecipient? recipient;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.location_on_outlined,
+            size: 20,
+            color: AppColors.placeholder,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Alamat terdaftar',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.placeholder,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  recipient?.address ?? 'Alamat tampil setelah akun dipilih',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.45,
+                    fontWeight: recipient == null
+                        ? FontWeight.w400
+                        : FontWeight.w600,
+                    color: recipient == null
+                        ? AppColors.placeholder
+                        : AppColors.subtitle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (recipient != null) ...[
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.lock_outline_rounded,
+              size: 16,
+              color: AppColors.placeholder,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RecipientPickerSheet extends StatelessWidget {
+  const _RecipientPickerSheet({
+    required this.destinationType,
+    required this.recipients,
+    required this.selected,
+  });
+
+  final ShipmentDestinationType destinationType;
+  final List<ShipmentRecipient> recipients;
+  final ShipmentRecipient? selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD1D5DB),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Pilih Akun ${destinationType.label}',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: AppColors.black,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Akun terdaftar sebagai penerima pengiriman',
+              style: TextStyle(fontSize: 12, color: AppColors.placeholder),
+            ),
+            const SizedBox(height: 16),
+            ...recipients.map(
+              (recipient) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _RecipientOption(
+                  recipient: recipient,
+                  selected: selected?.userId == recipient.userId,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecipientOption extends StatelessWidget {
+  const _RecipientOption({required this.recipient, required this.selected});
+
+  final ShipmentRecipient recipient;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? AppColors.primaryContainer.withValues(alpha: 0.08)
+          : AppColors.white,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: () => Navigator.pop(context, recipient),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected
+                  ? AppColors.primaryContainer
+                  : const Color(0xFFE5E7EB),
+            ),
+          ),
+          child: Row(
+            children: [
+              _DestinationIcon(
+                icon: Icons.business_outlined,
+                isActive: selected,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      recipient.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${recipient.userId}  |  ${recipient.address}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        height: 1.35,
+                        color: AppColors.placeholder,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.chevron_right_rounded,
+                size: 21,
+                color: selected ? AppColors.primary : AppColors.placeholder,
+              ),
+            ],
           ),
         ),
       ),

@@ -198,7 +198,6 @@ class _BatchDetailContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final profile = repo.profile;
     final events = repo.eventsFor(batch.code);
-    final farm = repo.findFarm(batch.farmId);
     final canEdit = repo.canEditBatch(batch.code);
 
     return SingleChildScrollView(
@@ -207,34 +206,22 @@ class _BatchDetailContent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Foto Durian (bila ada) ─────────────────────────────────────────
-          if (batch.photoPath != null && batch.photoPath!.isNotEmpty) ...[
-            BatchPhoto(
-              path: batch.photoPath,
-              width: double.infinity,
-              height: 200,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            const SizedBox(height: 16),
-          ],
-
           // ── Profil Petani (Req 3.2) ────────────────────────────────────────
           _FarmerProfileSection(profile: profile),
           const SizedBox(height: 16),
 
           // ── Peta Lokasi Kebun (Req 3.3) ───────────────────────────────────
-          _FarmMapCard(farm: farm),
+          _BatchProductSummaryCard(batch: batch),
           const SizedBox(height: 16),
 
           // ── Kode Batch (Req 3.4) ───────────────────────────────────────────
           _BatchCodeRow(code: batch.code),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          PrimaryPillButton(label: 'LIHAT QR CODE', onPressed: onOpenQr),
+          const SizedBox(height: 18),
 
           // ── Informasi Produk (Req 3.4) ─────────────────────────────────────
-          _ProductInfoCard(batch: batch),
-          const SizedBox(height: 16),
           // ── Badge Status (Req 3.5) ─────────────────────────────────────────
-          _StatusSection(status: batch.status),
-          const SizedBox(height: 16),
 
           // [FE - Component Rendering] Kartu penolakan hanya muncul saat
           // batch rejected agar petani mendapat konteks bisnisnya.
@@ -266,8 +253,6 @@ class _BatchDetailContent extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          PrimaryPillButton(label: 'LIHAT QR CODE', onPressed: onOpenQr),
 
           // ── Aksi Ubah Data — selama jendela koreksi terbuka (Req 3.8) ────
           // Tampil bila batch masih dapat diubah (DRAFT, atau CREATED dalam
@@ -409,6 +394,336 @@ class _FarmerProfileSection extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Peta Lokasi Kebun (Req 3.3)
 // ─────────────────────────────────────────────────────────────────────────────
+
+class _BatchProductSummaryCard extends StatefulWidget {
+  const _BatchProductSummaryCard({required this.batch});
+
+  final HarvestBatch batch;
+
+  @override
+  State<_BatchProductSummaryCard> createState() =>
+      _BatchProductSummaryCardState();
+}
+
+class _BatchProductSummaryCardState extends State<_BatchProductSummaryCard> {
+  bool _isExpanded = false;
+
+  HarvestBatch get batch => widget.batch;
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  String _formatWeight(double value) {
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+  }
+
+  String _formatDateTime(DateTime date) {
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '${_formatDate(date)}, $hour:$minute';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final createdAt = batch.createdAt ?? batch.harvestDate;
+    final maturity = batch.maturityLevel?.trim();
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeInOutCubic,
+      alignment: Alignment.topCenter,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE1E6DF)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => setState(() => _isExpanded = !_isExpanded),
+                child: SizedBox(
+                  height: 132,
+                  child: Row(
+                    children: [
+                      BatchPhoto(
+                        path: batch.photoPath,
+                        width: 120,
+                        height: 132,
+                        borderRadius: BorderRadius.zero,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(0, 12, 10, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Durian ${batch.variety}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.black,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: batch.status.background,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      batch.status.label,
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        color: batch.status.color,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Dibuat ${_formatDate(createdAt)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.placeholder,
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                '${_formatWeight(batch.quantity)} ${batch.unit} | ${batch.fruitCount ?? 0} butir',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.subtitle,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                maturity == null || maturity.isEmpty
+                                    ? 'Grade ${batch.grade}'
+                                    : 'Grade ${batch.grade} | $maturity',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.subtitle,
+                                ),
+                              ),
+                              const Spacer(),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.landscape_outlined,
+                                    size: 13,
+                                    color: AppColors.primary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      batch.farmName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.placeholder,
+                                      ),
+                                    ),
+                                  ),
+                                  AnimatedRotation(
+                                    turns: _isExpanded ? 0.5 : 0,
+                                    duration: const Duration(milliseconds: 220),
+                                    child: const Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      size: 20,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (_isExpanded) ...[
+              const Divider(height: 1, color: Color(0xFFE5E7EB)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+                child: _ExpandedBatchInformation(
+                  batch: batch,
+                  formatDate: _formatDate,
+                  formatDateTime: _formatDateTime,
+                  formatWeight: _formatWeight,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExpandedBatchInformation extends StatelessWidget {
+  const _ExpandedBatchInformation({
+    required this.batch,
+    required this.formatDate,
+    required this.formatDateTime,
+    required this.formatWeight,
+  });
+
+  final HarvestBatch batch;
+  final String Function(DateTime) formatDate;
+  final String Function(DateTime) formatDateTime;
+  final String Function(double) formatWeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[
+      _BatchDetailRow(label: 'Kode Batch', value: batch.code),
+      _BatchDetailRow(
+        label: 'Tanggal Panen',
+        value: formatDate(batch.harvestDate),
+      ),
+      _BatchDetailRow(label: 'Varietas', value: batch.variety),
+      _BatchDetailRow(
+        label: 'Jumlah Awal',
+        value:
+            '${formatWeight(batch.quantity)} ${batch.unit} / ${batch.fruitCount ?? 0} butir',
+      ),
+      _BatchDetailRow(label: 'Grade Awal', value: 'Grade ${batch.grade}'),
+      if (batch.maturityLevel?.isNotEmpty ?? false)
+        _BatchDetailRow(label: 'Kematangan', value: batch.maturityLevel!),
+      if (batch.shelfLifeEstimate?.isNotEmpty ?? false)
+        _BatchDetailRow(
+          label: 'Estimasi Masa Simpan',
+          value: batch.shelfLifeEstimate!,
+        ),
+      if (batch.harvestMethod?.isNotEmpty ?? false)
+        _BatchDetailRow(label: 'Metode Panen', value: batch.harvestMethod!),
+      if (batch.storageSuggestion?.isNotEmpty ?? false)
+        _BatchDetailRow(
+          label: 'Saran Penyimpanan',
+          value: batch.storageSuggestion!,
+        ),
+      if (batch.verifiedGrade?.isNotEmpty ?? false)
+        _BatchDetailRow(
+          label: 'Grade Penerima',
+          value: 'Grade ${batch.verifiedGrade}',
+        ),
+      if (batch.receivedQuantity != null)
+        _BatchDetailRow(
+          label: 'Jumlah Diterima',
+          value:
+              '${formatWeight(batch.receivedQuantity!)} ${batch.unit} / ${batch.receivedFruitCount ?? 0} butir',
+        ),
+      if (batch.verifiedBy?.isNotEmpty ?? false)
+        _BatchDetailRow(label: 'Diverifikasi Oleh', value: batch.verifiedBy!),
+      if (batch.verifiedAt != null)
+        _BatchDetailRow(
+          label: 'Waktu Verifikasi',
+          value: formatDateTime(batch.verifiedAt!),
+        ),
+      if (batch.gradeBreakdown.isNotEmpty)
+        _BatchDetailRow(
+          label: 'Komposisi Grade',
+          value: batch.gradeBreakdown
+              .map((item) {
+                return '${item.grade}: ${formatWeight(item.weightKg)} kg / ${item.fruitCount} butir';
+              })
+              .join('\n'),
+        ),
+      if (batch.notes?.isNotEmpty ?? false)
+        _BatchDetailRow(label: 'Catatan', value: batch.notes!),
+      if (batch.qualityNotes?.isNotEmpty ?? false)
+        _BatchDetailRow(label: 'Catatan Sortir', value: batch.qualityNotes!),
+    ];
+
+    return Column(children: rows);
+  }
+}
+
+class _BatchDetailRow extends StatelessWidget {
+  const _BatchDetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 116,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.placeholder,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 11,
+                height: 1.35,
+                fontWeight: FontWeight.w700,
+                color: AppColors.black,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _FarmMapCard extends StatefulWidget {
   const _FarmMapCard({required this.farm});
@@ -617,6 +932,8 @@ class _BatchCodeRow extends StatelessWidget {
 // Kartu Informasi Produk (Req 3.4)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Dipertahankan sementara untuk kompatibilitas desain detail lama.
+// ignore: unused_element
 class _ProductInfoCard extends StatelessWidget {
   const _ProductInfoCard({required this.batch});
 
@@ -881,6 +1198,8 @@ class _InfoRow extends StatelessWidget {
 // Seksi Badge Status (Req 3.5)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Dipertahankan sementara untuk kompatibilitas desain detail lama.
+// ignore: unused_element
 class _StatusSection extends StatelessWidget {
   const _StatusSection({required this.status});
 

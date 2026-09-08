@@ -118,7 +118,7 @@ class _AdvancedGradingScreenState extends State<AdvancedGradingScreen> {
     if (activeBreakdown.isEmpty) {
       _notification.show(
         context,
-        'Isi minimal satu pecahan grade lanjutan.',
+        'Isi minimal satu hasil sortir ulang.',
         isError: true,
       );
       return;
@@ -173,13 +173,13 @@ class _AdvancedGradingScreenState extends State<AdvancedGradingScreen> {
     if (!ok) {
       _notification.show(
         context,
-        'Grading lanjutan gagal disimpan. Pastikan batch masih aktif.',
+        'Sortir ulang gagal disimpan. Pastikan batch masih aktif.',
         isError: true,
       );
       return;
     }
 
-    _notification.show(context, 'Grading lanjutan berhasil disimpan.');
+    _notification.show(context, 'Hasil sortir ulang berhasil disimpan.');
     await Future.delayed(const Duration(milliseconds: 700));
     if (!mounted) return;
     Navigator.pop(context, true);
@@ -201,7 +201,7 @@ class _AdvancedGradingScreenState extends State<AdvancedGradingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const AppTopBar(title: 'Grading Lanjutan'),
+            const AppTopBar(title: 'Sortir Ulang Stok'),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -215,18 +215,28 @@ class _AdvancedGradingScreenState extends State<AdvancedGradingScreen> {
                     totalFruit: totalFruit,
                     formatWeight: _formatWeight,
                   ),
-                  const SizedBox(height: 12),
-                  ..._grades.map((grade) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _GradeInputRow(
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Pemecahan Stok per Grade',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _GradeInputPanel(
+                    rows: List.generate(_grades.length, (index) {
+                      final grade = _grades[index];
+                      return _GradeInputRow(
                         grade: grade,
                         weightCtrl: _weightCtrls[grade]!,
                         fruitCtrl: _fruitCtrls[grade]!,
                         onChanged: () => setState(() {}),
-                      ),
-                    );
-                  }),
+                        isLast: index == _grades.length - 1,
+                      );
+                    }),
+                  ),
                 ],
               ),
             ),
@@ -239,7 +249,7 @@ class _AdvancedGradingScreenState extends State<AdvancedGradingScreen> {
                   border: Border(top: BorderSide(color: _borderColor)),
                 ),
                 child: PrimaryPillButton(
-                  label: 'SIMPAN GRADING',
+                  label: 'SIMPAN HASIL SORTIR',
                   isLoading: _isSubmitting,
                   onPressed: _handleSubmit,
                 ),
@@ -349,6 +359,7 @@ class _BalanceSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final weightOk = (totalWeight - targetWeight).abs() <= 0.01;
     final fruitOk = totalFruit == targetFruit;
+    final isBalanced = weightOk && fruitOk;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -357,24 +368,63 @@ class _BalanceSummary extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: _borderColor),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: _BalanceItem(
-              label: 'Berat',
-              value:
-                  '${formatWeight(totalWeight)} / '
-                  '${formatWeight(targetWeight)} kg',
-              isValid: weightOk,
-            ),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Keseimbangan Stok',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.black,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isBalanced
+                      ? AppColors.primary.withValues(alpha: 0.10)
+                      : const Color(0xFFFFF2E8),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  isBalanced ? 'Sesuai' : 'Belum sesuai',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: isBalanced
+                        ? AppColors.primary
+                        : const Color(0xFFC2410C),
+                  ),
+                ),
+              ),
+            ],
           ),
-          Container(width: 1, height: 34, color: _borderColor),
-          Expanded(
-            child: _BalanceItem(
-              label: 'Jumlah',
-              value: '$totalFruit / $targetFruit butir',
-              isValid: fruitOk,
-            ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _BalanceItem(
+                  label: 'Total berat',
+                  value:
+                      '${formatWeight(totalWeight)} / '
+                      '${formatWeight(targetWeight)} kg',
+                  isValid: weightOk,
+                ),
+              ),
+              Container(width: 1, height: 34, color: _borderColor),
+              Expanded(
+                child: _BalanceItem(
+                  label: 'Total buah',
+                  value: '$totalFruit / $targetFruit butir',
+                  isValid: fruitOk,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -437,44 +487,115 @@ class _BalanceItem extends StatelessWidget {
   }
 }
 
+class _GradeInputPanel extends StatelessWidget {
+  const _GradeInputPanel({required this.rows});
+
+  final List<Widget> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _borderColor),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Container(
+            color: const Color(0xFFF1F5F0),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: const Row(
+              children: [
+                SizedBox(
+                  width: 52,
+                  child: Text(
+                    'Grade',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.subtitle,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Berat',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.subtitle,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Jumlah',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.subtitle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ...rows,
+        ],
+      ),
+    );
+  }
+}
+
 class _GradeInputRow extends StatelessWidget {
   const _GradeInputRow({
     required this.grade,
     required this.weightCtrl,
     required this.fruitCtrl,
     required this.onChanged,
+    required this.isLast,
   });
 
   final String grade;
   final TextEditingController weightCtrl;
   final TextEditingController fruitCtrl;
   final VoidCallback onChanged;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
+    final isRejected = grade.toLowerCase() == 'reject';
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _borderColor),
+        color: isRejected ? const Color(0xFFFFFAF7) : AppColors.white,
+        border: isLast
+            ? null
+            : const Border(bottom: BorderSide(color: _borderColor)),
       ),
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 52,
+            height: 40,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: _mutedSurface,
+              color: isRejected
+                  ? const Color(0xFFFFE8DC)
+                  : AppColors.primary.withValues(alpha: 0.09),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               grade,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w900,
-                color: AppColors.primary,
+                color: isRejected ? const Color(0xFFC2410C) : AppColors.primary,
               ),
             ),
           ),
@@ -485,12 +606,9 @@ class _GradeInputRow extends StatelessWidget {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              textAlign: TextAlign.right,
               onChanged: (_) => onChanged(),
-              decoration: const InputDecoration(
-                labelText: 'kg',
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
+              decoration: _gradeInputDecoration(unit: 'kg'),
             ),
           ),
           const SizedBox(width: 8),
@@ -498,15 +616,37 @@ class _GradeInputRow extends StatelessWidget {
             child: TextField(
               controller: fruitCtrl,
               keyboardType: TextInputType.number,
+              textAlign: TextAlign.right,
               onChanged: (_) => onChanged(),
-              decoration: const InputDecoration(
-                labelText: 'butir',
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
+              decoration: _gradeInputDecoration(unit: 'butir'),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  InputDecoration _gradeInputDecoration({required String unit}) {
+    return InputDecoration(
+      hintText: '0',
+      suffixText: unit,
+      hintStyle: const TextStyle(color: AppColors.placeholder),
+      suffixStyle: const TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        color: AppColors.placeholder,
+      ),
+      filled: true,
+      fillColor: _mutedSurface,
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 13),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: _borderColor),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
       ),
     );
   }

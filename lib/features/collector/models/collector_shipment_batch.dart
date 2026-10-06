@@ -178,14 +178,6 @@ class CollectorShipmentBatch {
         (e) => e.name == backendString(json, const ['destinationType', 'destination_type']),
         orElse: () => ShipmentDestinationType.distributor,
       ),
-<<<<<<< HEAD
-      destinationName: backendNullableString(json, const ['destinationName', 'destination_name']),
-      destinationLocation: backendNullableString(json, const ['destinationLocation', 'destination_location']),
-      warehouseNote: backendNullableString(json, const ['warehouseNote', 'warehouse_note']),
-      sentAt: backendDateTime(json, const ['sentAt', 'sent_at']),
-      completedAt: backendDateTime(json, const ['completedAt', 'completed_at']),
-      rejectedAt: backendDateTime(json, const ['rejectedAt', 'rejected_at']),
-=======
       destinationUserId: json['destinationUserId'] as String?,
       destinationName: json['destinationName'] as String?,
       destinationLocation: json['destinationLocation'] as String?,
@@ -199,7 +191,6 @@ class CollectorShipmentBatch {
       rejectedAt: json['rejectedAt'] == null
           ? null
           : DateTime.parse(json['rejectedAt'] as String),
->>>>>>> 37fe941842acd4ae68acc8c2f6bb7d39c457a4ae
     );
   }
 }

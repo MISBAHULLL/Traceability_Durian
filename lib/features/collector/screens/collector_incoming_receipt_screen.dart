@@ -131,7 +131,7 @@ class _CollectorIncomingReceiptScreenState
     await Future.delayed(const Duration(milliseconds: 350));
     if (!mounted) return;
 
-    final receipt = _repo.receiveIncomingCollectorShipment(
+    final receipt = await _repo.receiveIncomingCollectorShipment(
       code: shipment.code,
       receivedWeightKg: weight,
       receivedFruitCount: fruit,

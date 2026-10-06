@@ -56,6 +56,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
   final _lastNameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
+  final _villageCtrl = TextEditingController();
+  final _districtCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
+  final _provinceCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
 
@@ -64,6 +68,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
   final _lastNameFocus = FocusNode();
   final _phoneFocus = FocusNode();
   final _emailFocus = FocusNode();
+  final _villageFocus = FocusNode();
+  final _districtFocus = FocusNode();
+  final _cityFocus = FocusNode();
+  final _provinceFocus = FocusNode();
   final _passwordFocus = FocusNode();
   final _confirmPasswordFocus = FocusNode();
 
@@ -75,6 +83,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
   String? _emailError;
   String? _passwordError;
   String? _confirmPasswordError;
+  bool _addressError = false;
   bool _showPasswordRequirements = false;
 
   late final AnimationController _animController;
@@ -122,12 +131,20 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     _lastNameCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
+    _villageCtrl.dispose();
+    _districtCtrl.dispose();
+    _cityCtrl.dispose();
+    _provinceCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
     _firstNameFocus.dispose();
     _lastNameFocus.dispose();
     _phoneFocus.dispose();
     _emailFocus.dispose();
+    _villageFocus.dispose();
+    _districtFocus.dispose();
+    _cityFocus.dispose();
+    _provinceFocus.dispose();
     _passwordFocus.dispose();
     _confirmPasswordFocus.dispose();
     super.dispose();
@@ -205,6 +222,19 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     _setControllerText(_emailCtrl, email);
     if (_emailError != null) {
       setState(() => _emailError = _emailValidationError(email));
+    }
+  }
+
+  void _handleAddressChanged() {
+    if (!_addressError) return;
+    final hasMissingAddressPart = [
+      _villageCtrl.text,
+      _districtCtrl.text,
+      _cityCtrl.text,
+      _provinceCtrl.text,
+    ].any((value) => value.trim().isEmpty);
+    if (_addressError != hasMissingAddressPart) {
+      setState(() => _addressError = hasMissingAddressPart);
     }
   }
 
@@ -325,6 +355,12 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
       _confirmPasswordCtrl.text,
       password,
     );
+    final addressError = [
+      _villageCtrl.text,
+      _districtCtrl.text,
+      _cityCtrl.text,
+      _provinceCtrl.text,
+    ].any((value) => value.trim().isEmpty);
 
     setState(() {
       _firstNameError = firstNameError;
@@ -333,6 +369,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
       _emailError = emailError;
       _passwordError = passwordError;
       _confirmPasswordError = confirmPasswordError;
+      _addressError = addressError;
       _showPasswordRequirements =
           _showPasswordRequirements ||
           passwordError != null ||
@@ -346,6 +383,7 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
       emailError,
       passwordError,
       confirmPasswordError,
+      addressError ? 'Alamat wajib diisi.' : null,
     ].every((error) => error == null);
   }
 
@@ -377,6 +415,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     final email = _normalizeEmail(_emailCtrl.text);
     final password = _passwordCtrl.text;
     final confirmPassword = _confirmPasswordCtrl.text;
+    final village = _villageCtrl.text.trim();
+    final district = _districtCtrl.text.trim();
+    final city = _cityCtrl.text.trim();
+    final province = _provinceCtrl.text.trim();
 
     if (password != confirmPassword) {
       _showTopNotification(
@@ -397,6 +439,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
         password: password,
         passwordConfirmation: confirmPassword,
         role: widget.role,
+        village: village,
+        district: district,
+        city: city,
+        province: province,
       );
 
       if (!mounted) return;
@@ -456,6 +502,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
     final lastName = _lastNameCtrl.text.trim();
     final phone = _normalizeIndonesianPhone(_phoneCtrl.text);
     final email = _normalizeEmail(_emailCtrl.text);
+    final village = _villageCtrl.text.trim();
+    final district = _districtCtrl.text.trim();
+    final city = _cityCtrl.text.trim();
+    final province = _provinceCtrl.text.trim();
     setState(() => _isLoading = true);
 
     // Simulasi delay — ganti dengan API call saat BE siap
@@ -484,6 +534,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
         lastName: lastName,
         phone: phone,
         email: email,
+        village: village,
+        district: district,
+        city: city,
+        province: province,
       );
       destination = const FarmerHomeScreen();
     } else if (widget.role == 'pengepul') {
@@ -494,6 +548,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
         lastName: lastName,
         phone: phone,
         email: email,
+        village: village,
+        district: district,
+        city: city,
+        province: province,
       );
       destination = const CollectorHomeScreen();
     } else if (widget.role == 'distributor') {
@@ -504,6 +562,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
         lastName: lastName,
         phone: phone,
         email: email,
+        village: village,
+        district: district,
+        city: city,
+        province: province,
       );
       destination = const DistributorHomeScreen();
     } else if (widget.role == 'umkm') {
@@ -519,6 +581,10 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
         lastName: lastName,
         phone: phone,
         email: email,
+        village: village,
+        district: district,
+        city: city,
+        province: province,
       );
       destination = const ConsumerHomeScreen();
     }
@@ -750,6 +816,71 @@ class _RegisterFormScreenState extends State<RegisterFormScreen>
                             ),
                           _InlineFieldMessage(
                             message: _phoneError,
+                            isError: true,
+                          ),
+                          const SizedBox(height: 18),
+
+                          _SectionLabel(label: 'Alamat'),
+                          const SizedBox(height: 8),
+                          _FormField(
+                            hasError: _addressError,
+                            controller: _villageCtrl,
+                            focusNode: _villageFocus,
+                            hintText: 'Desa/Kelurahan',
+                            prefixIcon: Icons.location_on_outlined,
+                            textInputAction: TextInputAction.next,
+                            textCapitalization: TextCapitalization.words,
+                            onChanged: (_) => _handleAddressChanged(),
+                            onSubmitted: (_) => FocusScope.of(
+                              context,
+                            ).requestFocus(_districtFocus),
+                          ),
+                          const SizedBox(height: 10),
+                          _FormField(
+                            hasError: _addressError,
+                            controller: _districtCtrl,
+                            focusNode: _districtFocus,
+                            hintText: 'Kecamatan',
+                            prefixIcon: Icons.location_on_outlined,
+                            textInputAction: TextInputAction.next,
+                            textCapitalization: TextCapitalization.words,
+                            onChanged: (_) => _handleAddressChanged(),
+                            onSubmitted: (_) => FocusScope.of(
+                              context,
+                            ).requestFocus(_cityFocus),
+                          ),
+                          const SizedBox(height: 10),
+                          _FormField(
+                            hasError: _addressError,
+                            controller: _cityCtrl,
+                            focusNode: _cityFocus,
+                            hintText: 'Kabupaten/Kota',
+                            prefixIcon: Icons.location_on_outlined,
+                            textInputAction: TextInputAction.next,
+                            textCapitalization: TextCapitalization.words,
+                            onChanged: (_) => _handleAddressChanged(),
+                            onSubmitted: (_) => FocusScope.of(
+                              context,
+                            ).requestFocus(_provinceFocus),
+                          ),
+                          const SizedBox(height: 10),
+                          _FormField(
+                            hasError: _addressError,
+                            controller: _provinceCtrl,
+                            focusNode: _provinceFocus,
+                            hintText: 'Provinsi',
+                            prefixIcon: Icons.location_on_outlined,
+                            textInputAction: TextInputAction.next,
+                            textCapitalization: TextCapitalization.words,
+                            onChanged: (_) => _handleAddressChanged(),
+                            onSubmitted: (_) => FocusScope.of(
+                              context,
+                            ).requestFocus(_emailFocus),
+                          ),
+                          _InlineFieldMessage(
+                            message: _addressError
+                                ? 'Kelurahan/desa, kecamatan, kabupaten/kota, dan provinsi wajib diisi.'
+                                : null,
                             isError: true,
                           ),
                           const SizedBox(height: 18),

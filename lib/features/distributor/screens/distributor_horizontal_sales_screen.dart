@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../../../core/network/backend_api_client.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../farmer/models/batch_recipient.dart';
+import '../../farmer/models/harvest_batch.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/primary_pill_button.dart';
 import '../../../shared/widgets/top_notification_banner.dart';
 import '../data/distributor_repository.dart';
 import '../models/distributor_horizontal_sale.dart';
 import '../models/distributor_receipt.dart';
-import '../models/distributor_warehouse.dart';
 
 const _pageBackground = Color(0xFFF4F6F3);
 const _borderColor = Color(0xFFE1E6DF);
@@ -52,38 +53,27 @@ class _DistributorHorizontalSalesScreenState
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       builder: (_) => _SaleFormSheet(
-        warehouses: _repo.warehouses,
-        partners: _repo.distributorPartners,
-        defaultItemCode: _defaultItemCode(),
+        inventory: _repo.saleInventoryBatches,
+        recipients: _repo.saleRecipients,
       ),
     );
     if (result == null) return;
 
-    final sale = _repo.initiateHorizontalSale(
-      buyerDistributorId: result.buyerDistributorId,
-      sourceWarehouseId: result.sourceWarehouseId,
-      itemCode: result.itemCode,
-      expectedWeightKg: result.expectedWeightKg,
-      expectedFruitCount: result.expectedFruitCount,
-      destinationLocation: result.destinationLocation,
-      qualityNote: result.note,
-    );
-    if (!mounted) return;
-    _notification.show(
-      context,
-      sale == null
-          ? 'T1 jual distributor gagal dibuat. Periksa data wajib.'
-          : 'T1 ${sale.id} berhasil dibuat.',
-      isError: sale == null,
-    );
-  }
-
-  String _defaultItemCode() {
-    final receipts = _repo.receiptHistory;
-    if (receipts.isNotEmpty) return receipts.first.shipmentCode;
-    final transfers = _repo.warehouseTransfers;
-    if (transfers.isNotEmpty) return transfers.first.itemCode;
-    return '';
+    try {
+      final sale = await _repo.createHorizontalSale(
+        batchCode: result.batch.code,
+        recipient: result.recipient,
+        qualityNote: result.note,
+      );
+      if (!mounted) return;
+      _notification.show(context, 'T1 ${sale.id} menunggu konfirmasi T2.');
+    } on BackendApiException catch (error) {
+      if (!mounted) return;
+      _notification.show(context, error.message, isError: true);
+    } on FormatException catch (error) {
+      if (!mounted) return;
+      _notification.show(context, error.message, isError: true);
+    }
   }
 
   @override
@@ -106,7 +96,7 @@ class _DistributorHorizontalSalesScreenState
         child: Column(
           children: [
             AppTopBar(
-              title: 'Jual ke Distributor Lain',
+              title: 'Jual Durian',
               actions: [
                 IconButton(
                   onPressed: _openCreateForm,
@@ -426,7 +416,7 @@ class _SaleCard extends StatelessWidget {
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Menunggu distributor penerima scan QR dan menyimpan validasi T2.',
+                            'Menunggu akun tujuan mengonfirmasi penerimaan T2.',
                             style: TextStyle(
                               fontSize: 11,
                               height: 1.35,
@@ -515,103 +505,75 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _SaleFormSheet extends StatefulWidget {
-  const _SaleFormSheet({
-    required this.warehouses,
-    required this.partners,
-    required this.defaultItemCode,
-  });
+  const _SaleFormSheet({required this.inventory, required this.recipients});
 
-  final List<DistributorWarehouse> warehouses;
-  final List<DistributorPartner> partners;
-  final String defaultItemCode;
+  final List<HarvestBatch> inventory;
+  final List<BatchRecipient> recipients;
 
   @override
   State<_SaleFormSheet> createState() => _SaleFormSheetState();
 }
 
 class _SaleFormSheetState extends State<_SaleFormSheet> {
-  late String? _warehouseId = widget.warehouses.isEmpty
-      ? null
-      : widget.warehouses.first.id;
-  String? _partnerId;
-  late final _itemCtrl = TextEditingController(text: widget.defaultItemCode);
-  final _weightCtrl = TextEditingController();
-  final _fruitCtrl = TextEditingController();
-  final _destinationCtrl = TextEditingController();
+  String? _batchCode;
+  String? _recipientId;
   final _noteCtrl = TextEditingController();
 
   @override
   void dispose() {
-    _itemCtrl.dispose();
-    _weightCtrl.dispose();
-    _fruitCtrl.dispose();
-    _destinationCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
   }
 
   void _submit() {
-    final weight = double.tryParse(
-      _weightCtrl.text.trim().replaceAll(',', '.'),
-    );
-    final fruit = int.tryParse(_fruitCtrl.text.trim());
-    if (_warehouseId == null ||
-        _partnerId == null ||
-        _itemCtrl.text.trim().isEmpty ||
-        _destinationCtrl.text.trim().isEmpty ||
-        weight == null ||
-        weight <= 0 ||
-        fruit == null ||
-        fruit <= 0) {
-      return;
-    }
+    final batch = _batchFor(_batchCode);
+    final recipient = _recipientFor(_recipientId);
+    if (batch == null || recipient == null) return;
 
     Navigator.pop(
       context,
-      _SaleFormResult(
-        buyerDistributorId: _partnerId!,
-        sourceWarehouseId: _warehouseId!,
-        itemCode: _itemCtrl.text,
-        expectedWeightKg: weight,
-        expectedFruitCount: fruit,
-        destinationLocation: _destinationCtrl.text,
-        note: _noteCtrl.text,
-      ),
+      _SaleFormResult(batch: batch, recipient: recipient, note: _noteCtrl.text),
     );
   }
 
-  DistributorPartner? _partnerFor(String? id) {
-    if (id == null) return null;
-    for (final partner in widget.partners) {
-      if (partner.id == id) return partner;
+  HarvestBatch? _batchFor(String? code) {
+    if (code == null) return null;
+    for (final batch in widget.inventory) {
+      if (batch.code == code) return batch;
     }
     return null;
   }
 
-  Future<void> _openPartnerPicker() async {
-    final partner = await showModalBottomSheet<DistributorPartner>(
+  BatchRecipient? _recipientFor(String? id) {
+    if (id == null) return null;
+    for (final recipient in widget.recipients) {
+      if (recipient.userId.toString() == id) return recipient;
+    }
+    return null;
+  }
+
+  Future<void> _openRecipientPicker() async {
+    final recipient = await showModalBottomSheet<BatchRecipient>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _DistributorPickerSheet(
-        partners: widget.partners,
-        selectedId: _partnerId,
+      builder: (_) => _SaleRecipientPickerSheet(
+        recipients: widget.recipients,
+        selectedUserId: _recipientId,
       ),
     );
-    if (partner == null) return;
-    setState(() {
-      _partnerId = partner.id;
-      _destinationCtrl.text = partner.address;
-    });
+    if (recipient == null) return;
+    setState(() => _recipientId = recipient.userId.toString());
   }
 
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
-    final selectedPartner = _partnerFor(_partnerId);
+    final selectedRecipient = _recipientFor(_recipientId);
+    final selectedBatch = _batchFor(_batchCode);
 
     return SafeArea(
       top: false,
@@ -633,80 +595,73 @@ class _SaleFormSheetState extends State<_SaleFormSheet> {
             ),
             const SizedBox(height: 18),
             _SheetTitle(
-              title: 'Buat T1 Jual Distributor',
-              subtitle: 'Pilih stok dan akun distributor penerima.',
+              title: 'Buat T1 Jual Durian',
+              subtitle: 'Pilih stok terverifikasi dan akun penerima.',
               onClose: () => Navigator.pop(context),
             ),
             const SizedBox(height: 18),
-            const _FormLabel(label: 'Gudang asal'),
+            const _FormLabel(label: 'Stok durian tersedia'),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              initialValue: _warehouseId,
+              initialValue: _batchCode,
               isExpanded: true,
               decoration: _inputDecoration(),
-              items: widget.warehouses
+              items: widget.inventory
                   .map(
-                    (warehouse) => DropdownMenuItem(
-                      value: warehouse.id,
+                    (batch) => DropdownMenuItem(
+                      value: batch.code,
                       child: Text(
-                        warehouse.name,
+                        '${batch.code} • ${batch.variety}',
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   )
                   .toList(),
-              onChanged: (value) => setState(() => _warehouseId = value),
+              onChanged: (value) => setState(() => _batchCode = value),
             ),
+            if (widget.inventory.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text(
+                  'Belum ada batch yang sudah diterima sebagai stok distributor.',
+                  style: TextStyle(fontSize: 11, color: AppColors.placeholder),
+                ),
+              ),
+            if (selectedBatch != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  '${selectedBatch.receivedQuantity ?? selectedBatch.quantity} kg • '
+                  '${selectedBatch.receivedFruitCount ?? selectedBatch.fruitCount ?? 0} butir • '
+                  '${selectedBatch.farmName}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.subtitle,
+                  ),
+                ),
+              ),
             const SizedBox(height: 12),
-            const _FormLabel(label: 'Distributor tujuan'),
+            const _FormLabel(label: 'Akun penerima'),
             const SizedBox(height: 6),
             _PartnerPickerField(
-              partner: selectedPartner,
-              onTap: _openPartnerPicker,
+              recipient: selectedRecipient,
+              onTap: _openRecipientPicker,
             ),
-            const SizedBox(height: 10),
-            _DestinationAddress(partner: selectedPartner),
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Divider(height: 1, color: _borderColor),
             ),
-            _TextField(
-              controller: _itemCtrl,
-              label: 'Kode Stok / Batch',
-              hint: 'Contoh: PGL-2026-000903',
-            ),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _NumberField(
-                    controller: _weightCtrl,
-                    label: 'Berat',
-                    suffix: 'kg',
-                    decimal: true,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _NumberField(
-                    controller: _fruitCtrl,
-                    label: 'Jumlah',
-                    suffix: 'butir',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
             _TextArea(
               controller: _noteCtrl,
               label: 'Catatan Penjualan',
-              hint: 'Contoh: pemerataan stok lintas kota',
+              hint: 'Catatan kondisi atau pengiriman (opsional)',
             ),
             const SizedBox(height: 16),
             PrimaryPillButton(
               label: 'SIMPAN T1',
-              onPressed: selectedPartner == null ? null : _submit,
+              onPressed: selectedRecipient == null || selectedBatch == null
+                  ? null
+                  : _submit,
             ),
           ],
         ),
@@ -796,9 +751,9 @@ class _FormLabel extends StatelessWidget {
 }
 
 class _PartnerPickerField extends StatelessWidget {
-  const _PartnerPickerField({required this.partner, required this.onTap});
+  const _PartnerPickerField({required this.recipient, required this.onTap});
 
-  final DistributorPartner? partner;
+  final BatchRecipient? recipient;
   final VoidCallback onTap;
 
   @override
@@ -815,7 +770,7 @@ class _PartnerPickerField extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: partner == null
+              color: recipient == null
                   ? _borderColor
                   : AppColors.primaryContainer,
             ),
@@ -825,7 +780,7 @@ class _PartnerPickerField extends StatelessWidget {
               Icon(
                 Icons.business_outlined,
                 size: 21,
-                color: partner == null
+                color: recipient == null
                     ? AppColors.placeholder
                     : AppColors.primary,
               ),
@@ -836,30 +791,30 @@ class _PartnerPickerField extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      partner?.name ?? 'Pilih akun distributor',
+                      recipient?.fullName ?? 'Pilih akun tujuan',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        color: partner == null
+                        color: recipient == null
                             ? AppColors.subtitle
                             : AppColors.black,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      partner == null
-                          ? 'Cari menggunakan ID, nama, atau kota'
-                          : 'ID ${partner!.id}  |  ${partner!.city}',
+                      recipient == null
+                          ? 'Cari menggunakan nama atau ID akun'
+                          : 'ID ${recipient!.accountId}  |  ${recipient!.role.label}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 10,
-                        fontWeight: partner == null
+                        fontWeight: recipient == null
                             ? FontWeight.w400
                             : FontWeight.w700,
-                        color: partner == null
+                        color: recipient == null
                             ? AppColors.placeholder
                             : AppColors.primary,
                       ),
@@ -879,86 +834,21 @@ class _PartnerPickerField extends StatelessWidget {
   }
 }
 
-class _DestinationAddress extends StatelessWidget {
-  const _DestinationAddress({required this.partner});
-
-  final DistributorPartner? partner;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAF7),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _borderColor),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.location_on_outlined,
-            size: 19,
-            color: AppColors.placeholder,
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Alamat akun terdaftar',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.placeholder,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  partner?.address ?? 'Alamat tampil setelah akun dipilih',
-                  style: TextStyle(
-                    fontSize: 11,
-                    height: 1.4,
-                    fontWeight: partner == null
-                        ? FontWeight.w400
-                        : FontWeight.w600,
-                    color: partner == null
-                        ? AppColors.placeholder
-                        : AppColors.subtitle,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (partner != null)
-            const Icon(
-              Icons.lock_outline_rounded,
-              size: 15,
-              color: AppColors.placeholder,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DistributorPickerSheet extends StatefulWidget {
-  const _DistributorPickerSheet({
-    required this.partners,
-    required this.selectedId,
+class _SaleRecipientPickerSheet extends StatefulWidget {
+  const _SaleRecipientPickerSheet({
+    required this.recipients,
+    required this.selectedUserId,
   });
 
-  final List<DistributorPartner> partners;
-  final String? selectedId;
+  final List<BatchRecipient> recipients;
+  final String? selectedUserId;
 
   @override
-  State<_DistributorPickerSheet> createState() =>
-      _DistributorPickerSheetState();
+  State<_SaleRecipientPickerSheet> createState() =>
+      _SaleRecipientPickerSheetState();
 }
 
-class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
+class _SaleRecipientPickerSheetState extends State<_SaleRecipientPickerSheet> {
   final _searchCtrl = TextEditingController();
 
   @override
@@ -979,11 +869,12 @@ class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final query = _searchCtrl.text.trim().toLowerCase();
-    final visiblePartners = widget.partners.where((partner) {
+    final visibleRecipients = widget.recipients.where((recipient) {
       return query.isEmpty ||
-          partner.id.toLowerCase().contains(query) ||
-          partner.name.toLowerCase().contains(query) ||
-          partner.city.toLowerCase().contains(query);
+          recipient.accountId.toLowerCase().contains(query) ||
+          recipient.userId.toString().contains(query) ||
+          recipient.fullName.toLowerCase().contains(query) ||
+          recipient.role.label.toLowerCase().contains(query);
     }).toList();
 
     return FractionallySizedBox(
@@ -1007,7 +898,7 @@ class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
               ),
               const SizedBox(height: 18),
               const Text(
-                'Pilih Distributor Tujuan',
+                'Pilih Akun Tujuan',
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
@@ -1016,7 +907,7 @@ class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
               ),
               const SizedBox(height: 4),
               const Text(
-                'Cari akun distributor yang sudah terdaftar',
+                'Tujuan dapat berupa pengepul, distributor, atau UMKM.',
                 style: TextStyle(fontSize: 11, color: AppColors.placeholder),
               ),
               const SizedBox(height: 14),
@@ -1026,7 +917,7 @@ class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
                   controller: _searchCtrl,
                   autofocus: true,
                   decoration: _inputDecoration().copyWith(
-                    hintText: 'Masukkan ID, nama, atau kota',
+                    hintText: 'Masukkan ID akun atau nama',
                     prefixIcon: const Icon(Icons.search_rounded, size: 20),
                     suffixIcon: query.isEmpty
                         ? null
@@ -1040,10 +931,10 @@ class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
               ),
               const SizedBox(height: 12),
               Expanded(
-                child: visiblePartners.isEmpty
+                child: visibleRecipients.isEmpty
                     ? const Center(
                         child: Text(
-                          'Akun distributor tidak ditemukan.',
+                          'Akun tujuan tidak ditemukan.',
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.placeholder,
@@ -1051,11 +942,13 @@ class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
                         ),
                       )
                     : ListView.separated(
-                        itemCount: visiblePartners.length,
+                        itemCount: visibleRecipients.length,
                         separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
-                          final partner = visiblePartners[index];
-                          final selected = partner.id == widget.selectedId;
+                          final recipient = visibleRecipients[index];
+                          final selected =
+                              recipient.userId.toString() ==
+                              widget.selectedUserId;
                           return Material(
                             color: selected
                                 ? AppColors.primaryContainer.withValues(
@@ -1064,7 +957,7 @@ class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
                                 : AppColors.white,
                             borderRadius: BorderRadius.circular(8),
                             child: InkWell(
-                              onTap: () => Navigator.pop(context, partner),
+                              onTap: () => Navigator.pop(context, recipient),
                               borderRadius: BorderRadius.circular(8),
                               child: Container(
                                 padding: const EdgeInsets.all(12),
@@ -1100,7 +993,7 @@ class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            partner.name,
+                                            recipient.fullName,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
@@ -1111,7 +1004,7 @@ class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
                                           ),
                                           const SizedBox(height: 3),
                                           Text(
-                                            '${partner.id}  |  ${partner.city}',
+                                            'ID ${recipient.accountId}  |  ${recipient.role.label}',
                                             style: const TextStyle(
                                               fontSize: 10,
                                               fontWeight: FontWeight.w700,
@@ -1120,7 +1013,9 @@ class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
                                           ),
                                           const SizedBox(height: 3),
                                           Text(
-                                            partner.address,
+                                            recipient.address.isEmpty
+                                                ? 'Alamat belum tersedia'
+                                                : recipient.address,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
@@ -1152,70 +1047,6 @@ class _DistributorPickerSheetState extends State<_DistributorPickerSheet> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _TextField extends StatelessWidget {
-  const _TextField({
-    required this.controller,
-    required this.label,
-    required this.hint,
-  });
-
-  final TextEditingController controller;
-  final String label;
-  final String hint;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _FormLabel(label: label),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          textCapitalization: TextCapitalization.characters,
-          decoration: _inputDecoration().copyWith(hintText: hint),
-        ),
-      ],
-    );
-  }
-}
-
-class _NumberField extends StatelessWidget {
-  const _NumberField({
-    required this.controller,
-    required this.label,
-    required this.suffix,
-    this.decimal = false,
-  });
-
-  final TextEditingController controller;
-  final String label;
-  final String suffix;
-  final bool decimal;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _FormLabel(label: label),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          keyboardType: TextInputType.numberWithOptions(decimal: decimal),
-          inputFormatters: [
-            if (decimal)
-              FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))
-            else
-              FilteringTextInputFormatter.digitsOnly,
-          ],
-          decoration: _inputDecoration().copyWith(suffixText: suffix),
-        ),
-      ],
     );
   }
 }
@@ -1273,21 +1104,13 @@ InputDecoration _inputDecoration() {
 
 class _SaleFormResult {
   const _SaleFormResult({
-    required this.buyerDistributorId,
-    required this.sourceWarehouseId,
-    required this.itemCode,
-    required this.expectedWeightKg,
-    required this.expectedFruitCount,
-    required this.destinationLocation,
+    required this.batch,
+    required this.recipient,
     required this.note,
   });
 
-  final String buyerDistributorId;
-  final String sourceWarehouseId;
-  final String itemCode;
-  final double expectedWeightKg;
-  final int expectedFruitCount;
-  final String destinationLocation;
+  final HarvestBatch batch;
+  final BatchRecipient recipient;
   final String note;
 }
 

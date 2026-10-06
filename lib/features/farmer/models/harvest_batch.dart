@@ -5,13 +5,13 @@ import 'package:flutter/material.dart';
 // pada rantai pasok durian — dipakai di seluruh lapisan UI dan repository.
 /// Status batch panen mengikuti state machine DurianTrace.
 ///
-/// Lihat blueprint 07_USER_FLOW_AND_STATE_MACHINE:
-/// DRAFT → CREATED → VERIFIED_BY_COLLECTOR → IN_DISTRIBUTION →
-/// RECEIVED_BY_UMKM → PROCESSED → SOLD (atau REJECTED).
+/// Batch baru menunggu verifikasi oleh akun penerima yang dipilih. Penerimaan
+/// oleh pengepul, UMKM, atau distributor menentukan jalur status berikutnya.
 enum BatchStatus {
   draft,
   created,
   verifiedByCollector,
+  receivedByDistributor,
   inDistribution,
   receivedByUmkm,
   processed,
@@ -36,17 +36,36 @@ extension BatchReceiverRoleX on BatchReceiverRole {
 
 BatchReceiverRole? batchReceiverRoleFromJson(Object? value) {
   if (value == null) return null;
-  final name = value.toString();
-  for (final role in BatchReceiverRole.values) {
-    if (role.name == name) return role;
-  }
-  return null;
+  return switch (value.toString().trim().toLowerCase()) {
+    'collector' || 'pengepul' => BatchReceiverRole.collector,
+    'distributor' => BatchReceiverRole.distributor,
+    'umkm' => BatchReceiverRole.umkm,
+    _ => null,
+  };
 }
 
 // [FE - Component Rendering] Extension ini menyediakan label, warna teks,
 // dan warna background badge untuk tiap status — dikonsumsi langsung oleh widget badge.
 /// Label, warna teks, dan warna background badge untuk tiap status.
 extension BatchStatusX on BatchStatus {
+  /// Status yang ditampilkan kepada petani berhenti pada hasil verifikasi.
+  /// Tahap lanjutan tetap tersimpan di status asli untuk alur role lain.
+  BatchStatus get farmerDisplayStatus {
+    switch (this) {
+      case BatchStatus.receivedByDistributor:
+      case BatchStatus.inDistribution:
+      case BatchStatus.receivedByUmkm:
+      case BatchStatus.processed:
+      case BatchStatus.sold:
+        return BatchStatus.verifiedByCollector;
+      case BatchStatus.draft:
+      case BatchStatus.created:
+      case BatchStatus.verifiedByCollector:
+      case BatchStatus.rejected:
+        return this;
+    }
+  }
+
   String get label {
     switch (this) {
       case BatchStatus.draft:
@@ -55,6 +74,8 @@ extension BatchStatusX on BatchStatus {
         return 'Menunggu Verifikasi';
       case BatchStatus.verifiedByCollector:
         return 'Terverifikasi';
+      case BatchStatus.receivedByDistributor:
+        return 'Diterima Distributor';
       case BatchStatus.inDistribution:
         return 'Didistribusikan';
       case BatchStatus.receivedByUmkm:
@@ -77,6 +98,8 @@ extension BatchStatusX on BatchStatus {
         return const Color(0xFFB45309); // amber tua — menunggu aksi
       case BatchStatus.verifiedByCollector:
         return const Color(0xFF296C11); // hijau brand — sukses
+      case BatchStatus.receivedByDistributor:
+        return const Color(0xFF1D6FA4);
       case BatchStatus.inDistribution:
         return const Color(0xFF1D6FA4); // biru — sedang berjalan
       case BatchStatus.receivedByUmkm:
@@ -98,6 +121,7 @@ extension BatchStatusX on BatchStatus {
     switch (this) {
       case BatchStatus.created:
       case BatchStatus.verifiedByCollector:
+      case BatchStatus.receivedByDistributor:
       case BatchStatus.inDistribution:
       case BatchStatus.receivedByUmkm:
         return true;
@@ -138,7 +162,7 @@ extension BatchFilterX on BatchFilter {
       case BatchFilter.menunggu:
         return status == BatchStatus.created;
       case BatchFilter.terverifikasi:
-        return status == BatchStatus.verifiedByCollector;
+        return status.farmerDisplayStatus == BatchStatus.verifiedByCollector;
       case BatchFilter.ditolak:
         return status == BatchStatus.rejected;
     }
@@ -214,6 +238,9 @@ class HarvestBatch {
     this.rejectionReason,
     this.rejectedBy,
     this.rejectedAt,
+    this.recipientUserId,
+    this.recipientRole,
+    this.recipientName,
   });
 
   /// Kode unik batch, contoh: DRN-2026-000128.
@@ -298,6 +325,10 @@ class HarvestBatch {
   final String? rejectedBy;
   final DateTime? rejectedAt;
 
+  final String? recipientUserId;
+  final BatchReceiverRole? recipientRole;
+  final String? recipientName;
+
   /// Membuat salinan batch dengan field yang diubah.
   HarvestBatch copyWith({
     String? code,
@@ -332,6 +363,9 @@ class HarvestBatch {
     String? rejectionReason,
     String? rejectedBy,
     DateTime? rejectedAt,
+    String? recipientUserId,
+    BatchReceiverRole? recipientRole,
+    String? recipientName,
   }) {
     return HarvestBatch(
       code: code ?? this.code,
@@ -367,6 +401,9 @@ class HarvestBatch {
       rejectionReason: rejectionReason ?? this.rejectionReason,
       rejectedBy: rejectedBy ?? this.rejectedBy,
       rejectedAt: rejectedAt ?? this.rejectedAt,
+      recipientUserId: recipientUserId ?? this.recipientUserId,
+      recipientRole: recipientRole ?? this.recipientRole,
+      recipientName: recipientName ?? this.recipientName,
     );
   }
 
@@ -405,6 +442,9 @@ class HarvestBatch {
     'rejectionReason': rejectionReason,
     'rejectedBy': rejectedBy,
     'rejectedAt': rejectedAt?.toIso8601String(),
+    'recipientUserId': recipientUserId,
+    'recipientRole': recipientRole?.name,
+    'recipientName': recipientName,
   };
 
   // [DB - Model/Entity] Factory ini membangun kembali batch dari JSON lokal
@@ -458,6 +498,17 @@ class HarvestBatch {
     rejectionReason: backendNullableString(json, const ['rejectionReason', 'rejection_reason']),
     rejectedBy: backendNullableString(json, const ['rejectedBy', 'rejected_by']),
     rejectedAt: backendDateTime(json, const ['rejectedAt', 'rejected_at']),
+    recipientUserId: backendNullableString(
+      json,
+      const ['recipientUserId', 'recipient_user_id'],
+    ),
+    recipientRole: batchReceiverRoleFromJson(
+      json['recipientRole'] ?? json['recipient_role'],
+    ),
+    recipientName: backendNullableString(
+      json,
+      const ['recipientName', 'recipient_name'],
+    ),
   );
 }
 
@@ -473,6 +524,7 @@ class FarmerProfile {
     required this.village,
     required this.district,
     required this.city,
+    this.province = '',
     required this.contact,
     this.email,
     this.avatarPath,
@@ -495,6 +547,7 @@ class FarmerProfile {
 
   /// Kabupaten/kota — ditampilkan di Detail Batch (Req 3.2).
   final String city;
+  final String province;
 
   /// Nomor HP utama petani — ditampilkan di Profil dan dipakai kontak cepat.
   final String contact;
@@ -518,6 +571,7 @@ class FarmerProfile {
     String? village,
     String? district,
     String? city,
+    String? province,
     String? contact,
     String? email,
     String? avatarPath,
@@ -530,6 +584,7 @@ class FarmerProfile {
       village: village ?? this.village,
       district: district ?? this.district,
       city: city ?? this.city,
+      province: province ?? this.province,
       contact: contact ?? this.contact,
       email: email ?? emailValue,
       avatarPath: avatarPath ?? this.avatarPath,
@@ -546,6 +601,7 @@ class FarmerProfile {
     'village': village,
     'district': district,
     'city': city,
+    'province': province,
     'contact': contact,
     'email': email,
     'avatarPath': avatarPath,
@@ -561,6 +617,7 @@ class FarmerProfile {
     village: backendString(json, const ['village']),
     district: backendString(json, const ['district']),
     city: backendString(json, const ['city']),
+    province: backendString(json, const ['province']),
     contact: backendString(json, const ['contact', 'phone']),
     email: backendNullableString(json, const ['email']),
     avatarPath: backendNullableString(json, const ['avatarPath', 'avatar_path']),

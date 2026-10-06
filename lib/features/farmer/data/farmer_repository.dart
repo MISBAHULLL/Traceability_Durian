@@ -1,12 +1,13 @@
-import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
 import '../../../core/network/backend_api_client.dart';
-import '../../../core/storage/local_storage_service.dart';
+import '../../../core/network/auth_api_service.dart';
 import '../../traceability/data/traceability_repository.dart';
 import '../../traceability/models/traceability_models.dart';
 import '../models/batch_event.dart';
+import '../models/batch_recipient.dart';
 import '../models/farm.dart';
 import '../models/farmer_notification.dart';
 import '../models/harvest_batch.dart';
@@ -32,7 +33,6 @@ class FarmerRepository extends ChangeNotifier {
   FarmerRepository._seed() {
     _loadFromLocal();
     TraceabilityRepository.instance.addListener(_onTraceabilityChanged);
-    unawaited(refreshFromBackend());
   }
 
   void _onTraceabilityChanged() {
@@ -110,71 +110,255 @@ class FarmerRepository extends ChangeNotifier {
     return;
   }
 
+  static const String _kBatchCounterKey = 'farmer_batch_counter';
+
+  void _hydrateFromSessionFallback() {
+    final activeUser = AuthApiService.instance.activeUser;
+    if (_profile.farmerId.isNotEmpty) {
+      _currentFarmerId = _profile.farmerId;
+      return;
+    }
+
+    if (activeUser != null) {
+      final fullName = '${activeUser.firstName} ${activeUser.lastName}'.trim();
+      _profile = FarmerProfile(
+        farmerId: activeUser.id?.toString() ?? activeUser.email,
+        fullName: fullName.isEmpty ? 'Petani' : fullName,
+        roleLabel: 'Petani Durian',
+        location: '',
+        village: '',
+        district: '',
+        city: '',
+        contact: activeUser.phone,
+        email: activeUser.email,
+      );
+      _currentFarmerId = _profile.farmerId;
+      _saveToLocal();
+      return;
+    }
+
+    _currentFarmerId = _profile.farmerId;
+  }
+
+  void _applyProfileResponse(dynamic data) {
+    final activeUser = AuthApiService.instance.activeUser;
+    final raw = data is Map
+        ? Map<String, dynamic>.from(data)
+        : <String, dynamic>{};
+    final user = raw['user'] is Map
+        ? Map<String, dynamic>.from(raw['user'] as Map)
+        : <String, dynamic>{};
+    final profile = raw['profile'] is Map
+        ? Map<String, dynamic>.from(raw['profile'] as Map)
+        : raw['farmer'] is Map
+        ? Map<String, dynamic>.from(raw['farmer'] as Map)
+        : raw;
+
+    final firstName = (user['first_name'] ?? activeUser?.firstName ?? '')
+        .toString()
+        .trim();
+    final lastName = (user['last_name'] ?? activeUser?.lastName ?? '')
+        .toString()
+        .trim();
+    final fullNameCandidates = <String>[
+      (profile['full_name'] ??
+              profile['name'] ??
+              profile['business_name'] ??
+              '')
+          .toString()
+          .trim(),
+      '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim(),
+      '$firstName $lastName'.trim(),
+      '${activeUser?.firstName ?? ''} ${activeUser?.lastName ?? ''}'.trim(),
+    ];
+    final fullName = fullNameCandidates.firstWhere(
+      (value) => value.isNotEmpty,
+      orElse: () => 'Petani',
+    );
+
+    final locationParts = <String>[
+      (profile['village'] ?? '').toString().trim(),
+      (profile['district'] ?? '').toString().trim(),
+      (profile['city'] ?? '').toString().trim(),
+    ].where((item) => item.isNotEmpty).toList();
+    final fallbackLocation = [
+      user['city'],
+      user['district'],
+      user['province'],
+    ].whereType<String>().where((item) => item.trim().isNotEmpty).join(', ');
+    final location = (profile['location'] ?? fallbackLocation)
+        .toString()
+        .trim();
+
+    final farmerId =
+        (user['id'] ??
+                profile['user_id'] ??
+                profile['id'] ??
+                activeUser?.id ??
+                _currentFarmerId)
+            .toString();
+
+    _profile = FarmerProfile(
+      farmerId: farmerId.isEmpty ? _profile.farmerId : farmerId,
+      fullName: fullName,
+      roleLabel: (profile['role_label'] ?? 'Petani').toString(),
+      location: locationParts.isNotEmpty ? locationParts.join(', ') : location,
+      village: (profile['village'] ?? '').toString(),
+      district: (profile['district'] ?? '').toString(),
+      city: (profile['city'] ?? '').toString(),
+      province: (profile['province'] ?? user['province'] ?? '').toString(),
+      contact: (profile['contact'] ?? user['phone'] ?? activeUser?.phone ?? '')
+          .toString(),
+      email: (profile['email'] ?? user['email'] ?? activeUser?.email)
+          ?.toString(),
+      avatarPath: (profile['avatar_path'] ?? profile['avatarPath'])?.toString(),
+    );
+    _currentFarmerId = _profile.farmerId;
+  }
+
+  List<Farm> _parseFarmList(dynamic data) {
+    final items = _dataAsList(data, const ['farms', 'items', 'results']);
+    return items.map(Farm.fromJson).toList();
+  }
+
+  List<HarvestBatch> _parseBatchList(dynamic data) {
+    final items = _dataAsList(data, const ['batches', 'items', 'results']);
+    return items.map(HarvestBatch.fromJson).toList();
+  }
+
+  List<Map<String, dynamic>> _dataAsList(
+    dynamic data,
+    List<String> nestedKeys,
+  ) {
+    if (data is List) {
+      return data
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    }
+    if (data is Map) {
+      final raw = Map<String, dynamic>.from(data);
+      for (final key in nestedKeys) {
+        final value = raw[key];
+        if (value is List) {
+          return value
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+        }
+      }
+      final nestedData = raw['data'];
+      if (nestedData != null && nestedData != data) {
+        return _dataAsList(nestedData, nestedKeys);
+      }
+    }
+    return const [];
+  }
+
+  Map<String, dynamic>? _dataAsMap(
+    dynamic data, [
+    List<String> nestedKeys = const [],
+  ]) {
+    if (data is Map) {
+      final raw = Map<String, dynamic>.from(data);
+      for (final key in nestedKeys) {
+        final value = raw[key];
+        if (value is Map) {
+          return Map<String, dynamic>.from(value);
+        }
+      }
+      if (raw['data'] is Map) {
+        return Map<String, dynamic>.from(raw['data'] as Map);
+      }
+      return raw;
+    }
+    return null;
+  }
+
+  Farm _farmFromResponse(dynamic data, Farm fallback) {
+    final json = _dataAsMap(data, const ['farm']) ?? <String, dynamic>{};
+    if (json.isEmpty) return fallback;
+    return Farm.fromJson({
+      ...fallback.toJson(),
+      ...json,
+      'id': json['id'] ?? json['farm_id'] ?? fallback.id,
+      'farmerId': json['farmerId'] ?? json['farmer_id'] ?? fallback.farmerId,
+    });
+  }
+
+  HarvestBatch _batchFromResponse(dynamic data, HarvestBatch fallback) {
+    final json = _dataAsMap(data, const ['batch']) ?? <String, dynamic>{};
+    if (json.isEmpty) return fallback;
+    return HarvestBatch.fromJson({
+      ...fallback.toJson(),
+      ...json,
+      'code': json['code'] ?? fallback.code,
+      'farmerId': json['farmerId'] ?? json['farmer_id'] ?? fallback.farmerId,
+      'farmId': json['farmId'] ?? json['farm_id'] ?? fallback.farmId,
+      'farmName':
+          json['farmName'] ?? json['farm_name_snapshot'] ?? fallback.farmName,
+    });
+  }
+
+  void _replaceFarm(Farm farm) {
+    final index = _farms.indexWhere((item) => item.id == farm.id);
+    if (index == -1) {
+      _farms.add(farm);
+    } else {
+      _farms[index] = farm;
+    }
+  }
+
+  void _replaceBatch(HarvestBatch batch) {
+    final index = _batches.indexWhere((item) => item.code == batch.code);
+    if (index == -1) {
+      _batches.add(batch);
+    } else {
+      _batches[index] = batch;
+    }
+    _batchCounter = math.max(_batchCounter, _sequenceFromBatchCode(batch.code));
+  }
+
+  int _sequenceFromBatchCode(String code) {
+    final match = RegExp(r'(\d+)(?!.*\d)').firstMatch(code);
+    return int.tryParse(match?.group(1) ?? '') ?? 0;
+  }
+
+  int _maxBatchSequence(List<HarvestBatch> batches) {
+    var maxValue = 0;
+    for (final batch in batches) {
+      final seq = _sequenceFromBatchCode(batch.code);
+      if (seq > maxValue) maxValue = seq;
+    }
+    return maxValue;
+  }
+
   Future<void> refreshFromBackend() async {
     try {
-      final profileResponse = await BackendApiClient.instance.get(
-        '/farmer/profile',
-      );
-      final farmsResponse = await BackendApiClient.instance.get('/farmer/farms');
-      final batchesResponse = await BackendApiClient.instance.get(
-        '/farmer/batches',
-      );
+      final results = await Future.wait([
+        BackendApiClient.instance.get('/farmer/profile'),
+        BackendApiClient.instance.get('/farmer/farms'),
+        BackendApiClient.instance.get('/farmer/batches'),
+      ]);
 
-      if (profileResponse.data is Map) {
-        final data = Map<String, dynamic>.from(
-          profileResponse.data as Map,
-        );
-        final user = Map<String, dynamic>.from(
-          data['user'] as Map? ?? const {},
-        );
-        final profile = Map<String, dynamic>.from(
-          data['profile'] as Map? ?? const {},
-        );
-        _profile = FarmerProfile.fromJson({
-          'farmerId': user['id']?.toString() ?? profile['user_id']?.toString() ?? _profile.farmerId,
-          'fullName': profile['full_name'] ?? user['full_name'] ?? '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim(),
-          'roleLabel': profile['role_label'] ?? 'Petani',
-          'location': profile['location'] ?? [
-            user['city'],
-            user['district'],
-            user['province'],
-          ].whereType<String>().join(', '),
-          'village': profile['village'] ?? '',
-          'district': profile['district'] ?? '',
-          'city': profile['city'] ?? '',
-          'contact': profile['contact'] ?? user['phone'] ?? '',
-          'email': user['email'] ?? profile['email'],
-          'avatarPath': profile['avatar_path'],
-        });
-      }
-
-      if (farmsResponse.data is List) {
-        _farms = (farmsResponse.data as List)
-            .whereType<Map>()
-            .map((item) => Farm.fromJson(Map<String, dynamic>.from(item)))
-            .toList();
-      }
-
-      if (batchesResponse.data is List) {
-        _batches = (batchesResponse.data as List)
-            .whereType<Map>()
-            .map(
-              (item) => HarvestBatch.fromJson(
-                Map<String, dynamic>.from(item),
-              ),
-            )
-            .toList();
-      }
-
+      _applyProfileResponse(results[0].data);
+      _farms = _parseFarmList(results[1].data);
+      _batches = _parseBatchList(results[2].data);
       _currentFarmerId = _profile.farmerId;
-      _batchCounter = _batches.length;
+      _batchCounter = math.max(_batchCounter, _maxBatchSequence(_batches));
+      _ensureEventStoreBackfilled();
       _saveToLocal();
       _syncCoreTraceabilityBatches();
       notifyListeners();
-    } on BackendApiException catch (_) {
-      // Tetap pakai cache lokal bila backend belum siap.
+    } on BackendApiException catch (e) {
+      if (kDebugMode) {
+        debugPrint('[FARMER] refresh backend failed: ${e.message}');
+      }
+      _hydrateFromSessionFallback();
+      notifyListeners();
     } catch (_) {
-      // Tetap pakai cache lokal bila backend belum siap.
+      _hydrateFromSessionFallback();
+      notifyListeners();
     }
   }
 
@@ -675,7 +859,7 @@ class FarmerRepository extends ChangeNotifier {
   /// unik, terikat pada [currentFarmerId] dan [farm.id].
   ///
   /// Memanggil [notifyListeners] agar Beranda dan dropdown ter-refresh.
-  HarvestBatch addBatch({
+  Future<HarvestBatch> addBatch({
     required Farm farm,
     required String variety,
     required String fertilizer,
@@ -690,10 +874,11 @@ class FarmerRepository extends ChangeNotifier {
     String? storageSuggestion,
     String? notes,
     String? photoPath,
-  }) {
+    required BatchRecipient recipient,
+  }) async {
     final code = generateBatchCode();
     final now = DateTime.now();
-    final batch = HarvestBatch(
+    final fallbackBatch = HarvestBatch(
       code: code,
       farmerId: _currentFarmerId,
       farmId: farm.id,
@@ -713,33 +898,35 @@ class FarmerRepository extends ChangeNotifier {
       shelfLifeEstimate: shelfLifeEstimate,
       storageSuggestion: storageSuggestion,
       notes: notes,
+      recipientUserId: recipient.userId.toString(),
+      recipientRole: recipient.role,
+      recipientName: recipient.fullName,
     );
-    _batches.add(batch);
-    _appendBatchEvent(
-      batchCode: batch.code,
-      type: BatchEventType.batchCreated,
-      title: 'Batch Dibuat',
-      actorLabel: 'Petani - ${_profile.fullName}',
-      timestamp: now,
-      status: BatchStatus.created,
-      description: 'Data panen dicatat oleh petani.',
-      locationLabel: batch.farmName,
-      metadata: {
-        'Varietas': batch.variety,
-        'Berat': '${batch.quantity} ${batch.unit}',
-        'Jumlah buah': '$fruitCount',
+    final response = await BackendApiClient.instance.post(
+      '/farmer/batches',
+      body: {
+        'farm_id': farm.id,
+        'farm_name_snapshot': farm.name,
+        'variety': variety,
+        'grade': grade,
+        'quantity_kg': quantity,
+        'unit': unit,
+        'fruit_count': fruitCount,
+        'harvest_date': harvestDate.toIso8601String().split('T').first,
+        'fertilizer': fertilizer,
+        'harvest_method': harvestMethod,
+        'maturity_level': maturityLevel,
+        'shelf_life_estimate': shelfLifeEstimate,
+        'storage_suggestion': storageSuggestion,
+        'notes': notes,
+        'photo_path': photoPath,
+        'recipient_user_id': recipient.userId,
+        'recipient_role': recipient.role.name,
       },
     );
-    _appendBatchEvent(
-      batchCode: batch.code,
-      type: BatchEventType.qrCreated,
-      title: 'QR Batch Dibuat',
-      actorLabel: 'Petani - ${_profile.fullName}',
-      timestamp: now.add(const Duration(seconds: 1)),
-      status: BatchStatus.created,
-      description: 'QR trace siap discan penerima.',
-      locationLabel: batch.farmName,
-    );
+    final batch = _batchFromResponse(response.data, fallbackBatch);
+    _replaceBatch(batch);
+    _ensureEventStoreBackfilled();
     TraceabilityRepository.instance.recordHarvestBatch(
       batchCode: batch.code,
       farmerId: batch.farmerId,
@@ -762,6 +949,40 @@ class FarmerRepository extends ChangeNotifier {
     return batch;
   }
 
+  Future<List<BatchRecipient>> loadBatchRecipients() async {
+    final roleResponses = await Future.wait(
+      BatchReceiverRole.values.map(
+        (role) => BackendApiClient.instance.get(
+          '/farmer/recipients?role=${role.name}',
+        ),
+      ),
+    );
+    final recipientsById = <int, BatchRecipient>{};
+    for (final response in roleResponses) {
+      for (final recipient in _dataAsList(response.data, const [
+        'recipients',
+        'users',
+      ]).map(BatchRecipient.fromJson)) {
+        recipientsById[recipient.userId] = recipient;
+      }
+    }
+    final recipients = recipientsById.values.toList();
+    recipients.sort((a, b) {
+      final roleOrder = a.role.index.compareTo(b.role.index);
+      return roleOrder != 0 ? roleOrder : a.fullName.compareTo(b.fullName);
+    });
+    return List.unmodifiable(recipients);
+  }
+
+  bool canReceiveBatch({
+    required HarvestBatch batch,
+    required BatchReceiverRole role,
+    required String userId,
+  }) {
+    if (batch.recipientUserId == null) return true;
+    return batch.recipientRole == role && batch.recipientUserId == userId;
+  }
+
   // ── Tambah kebun (Req 5.5, 5.6) ────────────────────────────────────────────
 
   // [FE - State Management] addFarm menyimpan kebun baru ke mock store
@@ -770,7 +991,7 @@ class FarmerRepository extends ChangeNotifier {
   /// Menambahkan [Farm] baru milik [currentFarmerId] ke mock store.
   ///
   /// Memanggil [notifyListeners] agar dropdown lokasi kebun ter-refresh.
-  Farm addFarm({
+  Future<Farm> addFarm({
     required String name,
     required String province,
     required String city,
@@ -779,10 +1000,9 @@ class FarmerRepository extends ChangeNotifier {
     required String address,
     double? latitude,
     double? longitude,
-  }) {
-    final id = 'farm-${DateTime.now().millisecondsSinceEpoch}';
-    final farm = Farm(
-      id: id,
+  }) async {
+    final fallbackFarm = Farm(
+      id: 'farm-${DateTime.now().millisecondsSinceEpoch}',
       farmerId: _currentFarmerId,
       name: name,
       province: province,
@@ -793,15 +1013,36 @@ class FarmerRepository extends ChangeNotifier {
       latitude: latitude,
       longitude: longitude,
     );
-    _farms.add(farm);
-    _saveToLocal();
-    notifyListeners();
-    return farm;
+    try {
+      final response = await BackendApiClient.instance.post(
+        '/farmer/farms',
+        body: {
+          'name': name,
+          'province': province,
+          'city': city,
+          'district': district,
+          'village': village,
+          'address': address,
+          'latitude': latitude,
+          'longitude': longitude,
+        },
+      );
+      final farm = _farmFromResponse(response.data, fallbackFarm);
+      _replaceFarm(farm);
+      _saveToLocal();
+      notifyListeners();
+      return farm;
+    } catch (_) {
+      _replaceFarm(fallbackFarm);
+      _saveToLocal();
+      notifyListeners();
+      return fallbackFarm;
+    }
   }
 
   // [FE - State Management] updateFarm memperbarui data kebun milik petani
   // aktif. Batch lama tetap menyimpan snapshot farmName agar audit tidak kabur.
-  bool updateFarm({
+  Future<bool> updateFarm({
     required String id,
     required String name,
     required String province,
@@ -811,7 +1052,7 @@ class FarmerRepository extends ChangeNotifier {
     required String address,
     double? latitude,
     double? longitude,
-  }) {
+  }) async {
     final index = _farms.indexWhere(
       (f) => f.id == id && f.farmerId == _currentFarmerId,
     );
@@ -830,6 +1071,24 @@ class FarmerRepository extends ChangeNotifier {
       latitude: latitude,
       longitude: longitude,
     );
+    try {
+      final response = await BackendApiClient.instance.put(
+        '/farmer/farms/$id',
+        body: {
+          'name': name,
+          'province': province,
+          'city': city,
+          'district': district,
+          'village': village,
+          'address': address,
+          'latitude': latitude,
+          'longitude': longitude,
+        },
+      );
+      _farms[index] = _farmFromResponse(response.data, _farms[index]);
+    } catch (_) {
+      // Tetap simpan perubahan lokal bila backend belum menyediakan update farm.
+    }
     _saveToLocal();
     notifyListeners();
     return true;
@@ -847,16 +1106,37 @@ class FarmerRepository extends ChangeNotifier {
 
   // [FE - State Management] deleteFarm menghapus kebun kosong saja; kebun yang
   // sudah dipakai batch harus tetap ada sebagai data asal panen.
-  bool deleteFarm(String id) {
+  Future<bool> deleteFarm(String id) async {
     if (!canDeleteFarm(id)) return false;
 
     final before = _farms.length;
+    try {
+      await BackendApiClient.instance.delete('/farmer/farms/$id');
+    } catch (_) {
+      // Tetap lanjutkan penghapusan lokal bila backend belum mendukung delete.
+    }
     _farms.removeWhere((f) => f.id == id && f.farmerId == _currentFarmerId);
     if (_farms.length == before) return false;
 
     _saveToLocal();
     notifyListeners();
     return true;
+  }
+
+  Future<void> deleteUnverifiedBatch(String code) async {
+    final batch = findBatch(code);
+    if (batch == null || batch.status != BatchStatus.created) {
+      throw StateError('Batch hanya dapat dihapus sebelum diverifikasi.');
+    }
+
+    await BackendApiClient.instance.delete(
+      '/farmer/batches/${Uri.encodeComponent(code)}',
+    );
+    _batches.removeWhere((item) => item.code == code);
+    _batchEvents.removeWhere((event) => event.batchCode == code);
+    _saveToLocal();
+    _syncCoreTraceabilityBatches();
+    notifyListeners();
   }
 
   // ── Guard edit batch (Req 3.8, 3.9, 7.3, 7.4) ─────────────────────────────
@@ -913,7 +1193,7 @@ class FarmerRepository extends ChangeNotifier {
   /// Bila batch tidak lagi dapat diubah (status terkunci atau jendela waktu
   /// habis), operasi ini adalah **no-op** dan mengembalikan `false` sebagai
   /// tanda penolakan (Req 7.4).
-  bool updateBatch(
+  Future<bool> updateBatch(
     String code, {
     Farm? farm,
     String? variety,
@@ -929,7 +1209,7 @@ class FarmerRepository extends ChangeNotifier {
     String? storageSuggestion,
     String? notes,
     String? photoPath,
-  }) {
+  }) async {
     if (!canEditBatch(code)) return false;
 
     final index = _batches.indexWhere(
@@ -938,7 +1218,7 @@ class FarmerRepository extends ChangeNotifier {
     if (index == -1) return false;
 
     final existing = _batches[index];
-    _batches[index] = existing.copyWith(
+    final updated = existing.copyWith(
       farmId: farm?.id,
       farmName: farm?.name,
       variety: variety,
@@ -955,6 +1235,33 @@ class FarmerRepository extends ChangeNotifier {
       notes: notes,
       photoPath: photoPath,
     );
+    try {
+      final response = await BackendApiClient.instance.patch(
+        '/farmer/batches/$code',
+        body: {
+          'farm_id': farm?.id,
+          'farm_name_snapshot': farm?.name,
+          'variety': variety,
+          'fertilizer': fertilizer,
+          'harvest_method': harvestMethod,
+          'grade': grade,
+          'quantity_kg': quantity,
+          'unit': unit,
+          'fruit_count': fruitCount,
+          'harvest_date': harvestDate?.toIso8601String().split('T').first,
+          'maturity_level': maturityLevel,
+          'shelf_life_estimate': shelfLifeEstimate,
+          'storage_suggestion': storageSuggestion,
+          'notes': notes,
+          'photo_path': photoPath,
+        }..removeWhere((key, value) => value == null),
+      );
+      _batches[index] = _batchFromResponse(response.data, updated);
+    } catch (_) {
+      _batches[index] = updated;
+    }
+
+    _ensureEventStoreBackfilled();
     _saveToLocal();
     notifyListeners();
     return true;
@@ -1015,6 +1322,19 @@ class FarmerRepository extends ChangeNotifier {
               title: 'Serah terima diterima',
               message:
                   '${batch.verifiedBy ?? 'Penerima'} menerima ${_formatReceivedAmount(batch)} dengan grade riil ${batch.verifiedGrade ?? batch.grade}.',
+              createdAt: batch.verifiedAt ?? baseTime,
+              type: FarmerNotificationType.statusUpdate,
+              batchStatus: batch.status,
+            ),
+          );
+        case BatchStatus.receivedByDistributor:
+          items.add(
+            FarmerNotification(
+              id: '${batch.code}-received-distributor',
+              batchCode: batch.code,
+              title: 'Batch diterima Distributor',
+              message:
+                  '${batch.variety} sudah diterima distributor ${batch.verifiedBy ?? ''}.',
               createdAt: batch.verifiedAt ?? baseTime,
               type: FarmerNotificationType.statusUpdate,
               batchStatus: batch.status,
@@ -1121,6 +1441,37 @@ class FarmerRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
+  List<HarvestBatch> batchesForReceiverVerification({
+    required BatchReceiverRole role,
+    required String userId,
+  }) {
+    final items = _batches.where((batch) {
+      if (batch.status != BatchStatus.created) return false;
+      if (batch.recipientUserId == null) return true;
+      return batch.recipientRole == role && batch.recipientUserId == userId;
+    }).toList();
+    items.sort((a, b) {
+      final aDate = a.createdAt ?? a.harvestDate;
+      final bDate = b.createdAt ?? b.harvestDate;
+      return bDate.compareTo(aDate);
+    });
+    return List.unmodifiable(items);
+  }
+
+  HarvestBatch? findBatchForReceiver({
+    required String code,
+    required BatchReceiverRole role,
+    required String userId,
+  }) {
+    final batch = findPublicBatch(code);
+    if (batch == null) return null;
+    if (batch.recipientUserId == null ||
+        (batch.recipientRole == role && batch.recipientUserId == userId)) {
+      return batch;
+    }
+    return null;
+  }
+
   // [FE - State Management] Getter lintas-role ini menyediakan stok hasil
   // verifikasi pengepul untuk operasional pengepul pada mock FE. Batch yang
   // diterima langsung oleh distributor/UMKM tidak masuk gudang pengepul.
@@ -1168,6 +1519,7 @@ class FarmerRepository extends ChangeNotifier {
     String? verificationPhotoPath,
     String? qualityNotes,
     String verifiedBy = 'Pengepul',
+    String? receiverUserId,
   }) {
     return verifyBatchByReceiver(
       code: code,
@@ -1179,6 +1531,7 @@ class FarmerRepository extends ChangeNotifier {
       verificationPhotoPath: verificationPhotoPath,
       qualityNotes: qualityNotes,
       receiverName: verifiedBy,
+      receiverUserId: receiverUserId,
     );
   }
 
@@ -1194,6 +1547,7 @@ class FarmerRepository extends ChangeNotifier {
     String? verificationPhotoPath,
     String? qualityNotes,
     String receiverName = 'Penerima',
+    String? receiverUserId,
   }) {
     final cleanBreakdown = gradeBreakdown.where((e) => e.hasValue).toList();
     if (receivedQuantity <= 0 ||
@@ -1207,6 +1561,13 @@ class FarmerRepository extends ChangeNotifier {
 
     final existing = _batches[index];
     if (existing.status != BatchStatus.created) return false;
+    if (!canReceiveBatch(
+      batch: existing,
+      role: receiverRole,
+      userId: receiverUserId ?? '',
+    )) {
+      return false;
+    }
 
     // [FE - State Management] Grade dominan disimpan sebagai ringkasan lama
     // agar UI yang belum membaca breakdown tetap punya label grade pengepul.
@@ -1215,9 +1576,11 @@ class FarmerRepository extends ChangeNotifier {
     );
     final dominantGrade = dominantBreakdown.grade.trim();
     final verifiedAt = DateTime.now();
-    final newStatus = receiverRole == BatchReceiverRole.umkm
-        ? BatchStatus.receivedByUmkm
-        : BatchStatus.verifiedByCollector;
+    final newStatus = switch (receiverRole) {
+      BatchReceiverRole.collector => BatchStatus.verifiedByCollector,
+      BatchReceiverRole.distributor => BatchStatus.receivedByDistributor,
+      BatchReceiverRole.umkm => BatchStatus.receivedByUmkm,
+    };
     final cleanReceiverName = receiverName.trim().isEmpty
         ? receiverRole.label
         : receiverName.trim();
@@ -1658,12 +2021,13 @@ class FarmerRepository extends ChangeNotifier {
       case BatchStatus.created:
         break; // hanya event dibuat
       case BatchStatus.verifiedByCollector:
+      case BatchStatus.receivedByDistributor:
         events.add(
           BatchEvent(
             title: receiverActionTitle,
             actorLabel: verifiedBy,
             timestamp: verifiedAt,
-            status: BatchStatus.verifiedByCollector,
+            status: batch.status,
           ),
         );
       case BatchStatus.inDistribution:
@@ -1824,6 +2188,10 @@ class FarmerRepository extends ChangeNotifier {
     required String phone,
     required String email,
     String roleLabel = 'Petani Durian',
+    String village = '',
+    String district = '',
+    String city = '',
+    String province = '',
   }) {
     final id = 'farmer-${DateTime.now().millisecondsSinceEpoch}';
     final fullName = '$firstName $lastName'.trim();
@@ -1831,10 +2199,16 @@ class FarmerRepository extends ChangeNotifier {
       farmerId: id,
       fullName: fullName.isEmpty ? 'Petani' : fullName,
       roleLabel: roleLabel,
-      location: '', // dilengkapi kemudian
-      village: '',
-      district: '',
-      city: '',
+      location: [
+        village,
+        district,
+        city,
+        province,
+      ].map((part) => part.trim()).where((part) => part.isNotEmpty).join(', '),
+      village: village.trim(),
+      district: district.trim(),
+      city: city.trim(),
+      province: province.trim(),
       contact: phone.isEmpty ? '' : '+62 $phone',
       email: email.trim(),
     );
@@ -1851,18 +2225,21 @@ class FarmerRepository extends ChangeNotifier {
   // registrasi). Komponen lokasi ringkas (`location`) diturunkan otomatis
   // dari desa/kabupaten agar konsisten di Beranda & Detail Batch.
   /// Memperbarui profil petani yang sedang login dan menyimpannya ke store.
-  FarmerProfile updateProfile({
+  Future<FarmerProfile> updateProfile({
     required String fullName,
     required String contact,
     required String email,
     required String village,
     required String district,
     required String city,
-  }) {
+    required String province,
+  }) async {
     // Susun ringkasan lokasi dari komponen non-kosong (desa + kabupaten).
     final locationParts = <String>[
-      if (village.trim().isNotEmpty) 'Desa ${village.trim()}',
+      if (village.trim().isNotEmpty) village.trim(),
+      if (district.trim().isNotEmpty) district.trim(),
       if (city.trim().isNotEmpty) city.trim(),
+      if (province.trim().isNotEmpty) province.trim(),
     ];
     final location = locationParts.join(', ');
 
@@ -1872,9 +2249,32 @@ class FarmerRepository extends ChangeNotifier {
       village: village.trim(),
       district: district.trim(),
       city: city.trim(),
+      province: province.trim(),
       location: location,
       email: email.trim(),
     );
+
+    try {
+      final response = await BackendApiClient.instance.put(
+        '/farmer/profile',
+        body: {
+          'full_name': _profile.fullName,
+          'role_label': _profile.roleLabel,
+          'location': _profile.location,
+          'village': _profile.village,
+          'district': _profile.district,
+          'city': _profile.city,
+          'province': _profile.province,
+          'province': _profile.province,
+          'contact': _profile.contact,
+          'email': _profile.emailValue,
+          'avatar_path': _profile.avatarPath,
+        },
+      );
+      _applyProfileResponse(response.data);
+    } catch (_) {
+      // Tetap simpan state lokal bila backend sementara tidak tersedia.
+    }
 
     _saveToLocal();
     notifyListeners();
@@ -1883,8 +2283,27 @@ class FarmerRepository extends ChangeNotifier {
 
   // [FE - State Management] updateAvatar menyimpan path foto profil petani
   // ke profil aktif dan local storage agar avatar bertahan setelah restart.
-  void updateAvatar(String? path) {
+  Future<void> updateAvatar(String? path) async {
     _profile = _profile.copyWith(avatarPath: path);
+    try {
+      await BackendApiClient.instance.put(
+        '/farmer/profile',
+        body: {
+          'full_name': _profile.fullName,
+          'role_label': _profile.roleLabel,
+          'location': _profile.location,
+          'village': _profile.village,
+          'district': _profile.district,
+          'city': _profile.city,
+          'province': _profile.province,
+          'contact': _profile.contact,
+          'email': _profile.emailValue,
+          'avatar_path': _profile.avatarPath,
+        },
+      );
+    } catch (_) {
+      // Avatar tetap di-cache lokal bila backend gagal.
+    }
     _saveToLocal();
     notifyListeners();
   }

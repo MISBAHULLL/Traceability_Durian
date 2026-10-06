@@ -358,7 +358,7 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
     // dan edit agar store lokal serta listener UI tetap satu sumber kebenaran.
     final bool ok;
     if (widget.isEditMode) {
-      ok = _repo.updateFarm(
+      ok = await _repo.updateFarm(
         id: widget.editFarmId!,
         name: _nameCtrl.text.trim(),
         province: _provinceCtrl.text.trim(),
@@ -370,7 +370,7 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
         longitude: lng,
       );
     } else {
-      _repo.addFarm(
+      await _repo.addFarm(
         name: _nameCtrl.text.trim(),
         province: _provinceCtrl.text.trim(),
         city: _cityCtrl.text.trim(),
@@ -505,7 +505,7 @@ class _CreateFarmScreenState extends State<CreateFarmScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ── Alamat (wajib) ─────────────────────────────────────
+                    // ── Alamat ─────────────────────────────────────
                     _FormField(
                       label: 'Alamat',
                       hint: 'Contoh: Jl. Raya Pakis No. 1',

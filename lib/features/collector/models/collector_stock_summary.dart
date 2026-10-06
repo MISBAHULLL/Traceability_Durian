@@ -90,9 +90,16 @@ class CollectorStockBreakdown {
     return CollectorStockBreakdown(
       key: json['key'] as String,
       label: json['label'] as String,
-      totalWeightKg: (json['totalWeightKg'] as num).toDouble(),
-      totalFruitCount: (json['totalFruitCount'] as num).toInt(),
-      batchCount: (json['batchCount'] as num).toInt(),
+      totalWeightKg: ((json['totalWeightKg'] ?? json['total_weight_kg'])
+              as num? ??
+          0)
+          .toDouble(),
+      totalFruitCount: ((json['totalFruitCount'] ?? json['total_fruit_count'])
+              as num? ??
+          0)
+          .toInt(),
+      batchCount: ((json['batchCount'] ?? json['batch_count']) as num? ?? 0)
+          .toInt(),
     );
   }
 }

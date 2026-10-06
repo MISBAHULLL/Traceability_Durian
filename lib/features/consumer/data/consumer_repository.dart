@@ -8,7 +8,6 @@ import '../../collector/data/collector_repository.dart';
 import '../../collector/models/collector_delivery_receipt.dart';
 import '../../collector/models/collector_shipment_batch.dart';
 import '../../farmer/data/farmer_repository.dart';
-import '../../farmer/models/harvest_batch.dart';
 import '../../traceability/data/traceability_repository.dart';
 import '../../traceability/models/traceability_models.dart';
 import '../../umkm/data/umkm_repository.dart';
@@ -18,30 +17,16 @@ import '../models/consumer_audit_entry.dart';
 import '../models/consumer_product.dart';
 import '../models/consumer_transaction.dart';
 
-/// Repository ringan untuk data konsumen.
-///
-/// Berisi profil mock yang bertahan lewat SharedPreferences serta daftar
-/// produk UMKM seed yang ditampilkan di beranda.
+/// Repository data konsumen yang disinkronkan dengan backend.
 class ConsumerRepository extends ChangeNotifier {
-  ConsumerRepository._seed() {
+  ConsumerRepository._() {
     _loadFromLocal();
     UmkmRepository.instance.addListener(_onCatalogChanged);
     TraceabilityRepository.instance.addListener(_onCatalogChanged);
     unawaited(refreshFromBackend());
   }
 
-  static final ConsumerRepository instance = ConsumerRepository._seed();
-
-  static const String _kSeedConsumerId = 'consumer-001';
-
-  static const ConsumerProfile _kSeedProfile = ConsumerProfile(
-    consumerId: _kSeedConsumerId,
-    fullName: 'Ayu Prameswari',
-    roleLabel: 'Konsumen Durian',
-    contact: '081234567890',
-    email: 'konsumen@example.com',
-    location: 'Kota Surabaya',
-  );
+  static final ConsumerRepository instance = ConsumerRepository._();
 
   late String _currentConsumerId;
   late ConsumerProfile _profile;
@@ -160,17 +145,29 @@ class ConsumerRepository extends ChangeNotifier {
 
       if (profileResponse.data is Map) {
         final data = Map<String, dynamic>.from(profileResponse.data as Map);
-        final user = Map<String, dynamic>.from(data['user'] as Map? ?? const {});
+        final user = Map<String, dynamic>.from(
+          data['user'] as Map? ?? const {},
+        );
         final profile = Map<String, dynamic>.from(
           data['profile'] as Map? ?? const {},
         );
         _profile = ConsumerProfile.fromJson({
-          'consumerId': user['id']?.toString() ?? profile['user_id']?.toString() ?? _profile.consumerId,
-          'fullName': profile['display_name'] ?? user['full_name'] ?? '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim(),
+          'consumerId':
+              user['id']?.toString() ??
+              profile['user_id']?.toString() ??
+              _profile.consumerId,
+          'fullName':
+              profile['display_name'] ??
+              user['full_name'] ??
+              '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim(),
           'roleLabel': 'Konsumen Durian',
           'contact': profile['phone'] ?? user['phone'] ?? '',
           'email': user['email'] ?? '',
           'location': profile['address'] ?? '',
+          'village': profile['village'] ?? '',
+          'district': profile['district'] ?? '',
+          'city': profile['city'] ?? '',
+          'province': profile['province'] ?? '',
           'avatarPath': profile['avatar_path'],
         });
       }
@@ -179,9 +176,8 @@ class ConsumerRepository extends ChangeNotifier {
         _products = (productsResponse.data as List)
             .whereType<Map>()
             .map(
-              (item) => ConsumerProduct.fromJson(
-                Map<String, dynamic>.from(item),
-              ),
+              (item) =>
+                  ConsumerProduct.fromJson(Map<String, dynamic>.from(item)),
             )
             .toList();
       }
@@ -190,9 +186,8 @@ class ConsumerRepository extends ChangeNotifier {
         _transactions = (transactionsResponse.data as List)
             .whereType<Map>()
             .map(
-              (item) => ConsumerTransaction.fromJson(
-                Map<String, dynamic>.from(item),
-              ),
+              (item) =>
+                  ConsumerTransaction.fromJson(Map<String, dynamic>.from(item)),
             )
             .toList();
       }
@@ -205,178 +200,6 @@ class ConsumerRepository extends ChangeNotifier {
     } catch (_) {
       // Gunakan cache lokal jika backend belum tersedia.
     }
-  }
-
-  static List<ConsumerProduct> _buildSeedProducts() {
-    final farmerRepo = FarmerRepository.instance;
-    HarvestBatch? source(String code) => farmerRepo.findPublicBatch(code);
-
-    return [
-      ConsumerProduct(
-        code: 'UMKM-001',
-        name: 'Pancake Durian Premium',
-        category: ConsumerProductCategory.paket,
-        status: ConsumerProductStatus.readyToSell,
-        priceLabel: 'Rp 68.000',
-        shortDescription:
-            'Paket isi 4 potong dengan isian durian lembut dan kulit tipis.',
-        umkmName: 'UMKM Sari Durian Jember',
-        location: 'Kabupaten Jember, Jawa Timur',
-        rating: 4.9,
-        stockLabel: 'Stok 24 paket',
-        sourceBatchCode: 'DRN-2026-000119',
-        sourceVariety: source('DRN-2026-000119')?.variety,
-        sourceGrade: source('DRN-2026-000119')?.grade,
-        sourceOriginFarm: source('DRN-2026-000119')?.farmName,
-        sourceHarvestDate: source('DRN-2026-000119')?.harvestDate,
-        sourceHarvestMethod: source('DRN-2026-000119')?.harvestMethod,
-        sourceMaturityLevel: source('DRN-2026-000119')?.maturityLevel,
-        sourceShelfLifeEstimate: source('DRN-2026-000119')?.shelfLifeEstimate,
-        sourceVerifiedBy: source('DRN-2026-000119')?.verifiedBy,
-        sourceVerifiedAt: source('DRN-2026-000119')?.verifiedAt,
-        sourceReceivedQuantity: source('DRN-2026-000119')?.receivedQuantity,
-        sourceReceivedFruitCount: source('DRN-2026-000119')?.receivedFruitCount,
-        sourceQualityNotes: source('DRN-2026-000119')?.qualityNotes,
-        sourceNotes: source('DRN-2026-000119')?.notes,
-      ),
-      ConsumerProduct(
-        code: 'UMKM-002',
-        name: 'Dodol Durian Lembut',
-        category: ConsumerProductCategory.olahan,
-        status: ConsumerProductStatus.readyToSell,
-        priceLabel: 'Rp 42.000',
-        shortDescription:
-            'Olahan legit dengan tekstur kenyal, cocok untuk oleh-oleh.',
-        umkmName: 'UMKM Manis Jaya',
-        location: 'Kabupaten Jember, Jawa Timur',
-        rating: 4.8,
-        stockLabel: 'Stok 36 bungkus',
-        sourceBatchCode: 'DRN-2026-000103',
-        sourceVariety: source('DRN-2026-000103')?.variety,
-        sourceGrade: source('DRN-2026-000103')?.grade,
-        sourceOriginFarm: source('DRN-2026-000103')?.farmName,
-        sourceHarvestDate: source('DRN-2026-000103')?.harvestDate,
-        sourceHarvestMethod: source('DRN-2026-000103')?.harvestMethod,
-        sourceMaturityLevel: source('DRN-2026-000103')?.maturityLevel,
-        sourceShelfLifeEstimate: source('DRN-2026-000103')?.shelfLifeEstimate,
-        sourceVerifiedBy: source('DRN-2026-000103')?.verifiedBy,
-        sourceVerifiedAt: source('DRN-2026-000103')?.verifiedAt,
-        sourceReceivedQuantity: source('DRN-2026-000103')?.receivedQuantity,
-        sourceReceivedFruitCount: source('DRN-2026-000103')?.receivedFruitCount,
-        sourceQualityNotes: source('DRN-2026-000103')?.qualityNotes,
-        sourceNotes: source('DRN-2026-000103')?.notes,
-      ),
-      ConsumerProduct(
-        code: 'UMKM-003',
-        name: 'Es Krim Durian Cup',
-        category: ConsumerProductCategory.minuman,
-        status: ConsumerProductStatus.readyToSell,
-        priceLabel: 'Rp 22.000',
-        shortDescription:
-            'Dessert dingin dengan rasa durian yang lembut dan segar.',
-        umkmName: 'UMKM Dingin Segar',
-        location: 'Kabupaten Jember, Jawa Timur',
-        rating: 4.7,
-        stockLabel: 'Stok 18 cup',
-        sourceBatchCode: 'DRN-2026-000097',
-        sourceVariety: source('DRN-2026-000097')?.variety,
-        sourceGrade: source('DRN-2026-000097')?.grade,
-        sourceOriginFarm: source('DRN-2026-000097')?.farmName,
-        sourceHarvestDate: source('DRN-2026-000097')?.harvestDate,
-        sourceHarvestMethod: source('DRN-2026-000097')?.harvestMethod,
-        sourceMaturityLevel: source('DRN-2026-000097')?.maturityLevel,
-        sourceShelfLifeEstimate: source('DRN-2026-000097')?.shelfLifeEstimate,
-        sourceVerifiedBy: source('DRN-2026-000097')?.verifiedBy,
-        sourceVerifiedAt: source('DRN-2026-000097')?.verifiedAt,
-        sourceReceivedQuantity: source('DRN-2026-000097')?.receivedQuantity,
-        sourceReceivedFruitCount: source('DRN-2026-000097')?.receivedFruitCount,
-        sourceQualityNotes: source('DRN-2026-000097')?.qualityNotes,
-        sourceNotes: source('DRN-2026-000097')?.notes,
-      ),
-      ConsumerProduct(
-        code: 'UMKM-004',
-        name: 'Durian Kupas Fresh Pack',
-        category: ConsumerProductCategory.segar,
-        status: ConsumerProductStatus.readyToSell,
-        priceLabel: 'Rp 95.000',
-        shortDescription:
-            'Daging durian kupas pilihan, siap santap dan dikirim cepat.',
-        umkmName: 'UMKM Segar Pagi',
-        location: 'Kabupaten Jember, Jawa Timur',
-        rating: 4.9,
-        stockLabel: 'Stok 12 pack',
-        sourceBatchCode: 'DRN-2026-000128',
-        sourceVariety: source('DRN-2026-000128')?.variety,
-        sourceGrade: source('DRN-2026-000128')?.grade,
-        sourceOriginFarm: source('DRN-2026-000128')?.farmName,
-        sourceHarvestDate: source('DRN-2026-000128')?.harvestDate,
-        sourceHarvestMethod: source('DRN-2026-000128')?.harvestMethod,
-        sourceMaturityLevel: source('DRN-2026-000128')?.maturityLevel,
-        sourceShelfLifeEstimate: source('DRN-2026-000128')?.shelfLifeEstimate,
-        sourceVerifiedBy: source('DRN-2026-000128')?.verifiedBy,
-        sourceVerifiedAt: source('DRN-2026-000128')?.verifiedAt,
-        sourceReceivedQuantity: source('DRN-2026-000128')?.receivedQuantity,
-        sourceReceivedFruitCount: source('DRN-2026-000128')?.receivedFruitCount,
-        sourceQualityNotes: source('DRN-2026-000128')?.qualityNotes,
-        sourceNotes: source('DRN-2026-000128')?.notes,
-      ),
-    ];
-  }
-
-  static List<ConsumerTransaction> _buildSeedTransactions(
-    List<ConsumerProduct> products,
-  ) {
-    final readyProducts = products
-        .where((product) => product.status == ConsumerProductStatus.readyToSell)
-        .toList();
-    if (readyProducts.length < 2) return const [];
-
-    return [
-      ConsumerTransaction(
-        id: 'TRX-2026-0001',
-        product: readyProducts[0],
-        status: ConsumerTransactionStatus.processing,
-        quantity: 1,
-        totalLabel: readyProducts[0].priceLabel,
-        createdAt: DateTime(2026, 6, 10, 14, 20),
-        buyerAddress: 'Desa Pakis, Kec. Panti, Kab. Jember',
-        buyerCoordinates: '-8.2285, 113.6204',
-        paymentMethod: 'QRIS',
-        paymentStatus: ConsumerPaymentStatus.unpaid,
-        qrCodeData: 'TRX-2026-0001',
-        note: 'Menunggu pembayaran dari konsumen.',
-      ),
-      ConsumerTransaction(
-        id: 'TRX-2026-0002',
-        product: readyProducts[1],
-        status: ConsumerTransactionStatus.processing,
-        quantity: 2,
-        totalLabel: 'Rp 84.000',
-        createdAt: DateTime(2026, 6, 8, 10, 15),
-        buyerAddress: 'Gg. Melati, Jl. A. Yani, Kota Surabaya',
-        buyerCoordinates: '-7.2575, 112.7521',
-        paymentMethod: 'Transfer Bank',
-        paymentStatus: ConsumerPaymentStatus.processing,
-        qrCodeData: 'TRX-2026-0002',
-        bankName: 'BNI',
-        accountNumber: '9876543210',
-        note: 'Menunggu konfirmasi UMKM.',
-      ),
-      ConsumerTransaction(
-        id: 'TRX-2026-0003',
-        product: readyProducts[0],
-        status: ConsumerTransactionStatus.completed,
-        quantity: 2,
-        totalLabel: 'Rp 136.000',
-        createdAt: DateTime(2026, 6, 6, 9, 45),
-        buyerAddress: 'Perumahan Tegal Besar, Jember',
-        buyerCoordinates: '-8.1834, 113.7002',
-        paymentMethod: 'Cash on Delivery',
-        paymentStatus: ConsumerPaymentStatus.paid,
-        qrCodeData: 'TRX-2026-0003',
-        note: 'Pesanan sudah selesai.',
-      ),
-    ];
   }
 
   ConsumerProfile get profile => _profile;
@@ -603,7 +426,7 @@ class ConsumerRepository extends ChangeNotifier {
     required String title,
     String? batchCode,
     String? description,
-  }) {
+  }) async {
     _recordAudit(
       type: ConsumerAuditEventType.scan,
       title: title,
@@ -723,13 +546,13 @@ class ConsumerRepository extends ChangeNotifier {
     final shipment = findCollectorShipment(code);
     if (shipment == null) return null;
     if (shipment.status == CollectorShipmentStatus.readyToShip) {
-      CollectorRepository.instance.markShipmentSent(shipment.code);
+      unawaited(CollectorRepository.instance.markShipmentSent(shipment.code));
       return findCollectorShipment(shipment.code);
     }
     return shipment;
   }
 
-  CollectorDeliveryReceipt? receiveCollectorShipment({
+  Future<CollectorDeliveryReceipt?> receiveCollectorShipment({
     required String code,
     required double receivedWeightKg,
     required int receivedFruitCount,
@@ -737,7 +560,7 @@ class ConsumerRepository extends ChangeNotifier {
     required String destinationLocation,
     String? discrepancyNote,
     String? qualityNote,
-  }) {
+  }) async {
     final cleanCode = code.trim().toUpperCase();
     var shipment = scanCollectorShipment(cleanCode);
     if (shipment == null ||
@@ -760,7 +583,7 @@ class ConsumerRepository extends ChangeNotifier {
     }
 
     final cleanQualityNote = qualityNote?.trim();
-    final completed = CollectorRepository.instance.completeShipment(
+    final completed = await CollectorRepository.instance.completeShipment(
       cleanCode,
       warehouseNote: cleanQualityNote?.isNotEmpty == true
           ? cleanQualityNote
@@ -896,7 +719,7 @@ class ConsumerRepository extends ChangeNotifier {
     return receipt;
   }
 
-  ConsumerTransaction addTransaction(
+  Future<ConsumerTransaction?> addTransaction(
     ConsumerProduct product, {
     required int quantity,
     required String buyerAddress,
@@ -906,23 +729,52 @@ class ConsumerRepository extends ChangeNotifier {
     String? bankName,
     String? accountNumber,
     String? note,
-  }) {
+  }) async {
     final now = DateTime.now();
+    BackendApiResponse response;
+    try {
+      response = await BackendApiClient.instance.post(
+        '/consumer/transactions',
+        body: {
+          'product_code': product.code,
+          'quantity': quantity,
+          'buyer_address': buyerAddress,
+          'buyer_coordinates': buyerCoordinates,
+          'payment_method': paymentMethod,
+          'payment_status': paymentStatus.name,
+          'bank_name': bankName,
+          'account_number': accountNumber,
+          'note': note,
+        },
+      );
+    } on BackendApiException {
+      return null;
+    }
+    final payload = response.data is Map
+        ? Map<String, dynamic>.from(response.data as Map)
+        : const <String, dynamic>{};
     final transactions = _transactions ??= <ConsumerTransaction>[];
-    final id =
-        'TRX-${now.year}-${(transactions.length + 1).toString().padLeft(4, '0')}';
+    final id = backendString(payload, const ['id', 'code']);
+    if (id.isEmpty) return null;
     final transaction = ConsumerTransaction(
       id: id,
       product: product,
-      status: ConsumerTransactionStatus.processing,
+      status: ConsumerTransactionStatus.values.firstWhere(
+        (status) => status.name == backendString(payload, const ['status']),
+        orElse: () => ConsumerTransactionStatus.processing,
+      ),
       quantity: quantity,
       totalLabel: product.priceLabel,
       createdAt: now,
       buyerAddress: buyerAddress,
       buyerCoordinates: buyerCoordinates,
       paymentMethod: paymentMethod,
-      paymentStatus: paymentStatus,
-      qrCodeData: id,
+      paymentStatus: ConsumerPaymentStatus.values.firstWhere(
+        (status) =>
+            status.name == backendString(payload, const ['payment_status']),
+        orElse: () => paymentStatus,
+      ),
+      qrCodeData: backendString(payload, const ['qr_code_data'], id),
       bankName: bankName,
       accountNumber: accountNumber,
       note: note,
@@ -944,10 +796,6 @@ class ConsumerRepository extends ChangeNotifier {
       },
       save: false,
     );
-    if (_canCreateUmkmOrderFromTransaction(transaction)) {
-      _createUmkmOrderForTransaction(transaction);
-    }
-    _saveToLocal();
     notifyListeners();
     return transaction;
   }
@@ -1091,6 +939,10 @@ class ConsumerRepository extends ChangeNotifier {
     String phone = '',
     String email = '',
     String roleLabel = 'Konsumen Durian',
+    String village = '',
+    String district = '',
+    String city = '',
+    String province = '',
   }) {
     final id = 'consumer-${DateTime.now().millisecondsSinceEpoch}';
     final fullName = '$firstName $lastName'.trim();
@@ -1100,6 +952,16 @@ class ConsumerRepository extends ChangeNotifier {
       roleLabel: roleLabel,
       contact: phone.isEmpty ? '' : '+62 $phone',
       email: email.trim(),
+      location: [
+        village,
+        district,
+        city,
+        province,
+      ].map((part) => part.trim()).where((part) => part.isNotEmpty).join(', '),
+      village: village.trim(),
+      district: district.trim(),
+      city: city.trim(),
+      province: province.trim(),
     );
 
     _currentConsumerId = id;
@@ -1109,20 +971,53 @@ class ConsumerRepository extends ChangeNotifier {
     return profile;
   }
 
-  ConsumerProfile updateProfile({
+  Future<ConsumerProfile> updateProfile({
     required String fullName,
     required String contact,
     required String email,
     required String location,
-  }) {
+    required String village,
+    required String district,
+    required String city,
+    required String province,
+  }) async {
+    final normalizedLocation = [
+      village.trim(),
+      district.trim(),
+      city.trim(),
+      province.trim(),
+    ].where((value) => value.isNotEmpty).join(', ');
     _profile = _profile.copyWith(
       fullName: fullName.trim(),
       contact: contact.trim(),
       email: email.trim(),
-      location: location.trim(),
+      location: normalizedLocation.isEmpty
+          ? location.trim()
+          : normalizedLocation,
+      village: village.trim(),
+      district: district.trim(),
+      city: city.trim(),
+      province: province.trim(),
     );
     _saveToLocal();
     notifyListeners();
+    try {
+      await BackendApiClient.instance.put(
+        '/consumer/profile',
+        body: {
+          'full_name': _profile.fullName,
+          'phone': _profile.contact,
+          'email': _profile.email,
+          'address': _profile.location,
+          'village': _profile.village,
+          'district': _profile.district,
+          'city': _profile.city,
+          'province': _profile.province,
+        },
+      );
+    } on BackendApiException {
+      // Local state remains available when the backend is temporarily offline.
+    }
     return _profile;
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/backend_api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../data/umkm_repository.dart';
@@ -28,19 +29,37 @@ class _UmkmOrderDetailScreenState extends State<UmkmOrderDetailScreen> {
 
   Future<void> _updateStatus(UmkmOrderStatus status) async {
     setState(() => _isSaving = true);
-    await Future.delayed(const Duration(milliseconds: 500));
-    final product = _findProductByName(_order.productName);
-    _order = _order.copyWith(
-      status: status,
-      productCode: product?.code,
-      completedAt: status == UmkmOrderStatus.selesai ? DateTime.now() : null,
-    );
-    _repo.updateOrder(_order);
-    if (!mounted) return;
-    setState(() => _isSaving = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Status pesanan diubah menjadi ${status.label}.')),
-    );
+    try {
+      final product = _findProductByName(_order.productName);
+      final updatedOrder = _order.copyWith(
+        status: status,
+        productCode: product?.code,
+        completedAt: status == UmkmOrderStatus.selesai ? DateTime.now() : null,
+      );
+      await _repo.updateOrder(updatedOrder);
+      if (!mounted) return;
+      setState(() {
+        _order = updatedOrder;
+        _isSaving = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Status pesanan diubah menjadi ${status.label}.'),
+        ),
+      );
+    } on BackendApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui pesanan: ${error.message}')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui pesanan: $error')),
+      );
+    }
   }
 
   Future<void> _cancelOrder() async {
@@ -69,14 +88,27 @@ class _UmkmOrderDetailScreenState extends State<UmkmOrderDetailScreen> {
     if (shouldCancel != true) return;
 
     setState(() => _isSaving = true);
-    await Future.delayed(const Duration(milliseconds: 300));
-    _repo.deleteOrder(_order.id);
-    if (!mounted) return;
-    setState(() => _isSaving = false);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Pesanan dibatalkan.')));
-    Navigator.pop(context);
+    try {
+      await _repo.deleteOrder(_order.id);
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Pesanan dibatalkan.')));
+      Navigator.pop(context);
+    } on BackendApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membatalkan pesanan: ${error.message}')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membatalkan pesanan: $error')),
+      );
+    }
   }
 
   @override

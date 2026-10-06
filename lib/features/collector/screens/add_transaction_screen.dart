@@ -366,18 +366,26 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     await Future.delayed(const Duration(milliseconds: 800));
 
     if (!mounted) return;
+    late final bool ok;
+    try {
+      ok = await _repo.verifyFreshBatch(
+        code: selectedProduct.code,
+        receivedQuantity: quantity,
+        receivedFruitCount: receivedFruitCount,
+        gradeBreakdown: gradeBreakdown,
+        warehouseId: _selectedWarehouseId,
+        verificationPhotoPath: _verificationPhotoPath,
+        qualityNotes: _notesCtrl.text.trim(),
+        transactionId: widget.initialTransactionId,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      _notif.show(context, 'Verifikasi gagal disimpan: $error', isError: true);
+      return;
+    }
+    if (!mounted) return;
     setState(() => _isSubmitting = false);
-
-    final ok = _repo.verifyFreshBatch(
-      code: selectedProduct.code,
-      receivedQuantity: quantity,
-      receivedFruitCount: receivedFruitCount,
-      gradeBreakdown: gradeBreakdown,
-      warehouseId: _selectedWarehouseId,
-      verificationPhotoPath: _verificationPhotoPath,
-      qualityNotes: _notesCtrl.text.trim(),
-      transactionId: widget.initialTransactionId,
-    );
 
     if (!ok) {
       _notif.show(
@@ -435,7 +443,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     if (!mounted) return;
 
-    final ok = _repo.rejectFreshBatch(
+    final ok = await _repo.rejectFreshBatch(
       code: selectedProduct.code,
       reason: reason,
       transactionId: widget.initialTransactionId,

@@ -24,7 +24,10 @@ class _UmkmDataScreenState extends State<UmkmDataScreen> {
   late final TextEditingController _ownerCtrl;
   late final TextEditingController _contactCtrl;
   late final TextEditingController _emailCtrl;
-  late final TextEditingController _locationCtrl;
+  late final TextEditingController _villageCtrl;
+  late final TextEditingController _districtCtrl;
+  late final TextEditingController _cityCtrl;
+  late final TextEditingController _provinceCtrl;
   late final TextEditingController _aboutCtrl;
   final _imagePicker = ImagePicker();
   String? _imagePath;
@@ -39,7 +42,10 @@ class _UmkmDataScreenState extends State<UmkmDataScreen> {
     _ownerCtrl = TextEditingController(text: _profile.ownerName);
     _contactCtrl = TextEditingController(text: _profile.contact);
     _emailCtrl = TextEditingController(text: _profile.email);
-    _locationCtrl = TextEditingController(text: _profile.location);
+    _villageCtrl = TextEditingController(text: _profile.village);
+    _districtCtrl = TextEditingController(text: _profile.district);
+    _cityCtrl = TextEditingController(text: _profile.city);
+    _provinceCtrl = TextEditingController(text: _profile.province);
     _aboutCtrl = TextEditingController(text: _profile.about);
     _imagePath = _profile.imagePath;
     _imageBytes = _profile.imageBytes;
@@ -51,7 +57,10 @@ class _UmkmDataScreenState extends State<UmkmDataScreen> {
     _ownerCtrl.dispose();
     _contactCtrl.dispose();
     _emailCtrl.dispose();
-    _locationCtrl.dispose();
+    _villageCtrl.dispose();
+    _districtCtrl.dispose();
+    _cityCtrl.dispose();
+    _provinceCtrl.dispose();
     _aboutCtrl.dispose();
     super.dispose();
   }
@@ -115,23 +124,55 @@ class _UmkmDataScreenState extends State<UmkmDataScreen> {
   }
 
   Future<void> _saveProfile() async {
+    final village = _villageCtrl.text.trim();
+    final district = _districtCtrl.text.trim();
+    final city = _cityCtrl.text.trim();
+    final province = _provinceCtrl.text.trim();
+    if ([
+      _nameCtrl.text.trim(),
+      _ownerCtrl.text.trim(),
+      _contactCtrl.text.trim(),
+      _emailCtrl.text.trim(),
+      village,
+      district,
+      city,
+      province,
+    ].any((value) => value.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Nama, pemilik, kontak, email, dan alamat wajib diisi.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
     final updatedProfile = _profile.copyWith(
       name: _nameCtrl.text.trim(),
       ownerName: _ownerCtrl.text.trim(),
       contact: _contactCtrl.text.trim(),
       email: _emailCtrl.text.trim(),
-      location: _locationCtrl.text.trim(),
+      location: [village, district, city, province].join(', '),
+      village: village,
+      district: district,
+      city: city,
+      province: province,
       about: _aboutCtrl.text.trim(),
       imagePath: _imagePath,
       imageBytes: _imageBytes,
     );
-    await Future.delayed(const Duration(milliseconds: 500));
-    _repo.updateProfile(updatedProfile);
+    final saved = await _repo.updateProfile(updatedProfile);
     if (!mounted) return;
     setState(() => _isSaving = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Data UMKM berhasil diperbarui')),
+      SnackBar(
+        content: Text(
+          saved
+              ? 'Data UMKM berhasil diperbarui'
+              : 'Data UMKM gagal disimpan ke server. Coba lagi.',
+        ),
+      ),
     );
   }
 
@@ -211,7 +252,25 @@ class _UmkmDataScreenState extends State<UmkmDataScreen> {
                     _SectionCard(
                       title: 'Lokasi & Profil',
                       children: [
-                        _buildField(label: 'Lokasi', controller: _locationCtrl),
+                        _buildField(
+                          label: 'Kelurahan',
+                          controller: _villageCtrl,
+                        ),
+                        const SizedBox(height: 14),
+                        _buildField(
+                          label: 'Kecamatan',
+                          controller: _districtCtrl,
+                        ),
+                        const SizedBox(height: 14),
+                        _buildField(
+                          label: 'Kabupaten/Kota',
+                          controller: _cityCtrl,
+                        ),
+                        const SizedBox(height: 14),
+                        _buildField(
+                          label: 'Provinsi',
+                          controller: _provinceCtrl,
+                        ),
                         const SizedBox(height: 14),
                         _buildField(
                           label: 'Tentang UMKM',

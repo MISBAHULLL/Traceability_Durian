@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -40,6 +42,7 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
   void initState() {
     super.initState();
     _repo.addListener(_onRepoChanged);
+    unawaited(_refreshIncomingFarmerBatches());
     _searchCtrl.addListener(() {
       setState(() => _query = _searchCtrl.text.trim().toLowerCase());
     });
@@ -57,6 +60,14 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
 
   void _onRepoChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _refreshIncomingFarmerBatches() async {
+    try {
+      await _repo.refreshIncomingFarmerBatches();
+    } catch (_) {
+      // The section displays the repository's load error and retry action.
+    }
   }
 
   @override
@@ -126,6 +137,20 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
     }
   }
 
+  bool _matchesFarmerBatch(HarvestBatch batch) {
+    final query = _query.trim().toLowerCase();
+    final matchesQuery =
+        query.isEmpty ||
+        batch.variety.toLowerCase().contains(query) ||
+        batch.farmerId.toLowerCase().contains(query) ||
+        batch.code.toLowerCase().contains(query) ||
+        batch.farmName.toLowerCase().contains(query);
+    final matchesSupplier =
+        _activeSupplierFilter == null ||
+        _activeSupplierFilter == UmkmSupplierType.petani;
+    return matchesQuery && matchesSupplier;
+  }
+
   Future<void> _openIncomingScanner() async {
     final completed = await Navigator.push<bool>(
       context,
@@ -149,6 +174,10 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
       return;
     }
 
+    await _openFarmerBatchForVerification(code);
+  }
+
+  Future<void> _openFarmerBatchForVerification(String code) async {
     final batch = _repo.findFarmerBatch(code);
     if (batch == null || batch.status != BatchStatus.created) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -355,13 +384,44 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
           ),
         ),
         const SizedBox(height: 18),
-        if (offers.isEmpty)
+        if (_repo.isRefreshingFarmerBatches &&
+            _repo.availableFarmerBatches.isEmpty &&
+            offers.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_repo.farmerBatchesLoadError != null &&
+            _repo.availableFarmerBatches.isEmpty &&
+            offers.isEmpty)
+          _EmptyState(
+            icon: Icons.cloud_off_outlined,
+            title: 'Batch petani gagal dimuat',
+            subtitle: _repo.farmerBatchesLoadError!,
+          )
+        else if (offers.isEmpty &&
+            !_repo.availableFarmerBatches.any(_matchesFarmerBatch))
           const _EmptyState(
             icon: Icons.storefront_outlined,
             title: 'Durian tidak ditemukan',
             subtitle: 'Coba ubah kata kunci atau filter pemasok.',
           )
-        else
+        else ...[
+          if (_repo.farmerBatchesLoadError != null) ...[
+            Text(
+              'Batch petani gagal dimuat: ${_repo.farmerBatchesLoadError}',
+              style: const TextStyle(fontSize: 12, color: Colors.red),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _repo.isRefreshingFarmerBatches
+                    ? null
+                    : _refreshIncomingFarmerBatches,
+                child: const Text('Coba lagi'),
+              ),
+            ),
+          ],
           ...offers.map(
             (offer) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -371,6 +431,19 @@ class _UmkmAddPurchaseScreenState extends State<UmkmAddPurchaseScreen> {
               ),
             ),
           ),
+          ..._repo.availableFarmerBatches
+              .where(_matchesFarmerBatch)
+              .map(
+                (batch) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _FarmerBatchOfferCard(
+                    batch: batch,
+                    onValidate: () =>
+                        _openFarmerBatchForVerification(batch.code),
+                  ),
+                ),
+              ),
+        ],
       ],
     );
   }
@@ -834,7 +907,7 @@ class _UmkmCollectorShipmentReceiveScreenState
 
     setState(() => _isSaving = true);
     await Future.delayed(const Duration(milliseconds: 350));
-    final receipt = _repo.receiveCollectorShipment(
+    final receipt = await _repo.receiveCollectorShipment(
       code: shipment.code,
       receivedWeightKg: weight,
       receivedFruitCount: fruit,
@@ -1453,15 +1526,26 @@ class _UmkmDirectFarmerReceiveScreenState
 
     setState(() => _isSaving = true);
     await Future.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
     final note = _noteCtrl.text.trim();
-    final ok = _repo.receiveFarmerBatch(
-      code: widget.batchCode,
-      receivedWeightKg: weight,
-      receivedFruitCount: fruit,
-      conditionNote: note.isEmpty
-          ? 'Kondisi fisik: $_condition'
-          : 'Kondisi fisik: $_condition. $note',
-    );
+    late final bool ok;
+    try {
+      ok = await _repo.receiveFarmerBatch(
+        code: widget.batchCode,
+        receivedWeightKg: weight,
+        receivedFruitCount: fruit,
+        conditionNote: note.isEmpty
+            ? 'Kondisi fisik: $_condition'
+            : 'Kondisi fisik: $_condition. $note',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Penerimaan gagal disimpan: $error')),
+      );
+      return;
+    }
     if (!mounted) return;
     setState(() => _isSaving = false);
     if (!ok) {
@@ -2119,6 +2203,98 @@ class _SectionTabs extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FarmerBatchOfferCard extends StatelessWidget {
+  const _FarmerBatchOfferCard({required this.batch, required this.onValidate});
+
+  final HarvestBatch batch;
+  final VoidCallback onValidate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            const ProductMediaTile(imagePath: null),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Durian ${batch.variety}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      const _MiniChip(label: 'Petani'),
+                      _MiniChip(label: batch.code),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${batch.quantity.toStringAsFixed(0)} ${batch.unit} • ${batch.fruitCount ?? 0} buah',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Kebun ${batch.farmName} • menunggu verifikasi penerimaan',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.placeholder,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 38,
+                    child: ElevatedButton(
+                      onPressed: onValidate,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        'Validasi & Terima',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/screens/sales_inbox_screen.dart';
 import '../../auth/screens/home_screen.dart';
 import '../data/distributor_repository.dart';
 import '../distributor_routes.dart';
@@ -56,10 +57,15 @@ class DistributorDrawer extends StatelessWidget {
                       _go(context, const DistributorWarehousesScreen()),
                 ),
                 _DrawerItem(
-                  icon: Icons.swap_horiz_rounded,
-                  label: 'Jual ke Distributor Lain',
+                  icon: Icons.sell_outlined,
+                  label: 'Jual Durian',
                   onTap: () =>
                       _go(context, const DistributorHorizontalSalesScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.move_to_inbox_outlined,
+                  label: 'Penjualan Masuk',
+                  onTap: () => _go(context, const SalesInboxScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.history_rounded,

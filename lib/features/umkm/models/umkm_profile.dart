@@ -11,6 +11,10 @@ class UmkmProfile {
     required this.contact,
     required this.email,
     required this.location,
+    this.village = '',
+    this.district = '',
+    this.city = '',
+    this.province = '',
     required this.about,
     this.imagePath,
     this.imageBytes,
@@ -22,6 +26,10 @@ class UmkmProfile {
   final String contact;
   final String email;
   final String location;
+  final String village;
+  final String district;
+  final String city;
+  final String province;
   final String about;
   final String? imagePath;
   final Uint8List? imageBytes;
@@ -32,6 +40,10 @@ class UmkmProfile {
     String? contact,
     String? email,
     String? location,
+    String? village,
+    String? district,
+    String? city,
+    String? province,
     String? about,
     Object? imagePath = _unset,
     Object? imageBytes = _unset,
@@ -43,6 +55,10 @@ class UmkmProfile {
       contact: contact ?? this.contact,
       email: email ?? this.email,
       location: location ?? this.location,
+      village: village ?? this.village,
+      district: district ?? this.district,
+      city: city ?? this.city,
+      province: province ?? this.province,
       about: about ?? this.about,
       imagePath: imagePath == _unset ? this.imagePath : imagePath as String?,
       imageBytes: imageBytes == _unset
@@ -58,6 +74,10 @@ class UmkmProfile {
     'contact': contact,
     'email': email,
     'location': location,
+    'village': village,
+    'district': district,
+    'city': city,
+    'province': province,
     'about': about,
     'imagePath': imagePath,
     'imageBytes': imageBytes?.toList(),
@@ -72,6 +92,10 @@ class UmkmProfile {
       contact: backendString(json, const ['contact', 'phone']),
       email: backendString(json, const ['email']),
       location: backendString(json, const ['location', 'address']),
+      village: backendString(json, const ['village']),
+      district: backendString(json, const ['district']),
+      city: backendString(json, const ['city']),
+      province: backendString(json, const ['province']),
       about: backendString(json, const ['about']),
       imagePath: backendNullableString(json, const ['imagePath', 'image_path']),
       imageBytes: rawBytes is List

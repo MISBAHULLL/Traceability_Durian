@@ -127,7 +127,7 @@ class FarmerAvatar extends StatelessWidget {
     if (source == null) return;
 
     if (source == _AvatarAction.remove) {
-      FarmerRepository.instance.updateAvatar(null);
+      await FarmerRepository.instance.updateAvatar(null);
       onAvatarChanged?.call(null);
       return;
     }
@@ -144,7 +144,7 @@ class FarmerAvatar extends StatelessWidget {
         imageQuality: 85,
       );
       if (file != null) {
-        FarmerRepository.instance.updateAvatar(file.path);
+        await FarmerRepository.instance.updateAvatar(file.path);
         onAvatarChanged?.call(file.path);
       }
     } catch (_) {

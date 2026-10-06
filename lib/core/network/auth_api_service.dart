@@ -153,6 +153,10 @@ class AuthApiService {
     required String password,
     required String passwordConfirmation,
     required String role,
+    required String village,
+    required String district,
+    required String city,
+    required String province,
   }) {
     return _post(AuthEndpoints.register, <String, dynamic>{
       'first_name': firstName,
@@ -162,6 +166,10 @@ class AuthApiService {
       'password': password,
       'password_confirmation': passwordConfirmation,
       'role': role,
+      'village': village,
+      'district': district,
+      'city': city,
+      'province': province,
     });
   }
 
@@ -269,10 +277,7 @@ class AuthApiService {
           await FarmerRepository.instance.refreshFromBackend();
           break;
         case 'pengepul':
-          await Future.wait([
-            CollectorRepository.instance.refreshFromBackend(),
-            FarmerRepository.instance.refreshFromBackend(),
-          ]);
+          await CollectorRepository.instance.refreshFromBackend();
           break;
         case 'distributor':
           await Future.wait([

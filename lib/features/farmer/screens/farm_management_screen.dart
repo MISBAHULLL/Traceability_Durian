@@ -101,7 +101,7 @@ class _FarmManagementScreenState extends State<FarmManagementScreen> {
     );
 
     if (confirmed != true) return;
-    final ok = _repo.deleteFarm(farm.id);
+    final ok = await _repo.deleteFarm(farm.id);
     _showMessage(
       ok ? 'Kebun berhasil dihapus.' : 'Kebun tidak dapat dihapus.',
       isError: !ok,

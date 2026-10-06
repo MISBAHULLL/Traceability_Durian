@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/network/backend_api_client.dart';
-import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../../traceability/data/traceability_repository.dart';
@@ -25,24 +24,12 @@ import '../models/umkm_stock_offer.dart';
 import '../models/umkm_stock_order.dart';
 
 class UmkmRepository extends ChangeNotifier {
-  UmkmRepository._seed() {
+  UmkmRepository._() {
     _loadFromLocal();
     unawaited(refreshFromBackend());
   }
 
-  static final UmkmRepository instance = UmkmRepository._seed();
-
-  static const UmkmProfile _seedProfile = UmkmProfile(
-    umkmId: 'umkm-001',
-    name: 'UMKM Sari Durian Jember',
-    ownerName: 'Ayu Prameswari',
-    contact: '+62 812-3456-7890',
-    email: 'umkm@example.com',
-    location: 'Kabupaten Jember, Jawa Timur',
-    about: 'UMKM spesialis durian segar dan olahan khas Jember.',
-    imagePath: null,
-    imageBytes: null,
-  );
+  static final UmkmRepository instance = UmkmRepository._();
 
   UmkmProfile? _profile;
   List<UmkmProduct>? _products;
@@ -54,26 +41,19 @@ class UmkmRepository extends ChangeNotifier {
   List<UmkmStockOffer>? _stockOffers;
   List<UmkmStockOrder>? _stockOrders;
   final List<CollectorDeliveryReceipt> _collectorDeliveryReceipts = [];
+  List<HarvestBatch> _incomingFarmerBatches = <HarvestBatch>[];
+  List<HarvestBatch> _receivedMaterialBatches = <HarvestBatch>[];
+  bool _incomingFarmerBatchesLoaded = false;
+  bool? _isRefreshingFarmerBatches;
+  String? _farmerBatchesLoadError;
 
-  static const _profileKey = 'umkm_profile';
-  static const _productsKey = 'umkm_products';
-  static const _ordersKey = 'umkm_orders';
-  static const _purchasesKey = 'umkm_purchases';
-  static const _materialInventoriesKey = 'umkm_material_inventories';
-  static const _materialMovementsKey = 'umkm_material_movements';
-  static const _productionRecordsKey = 'umkm_production_records';
-  static const _stockOffersKey = 'umkm_stock_offers';
-  static const _stockOrdersKey = 'umkm_stock_orders';
-  static const _collectorDeliveryReceiptsKey =
-      'umkm_collector_delivery_receipts';
-
-  UmkmProfile get profile => _profile ??= _seedProfile;
+  UmkmProfile get profile =>
+      _profile ??= UmkmProfile.fromJson(const <String, dynamic>{});
   List<UmkmProduct> get products =>
-      List.unmodifiable(_products ??= _buildSeedProducts());
-  List<UmkmOrder> get orders =>
-      List.unmodifiable(_orders ??= _buildSeedOrders());
+      List.unmodifiable(_products ??= <UmkmProduct>[]);
+  List<UmkmOrder> get orders => List.unmodifiable(_orders ??= <UmkmOrder>[]);
   List<UmkmPurchase> get purchases =>
-      List.unmodifiable(_purchases ??= _buildSeedPurchases());
+      List.unmodifiable(_purchases ??= <UmkmPurchase>[]);
   List<UmkmMaterialInventory> get materialInventories =>
       List.unmodifiable(_materialInventories ??= <UmkmMaterialInventory>[]);
   List<UmkmMaterialMovement> get materialMovements =>
@@ -84,15 +64,12 @@ class UmkmRepository extends ChangeNotifier {
       List.unmodifiable(_collectorDeliveryReceipts);
   List<UmkmAuditEntry> get auditEntries => _buildAuditEntries();
   List<UmkmStockOffer> get stockOffers {
-    final offers = _stockOffers ??= _buildSeedStockOffers();
-    if (!_isValidStockOffers(offers)) {
-      _stockOffers = _buildSeedStockOffers();
-    }
+    _stockOffers ??= <UmkmStockOffer>[];
     return List.unmodifiable(_stockOffers!);
   }
 
   List<UmkmStockOrder> get stockOrders =>
-      List.unmodifiable(_stockOrders ??= _buildSeedStockOrders());
+      List.unmodifiable(_stockOrders ??= <UmkmStockOrder>[]);
 
   List<UmkmProduct> _productsOrCreate() => _products ??= <UmkmProduct>[];
   List<UmkmOrder> _ordersOrCreate() => _orders ??= <UmkmOrder>[];
@@ -127,59 +104,48 @@ class UmkmRepository extends ChangeNotifier {
     _collectorDeliveryReceipts.clear();
   }
 
-  T? _loadObject<T>(
-    String key,
-    T Function(Map<String, dynamic> json) fromJson,
-  ) {
-    final json = LocalStorageService.loadJson(key);
-    if (json == null) return null;
-    try {
-      return fromJson(json);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  List<T>? _loadList<T>(
-    String key,
-    T Function(Map<String, dynamic> json) fromJson,
-  ) {
-    final raw = LocalStorageService.loadJsonList(key);
-    if (raw == null) return null;
-    final items = <T>[];
-    for (final item in raw) {
-      try {
-        items.add(fromJson(item));
-      } catch (_) {
-        return null;
-      }
-    }
-    return items;
-  }
-
   void _saveToLocal() {
     return;
   }
 
   Future<void> refreshFromBackend() async {
     try {
-      final profileResponse = await BackendApiClient.instance.get('/umkm/profile');
-      final productsResponse = await BackendApiClient.instance.get('/umkm/products');
-      final ordersResponse = await BackendApiClient.instance.get('/umkm/orders');
+      final profileResponse = await BackendApiClient.instance.get(
+        '/umkm/profile',
+      );
+      final productsResponse = await BackendApiClient.instance.get(
+        '/umkm/products',
+      );
+      final ordersResponse = await BackendApiClient.instance.get(
+        '/umkm/orders',
+      );
+      final batchesResponse = await BackendApiClient.instance.get(
+        '/umkm/batches',
+      );
+      final materialsResponse = await BackendApiClient.instance.get(
+        '/umkm/material-batches',
+      );
 
       if (profileResponse.data is Map) {
         final data = Map<String, dynamic>.from(profileResponse.data as Map);
-        final user = Map<String, dynamic>.from(data['user'] as Map? ?? const {});
+        final user = Map<String, dynamic>.from(
+          data['user'] as Map? ?? const {},
+        );
         final profile = Map<String, dynamic>.from(
           data['profile'] as Map? ?? const {},
         );
         _profile = UmkmProfile.fromJson({
-          'umkmId': user['id']?.toString() ?? profile['user_id']?.toString() ?? _seedProfile.umkmId,
-          'name': profile['name'] ?? user['full_name'] ?? _seedProfile.name,
-          'ownerName': profile['owner_name'] ?? user['full_name'] ?? _seedProfile.ownerName,
+          'umkmId':
+              user['id']?.toString() ?? profile['user_id']?.toString() ?? '',
+          'name': profile['name'] ?? user['full_name'] ?? '',
+          'ownerName': profile['owner_name'] ?? user['full_name'] ?? '',
           'contact': profile['contact'] ?? user['phone'] ?? '',
           'email': user['email'] ?? '',
           'location': profile['address'] ?? '',
+          'village': profile['village'] ?? '',
+          'district': profile['district'] ?? '',
+          'city': profile['city'] ?? '',
+          'province': profile['province'] ?? '',
           'about': profile['about'] ?? '',
           'imagePath': profile['image_path'],
         });
@@ -188,7 +154,9 @@ class UmkmRepository extends ChangeNotifier {
       if (productsResponse.data is List) {
         _products = (productsResponse.data as List)
             .whereType<Map>()
-            .map((item) => UmkmProduct.fromJson(Map<String, dynamic>.from(item)))
+            .map(
+              (item) => UmkmProduct.fromJson(Map<String, dynamic>.from(item)),
+            )
             .toList();
       }
 
@@ -196,6 +164,25 @@ class UmkmRepository extends ChangeNotifier {
         _orders = (ordersResponse.data as List)
             .whereType<Map>()
             .map((item) => UmkmOrder.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      if (batchesResponse.data is List) {
+        _incomingFarmerBatches = (batchesResponse.data as List)
+            .whereType<Map>()
+            .map(
+              (item) => HarvestBatch.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .toList();
+        _incomingFarmerBatchesLoaded = true;
+      }
+
+      if (materialsResponse.data is List) {
+        _receivedMaterialBatches = (materialsResponse.data as List)
+            .whereType<Map>()
+            .map(
+              (item) => HarvestBatch.fromJson(Map<String, dynamic>.from(item)),
+            )
             .toList();
       }
 
@@ -219,6 +206,27 @@ class UmkmRepository extends ChangeNotifier {
     final seenCodes = <String>{};
     for (final item in items) {
       seenCodes.add(item.traceCode.trim().toUpperCase());
+    }
+    for (final batch in _receivedMaterialBatches) {
+      final code = batch.code.trim().toUpperCase();
+      if (seenCodes.contains(code)) continue;
+      seenCodes.add(code);
+      final quantity = batch.receivedQuantity ?? batch.quantity;
+      items.add(
+        UmkmTraceMaterialStock(
+          id: code,
+          traceCode: code,
+          publicTraceCode: code,
+          sourceTraceCodes: const [],
+          productName: 'Durian ${batch.variety}',
+          supplierName: batch.farmName,
+          initialQuantity: quantity,
+          remainingQuantity: quantity,
+          unit: batch.unit,
+          status: TraceBatchStatus.active,
+          createdAt: batch.createdAt ?? DateTime.now(),
+        ),
+      );
     }
     for (final batch in TraceabilityRepository.instance.batches) {
       final code = batch.code.trim().toUpperCase();
@@ -487,10 +495,30 @@ class UmkmRepository extends ChangeNotifier {
     return '$text $unit';
   }
 
-  void updateProfile(UmkmProfile profile) {
-    _profile = profile;
-    _saveToLocal();
-    notifyListeners();
+  Future<bool> updateProfile(UmkmProfile profile) async {
+    try {
+      await BackendApiClient.instance.put(
+        '/umkm/profile',
+        body: {
+          'name': profile.name,
+          'owner_name': profile.ownerName,
+          'contact': profile.contact,
+          'address': profile.location,
+          'village': profile.village,
+          'district': profile.district,
+          'city': profile.city,
+          'province': profile.province,
+          'about': profile.about,
+          'image_path': profile.imagePath,
+        },
+      );
+      _profile = profile;
+      _saveToLocal();
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   UmkmProductionRecord? productionRecordForProduct(String productCode) {
@@ -503,32 +531,70 @@ class UmkmRepository extends ChangeNotifier {
     }
   }
 
-  void addProduct(
+  Future<UmkmProduct?> addProduct(
     UmkmProduct product, {
     UmkmProductionRecord? productionRecord,
-  }) {
-    _productsOrCreate().insert(0, product);
-    if (productionRecord != null) {
-      _productionRecordsOrCreate().insert(0, productionRecord);
-    }
-    for (final material in product.sourceMaterials) {
-      _ensureMaterialInventoryFromTraceCode(
-        material.traceCode,
-        fallbackProductName: material.productName,
-        fallbackSupplierName: material.supplierName,
+  }) async {
+    BackendApiResponse response;
+    try {
+      response = await BackendApiClient.instance.post(
+        '/umkm/products',
+        body: {
+          'category': product.category,
+          'name': product.name,
+          'price_label': product.priceLabel,
+          'stock_label': product.stockLabel,
+          'description': product.description,
+          'status': product.status.name,
+          'photo_path': product.imagePath,
+          'source_codes': product.sourceMaterials
+              .map((material) => material.traceCode.trim())
+              .where((code) => code.isNotEmpty)
+              .toSet()
+              .toList(),
+        },
       );
+    } on BackendApiException {
+      return null;
     }
-    final processingRecorded = _recordProductProcessing(
-      product,
-      productionRecord: productionRecord,
+
+    if (response.data is! Map) return null;
+    final productData = Map<String, dynamic>.from(response.data as Map);
+    final responseSources =
+        productData['sourceMaterials'] ?? productData['source_materials'];
+    if (responseSources is! List || responseSources.isEmpty) {
+      productData['sourceMaterials'] = product.sourceMaterials
+          .map((material) => material.toJson())
+          .toList();
+    }
+    final savedProduct = UmkmProduct.fromJson(productData);
+    final sourceCodes = product.sourceTraceCodes
+        .map((code) => code.trim().toUpperCase())
+        .toSet();
+    _receivedMaterialBatches.removeWhere(
+      (batch) => sourceCodes.contains(batch.code.trim().toUpperCase()),
     );
-    if (processingRecorded) {
-      _recordMaterialUsageForProduct(
-        product,
-        productionRecord: productionRecord,
-      );
+    _productsOrCreate().removeWhere((item) => item.code == savedProduct.code);
+    _productsOrCreate().insert(0, savedProduct);
+    notifyListeners();
+    return savedProduct;
+  }
+
+  Future<void> deleteProduct(String productCode) async {
+    await BackendApiClient.instance.delete(
+      '/umkm/products/${Uri.encodeComponent(productCode)}',
+    );
+    _productsOrCreate().removeWhere((product) => product.code == productCode);
+    final materialsResponse = await BackendApiClient.instance.get(
+      '/umkm/material-batches',
+    );
+    if (materialsResponse.data is! List) {
+      throw BackendApiException('Respons daftar bahan baku UMKM tidak valid.');
     }
-    _saveToLocal();
+    _receivedMaterialBatches = (materialsResponse.data as List)
+        .whereType<Map>()
+        .map((item) => HarvestBatch.fromJson(Map<String, dynamic>.from(item)))
+        .toList();
     notifyListeners();
   }
 
@@ -651,11 +717,20 @@ class UmkmRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateOrder(UmkmOrder updatedOrder) {
+  Future<void> updateOrder(UmkmOrder updatedOrder) async {
     final orders = _ordersOrCreate();
     final index = orders.indexWhere((order) => order.id == updatedOrder.id);
     if (index == -1) return;
     final previousOrder = orders[index];
+
+    final response = await BackendApiClient.instance.patch(
+      '/umkm/orders/${Uri.encodeComponent(updatedOrder.id)}',
+      body: {'status': updatedOrder.status.name},
+    );
+    if (response.data is! Map) {
+      throw BackendApiException('Respons pembaruan pesanan tidak valid.');
+    }
+
     orders[index] = updatedOrder;
     if (previousOrder.status != UmkmOrderStatus.selesai &&
         updatedOrder.status == UmkmOrderStatus.selesai) {
@@ -703,11 +778,15 @@ class UmkmRepository extends ChangeNotifier {
     }
   }
 
-  void deleteOrder(String orderId) {
+  Future<void> deleteOrder(String orderId) async {
     final orders = _ordersOrCreate();
-    final beforeLength = orders.length;
-    orders.removeWhere((order) => order.id == orderId);
-    if (orders.length == beforeLength) return;
+    final index = orders.indexWhere((order) => order.id == orderId);
+    if (index == -1) return;
+
+    await BackendApiClient.instance.delete(
+      '/umkm/orders/${Uri.encodeComponent(orderId)}',
+    );
+    orders.removeAt(index);
     _saveToLocal();
     notifyListeners();
   }
@@ -895,11 +974,62 @@ class UmkmRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  List<HarvestBatch> get availableFarmerBatches =>
-      FarmerRepository.instance.batchesForCollectorVerification;
+  List<HarvestBatch> get availableFarmerBatches {
+    if (_incomingFarmerBatchesLoaded) {
+      return List.unmodifiable(
+        _incomingFarmerBatches.where(
+          (batch) => batch.status == BatchStatus.created,
+        ),
+      );
+    }
+    return FarmerRepository.instance.batchesForReceiverVerification(
+      role: BatchReceiverRole.umkm,
+      userId: profile.umkmId,
+    );
+  }
+
+  bool get isRefreshingFarmerBatches => _isRefreshingFarmerBatches ?? false;
+  String? get farmerBatchesLoadError => _farmerBatchesLoadError;
+
+  Future<void> refreshIncomingFarmerBatches() async {
+    _isRefreshingFarmerBatches = true;
+    _farmerBatchesLoadError = null;
+    notifyListeners();
+    try {
+      final response = await BackendApiClient.instance.get('/umkm/batches');
+      if (response.data is! List) {
+        throw BackendApiException(
+          'Respons daftar batch petani dari backend tidak valid.',
+          statusCode: response.statusCode,
+        );
+      }
+      _incomingFarmerBatches = (response.data as List)
+          .whereType<Map>()
+          .map((item) => HarvestBatch.fromJson(Map<String, dynamic>.from(item)))
+          .toList();
+      _incomingFarmerBatchesLoaded = true;
+    } catch (error) {
+      _farmerBatchesLoadError = error.toString();
+      rethrow;
+    } finally {
+      _isRefreshingFarmerBatches = false;
+      notifyListeners();
+    }
+  }
 
   HarvestBatch? findFarmerBatch(String code) {
-    return FarmerRepository.instance.findPublicBatch(code);
+    final cleanCode = code.trim().toUpperCase();
+    if (_incomingFarmerBatchesLoaded) {
+      for (final batch in _incomingFarmerBatches) {
+        if (batch.code.toUpperCase() == cleanCode) return batch;
+      }
+      return null;
+    }
+    return FarmerRepository.instance.findBatchForReceiver(
+      code: cleanCode,
+      role: BatchReceiverRole.umkm,
+      userId: profile.umkmId,
+    );
   }
 
   void recordFarmerBatchScan(String code) {
@@ -952,7 +1082,7 @@ class UmkmRepository extends ChangeNotifier {
     final shipment = findCollectorShipment(code);
     if (shipment == null) return null;
     if (shipment.status == CollectorShipmentStatus.readyToShip) {
-      CollectorRepository.instance.markShipmentSent(shipment.code);
+      unawaited(CollectorRepository.instance.markShipmentSent(shipment.code));
       return findCollectorShipment(shipment.code);
     }
     return shipment;
@@ -1062,7 +1192,7 @@ class UmkmRepository extends ChangeNotifier {
     return ok;
   }
 
-  CollectorDeliveryReceipt? receiveCollectorShipment({
+  Future<CollectorDeliveryReceipt?> receiveCollectorShipment({
     required String code,
     required double receivedWeightKg,
     required int receivedFruitCount,
@@ -1070,7 +1200,7 @@ class UmkmRepository extends ChangeNotifier {
     required String destinationLocation,
     String? discrepancyNote,
     String? qualityNote,
-  }) {
+  }) async {
     final cleanCode = code.trim().toUpperCase();
     var shipment = scanCollectorShipment(cleanCode);
     if (shipment == null ||
@@ -1093,7 +1223,7 @@ class UmkmRepository extends ChangeNotifier {
     }
 
     final cleanQualityNote = qualityNote?.trim();
-    final completed = CollectorRepository.instance.completeShipment(
+    final completed = await CollectorRepository.instance.completeShipment(
       cleanCode,
       warehouseNote: cleanQualityNote?.isNotEmpty == true
           ? cleanQualityNote
@@ -1222,17 +1352,51 @@ class UmkmRepository extends ChangeNotifier {
     return receipt;
   }
 
-  bool receiveFarmerBatch({
+  Future<bool> receiveFarmerBatch({
     required String code,
     required double receivedWeightKg,
     required int receivedFruitCount,
     required String conditionNote,
-  }) {
-    final batch = FarmerRepository.instance.findPublicBatch(code);
+  }) async {
+    final batch = findFarmerBatch(code);
     if (batch == null || batch.status != BatchStatus.created) return false;
 
-    final ok = FarmerRepository.instance.verifyBatchByReceiver(
-      code: code,
+    final response = await BackendApiClient.instance.post(
+      '/umkm/batches/${Uri.encodeComponent(batch.code)}/receive',
+      body: {
+        'received_quantity_kg': receivedWeightKg,
+        'received_fruit_count': receivedFruitCount,
+        'quality_notes': conditionNote,
+      },
+    );
+    final responseData = response.data;
+    final nestedBatch = responseData is Map ? responseData['batch'] : null;
+    final receivedBatch = nestedBatch is Map
+        ? HarvestBatch.fromJson({
+            ...batch.toJson(),
+            ...Map<String, dynamic>.from(nestedBatch),
+          })
+        : batch.copyWith(
+            status: BatchStatus.receivedByUmkm,
+            receivedQuantity: receivedWeightKg,
+            receivedFruitCount: receivedFruitCount,
+            qualityNotes: conditionNote,
+            verifiedBy: profile.name,
+            verifiedByRole: BatchReceiverRole.umkm,
+            verifiedAt: DateTime.now(),
+          );
+    final batchIndex = _incomingFarmerBatches.indexWhere(
+      (item) => item.code == batch.code,
+    );
+    if (batchIndex >= 0) {
+      _incomingFarmerBatches[batchIndex] = receivedBatch;
+    } else {
+      _incomingFarmerBatches.insert(0, receivedBatch);
+    }
+    _incomingFarmerBatchesLoaded = true;
+
+    FarmerRepository.instance.verifyBatchByReceiver(
+      code: batch.code,
       receiverRole: BatchReceiverRole.umkm,
       receivedQuantity: receivedWeightKg,
       receivedFruitCount: receivedFruitCount,
@@ -1245,8 +1409,8 @@ class UmkmRepository extends ChangeNotifier {
       ],
       qualityNotes: conditionNote,
       receiverName: profile.name,
+      receiverUserId: profile.umkmId,
     );
-    if (!ok) return false;
 
     TraceabilityRepository.instance.recordReceiptVariance(
       batchCode: code,
@@ -1323,175 +1487,6 @@ class UmkmRepository extends ChangeNotifier {
     stockOffers[index] = updatedOffer;
     _saveToLocal();
     notifyListeners();
-  }
-
-  List<UmkmProduct> _buildSeedProducts() {
-    return const [
-      UmkmProduct(
-        id: 'p-001',
-        code: 'UMKM-P-001',
-        name: 'Pancake Durian Premium',
-        category: 'Olahan',
-        priceLabel: 'Rp 68.000',
-        stockLabel: 'Stok 24 paket',
-        description: 'Pancake durian lembut dengan isian krim khas UMKM.',
-        status: UmkmProductStatus.aktif,
-        qrCodeData: 'UMKM-P-001',
-        imagePath: 'assets/images/durian.png',
-      ),
-      UmkmProduct(
-        id: 'p-002',
-        code: 'UMKM-P-002',
-        name: 'Dodol Durian Lembut',
-        category: 'Olahan',
-        priceLabel: 'Rp 42.000',
-        stockLabel: 'Stok 36 bungkus',
-        description: 'Dodol legit durian untuk oleh-oleh khas Jember.',
-        status: UmkmProductStatus.aktif,
-        qrCodeData: 'UMKM-P-002',
-        imagePath: 'assets/images/durian.png',
-      ),
-    ];
-  }
-
-  List<UmkmOrder> _buildSeedOrders() {
-    return [
-      UmkmOrder(
-        id: 'ORD-2026-0001',
-        productName: 'Pancake Durian Premium',
-        buyerName: 'Rina Saputri',
-        quantity: 2,
-        totalLabel: 'Rp 136.000',
-        status: UmkmOrderStatus.diproses,
-        createdAt: DateTime(2026, 6, 10, 10, 30),
-        qrCodeData: 'ORD-2026-0001',
-        productCode: 'UMKM-P-001',
-        note: 'Bayar di tempat.',
-      ),
-      UmkmOrder(
-        id: 'ORD-2026-0002',
-        productName: 'Dodol Durian Lembut',
-        buyerName: 'Budi Santoso',
-        quantity: 3,
-        totalLabel: 'Rp 126.000',
-        status: UmkmOrderStatus.selesai,
-        createdAt: DateTime(2026, 6, 8, 15, 45),
-        qrCodeData: 'ORD-2026-0002',
-        productCode: 'UMKM-P-002',
-        completedAt: DateTime(2026, 6, 8, 16, 20),
-        note: 'Sudah dikirim.',
-      ),
-    ];
-  }
-
-  List<UmkmPurchase> _buildSeedPurchases() {
-    return [
-      UmkmPurchase(
-        id: 'PUR-2026-0001',
-        supplierName: 'Pengepul Durian Jaya',
-        productName: 'Durian Segar 10 kg',
-        quantity: 10,
-        totalLabel: 'Rp 1.250.000',
-        createdAt: DateTime(2026, 6, 9, 13, 0),
-        qrCodeData: 'PUR-2026-0001',
-        note: 'Ambil besok pagi.',
-      ),
-    ];
-  }
-
-  List<UmkmStockOffer> _buildSeedStockOffers() {
-    return [
-      UmkmStockOffer(
-        id: 'SO-001',
-        traceCode: 'TRACE-SO-001',
-        name: 'Durian Montong Grade A',
-        supplierName: 'Pengepul Durian Jaya',
-        supplierType: UmkmSupplierType.pengepul,
-        pricePerKg: 52000,
-        stockKg: 120,
-        description: 'Durian segar pilihan untuk olahan dan jual ulang.',
-        status: UmkmStockOfferStatus.aktif,
-        createdAt: DateTime(2026, 6, 11, 9, 30),
-        imagePath: 'assets/images/durian.png',
-      ),
-      UmkmStockOffer(
-        id: 'SO-002',
-        traceCode: 'TRACE-SO-002',
-        name: 'Durian Kupas Premium',
-        supplierName: 'CV Nusantara Fresh',
-        supplierType: UmkmSupplierType.distributor,
-        pricePerKg: 68000,
-        stockKg: 80,
-        description:
-            'Sudah disortir, cocok untuk produksi pancake dan dessert.',
-        status: UmkmStockOfferStatus.aktif,
-        createdAt: DateTime(2026, 6, 11, 10, 0),
-        imagePath: 'assets/images/durian.png',
-      ),
-      UmkmStockOffer(
-        id: 'SO-003',
-        traceCode: 'TRACE-SO-003',
-        name: 'Durian Musang King Lokal',
-        supplierName: 'Petani Muda Jember',
-        supplierType: UmkmSupplierType.petani,
-        pricePerKg: 74000,
-        stockKg: 56,
-        description: 'Panen kebun langsung dengan aroma kuat dan daging tebal.',
-        status: UmkmStockOfferStatus.aktif,
-        createdAt: DateTime(2026, 6, 11, 11, 0),
-        imagePath: 'assets/images/durian.png',
-      ),
-      UmkmStockOffer(
-        id: 'SO-004',
-        traceCode: 'TRACE-SO-004',
-        name: 'Durian Kuning Manis',
-        supplierName: 'Pengepul Durian Jaya',
-        supplierType: UmkmSupplierType.pengepul,
-        pricePerKg: 48000,
-        stockKg: 0,
-        description: 'Stok habis sementara, menunggu kiriman berikutnya.',
-        status: UmkmStockOfferStatus.habis,
-        createdAt: DateTime(2026, 6, 9, 8, 15),
-        imagePath: 'assets/images/durian.png',
-      ),
-    ];
-  }
-
-  List<UmkmStockOrder> _buildSeedStockOrders() {
-    return [
-      UmkmStockOrder(
-        id: 'SPO-2026-0002',
-        offerId: 'SO-003',
-        offerName: 'Durian Musang King Lokal',
-        supplierName: 'Petani Muda Jember',
-        supplierType: UmkmSupplierType.petani,
-        traceCode: 'TRACE-SO-003',
-        quantityKg: 12,
-        pricePerKg: 74000,
-        totalAmount: 888000,
-        paymentMethod: UmkmStockPaymentMethod.transfer,
-        status: UmkmStockOrderStatus.diproses,
-        createdAt: DateTime(2026, 6, 12, 9, 45),
-        bankName: 'BCA',
-        accountNumber: '1234567890',
-        note: 'Kirim siang.',
-      ),
-      UmkmStockOrder(
-        id: 'SPO-2026-0001',
-        offerId: 'SO-002',
-        offerName: 'Durian Kupas Premium',
-        supplierName: 'CV Nusantara Fresh',
-        supplierType: UmkmSupplierType.distributor,
-        traceCode: 'TRACE-SO-002',
-        quantityKg: 8,
-        pricePerKg: 68000,
-        totalAmount: 544000,
-        paymentMethod: UmkmStockPaymentMethod.cod,
-        status: UmkmStockOrderStatus.selesai,
-        createdAt: DateTime(2026, 6, 10, 14, 20),
-        note: 'Sudah diterima.',
-      ),
-    ];
   }
 }
 

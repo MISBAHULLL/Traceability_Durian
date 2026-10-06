@@ -53,18 +53,22 @@ class _DistributorWarehousesScreenState
     if (result == null) return;
 
     if (warehouse == null) {
-      _repo.createWarehouse(
+      final created = await _repo.createWarehouse(
         name: result.name,
         location: result.location,
         note: result.note,
         setAsDefault: result.isDefault,
       );
       if (!mounted) return;
-      _notification.show(context, 'Gudang berhasil ditambahkan.');
+      _notification.show(
+        context,
+        created == null ? 'Gudang gagal disimpan ke server.' : 'Gudang berhasil ditambahkan.',
+        isError: created == null,
+      );
       return;
     }
 
-    final ok = _repo.updateWarehouse(
+    final ok = await _repo.updateWarehouse(
       warehouse.id,
       name: result.name,
       location: result.location,
@@ -110,7 +114,7 @@ class _DistributorWarehousesScreenState
     );
     if (confirmed != true) return;
 
-    final ok = _repo.deleteWarehouse(warehouse.id);
+    final ok = await _repo.deleteWarehouse(warehouse.id);
     if (!mounted) return;
     _notification.show(
       context,

@@ -29,6 +29,7 @@ class _EditDistributorProfileScreenState
   late final TextEditingController _villageCtrl;
   late final TextEditingController _districtCtrl;
   late final TextEditingController _cityCtrl;
+  late final TextEditingController _provinceCtrl;
   late final TextEditingController _addressCtrl;
 
   bool _isSubmitting = false;
@@ -44,6 +45,7 @@ class _EditDistributorProfileScreenState
     _villageCtrl = TextEditingController(text: profile.village);
     _districtCtrl = TextEditingController(text: profile.district);
     _cityCtrl = TextEditingController(text: profile.city);
+    _provinceCtrl = TextEditingController(text: profile.province);
     _addressCtrl = TextEditingController(text: profile.address);
   }
 
@@ -57,6 +59,7 @@ class _EditDistributorProfileScreenState
     _villageCtrl.dispose();
     _districtCtrl.dispose();
     _cityCtrl.dispose();
+    _provinceCtrl.dispose();
     _addressCtrl.dispose();
     super.dispose();
   }
@@ -79,6 +82,10 @@ class _EditDistributorProfileScreenState
     final businessName = _businessCtrl.text.trim();
     final phone = _normalizeIndonesianPhone(_phoneCtrl.text);
     final email = _emailCtrl.text.trim();
+    final village = _villageCtrl.text.trim();
+    final district = _districtCtrl.text.trim();
+    final city = _cityCtrl.text.trim();
+    final province = _provinceCtrl.text.trim();
 
     if (name.isEmpty) {
       _notification.show(context, 'Nama wajib diisi.', isError: true);
@@ -105,19 +112,24 @@ class _EditDistributorProfileScreenState
       _notification.show(context, 'Format email tidak valid.', isError: true);
       return;
     }
+    if ([village, district, city, province].any((value) => value.isEmpty)) {
+      _notification.show(context, 'Desa/Kelurahan, kecamatan, kabupaten, dan provinsi wajib diisi.', isError: true);
+      return;
+    }
 
     setState(() => _isSubmitting = true);
     await Future.delayed(const Duration(milliseconds: 400));
     if (!mounted) return;
 
-    _repo.updateProfile(
+    await _repo.updateProfile(
       fullName: name,
       contact: '+62 $phone',
       email: email,
       businessName: businessName,
-      village: _villageCtrl.text,
-      district: _districtCtrl.text,
-      city: _cityCtrl.text,
+      village: village,
+      district: district,
+      city: city,
+      province: province,
       address: _addressCtrl.text,
     );
 
@@ -197,6 +209,13 @@ class _EditDistributorProfileScreenState
                       label: 'Kota/Kabupaten',
                       hint: 'Contoh: Surabaya',
                       controller: _cityCtrl,
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: 16),
+                    _FormField(
+                      label: 'Provinsi',
+                      hint: 'Contoh: Jawa Timur',
+                      controller: _provinceCtrl,
                       textCapitalization: TextCapitalization.words,
                     ),
                     const SizedBox(height: 16),

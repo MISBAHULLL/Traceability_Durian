@@ -155,6 +155,7 @@ class _DistributorAcquisitionVerifyScreenState
     if (transaction.source == DistributorAcquisitionSource.collector) {
       if (_hasDiscrepancy(transaction) &&
           _discrepancyCtrl.text.trim().isEmpty) {
+        if (!mounted) return;
         setState(() => _isSubmitting = false);
         _notification.show(
           context,
@@ -202,16 +203,28 @@ class _DistributorAcquisitionVerifyScreenState
         return;
       }
 
-      success = _repo.completeFarmerAcquisition(
-        transactionId: transaction.id,
-        receivedWeightKg: weight,
-        receivedFruitCount: fruit,
-        gradeBreakdown: grades,
-        destinationLocation: _destinationCtrl.text,
-        qualityNote: _qualityNoteWithCondition(condition),
-      );
+      try {
+        success = await _repo.completeFarmerAcquisition(
+          transactionId: transaction.id,
+          receivedWeightKg: weight,
+          receivedFruitCount: fruit,
+          gradeBreakdown: grades,
+          destinationLocation: _destinationCtrl.text,
+          qualityNote: _qualityNoteWithCondition(condition),
+        );
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => _isSubmitting = false);
+        _notification.show(
+          context,
+          'Validasi gagal disimpan: $error',
+          isError: true,
+        );
+        return;
+      }
     }
 
+    if (!mounted) return;
     setState(() => _isSubmitting = false);
     if (!success) {
       _notification.show(

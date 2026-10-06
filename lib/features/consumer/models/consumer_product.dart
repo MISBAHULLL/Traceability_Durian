@@ -249,6 +249,10 @@ class ConsumerProfile {
     this.contact = '',
     this.email = '',
     this.location = '',
+    this.village = '',
+    this.district = '',
+    this.city = '',
+    this.province = '',
     this.avatarPath,
   });
 
@@ -258,6 +262,10 @@ class ConsumerProfile {
   final String contact;
   final String email;
   final String location;
+  final String village;
+  final String district;
+  final String city;
+  final String province;
   final String? avatarPath;
 
   ConsumerProfile copyWith({
@@ -267,6 +275,10 @@ class ConsumerProfile {
     String? contact,
     String? email,
     String? location,
+    String? village,
+    String? district,
+    String? city,
+    String? province,
     Object? avatarPath = _unset,
   }) {
     return ConsumerProfile(
@@ -276,6 +288,10 @@ class ConsumerProfile {
       contact: contact ?? this.contact,
       email: email ?? this.email,
       location: location ?? this.location,
+      village: village ?? this.village,
+      district: district ?? this.district,
+      city: city ?? this.city,
+      province: province ?? this.province,
       avatarPath: avatarPath == _unset
           ? this.avatarPath
           : avatarPath as String?,
@@ -289,6 +305,10 @@ class ConsumerProfile {
     'contact': contact,
     'email': email,
     'location': location,
+    'village': village,
+    'district': district,
+    'city': city,
+    'province': province,
     'avatarPath': avatarPath,
   };
 
@@ -300,6 +320,10 @@ class ConsumerProfile {
       contact: backendString(json, const ['contact', 'phone']),
       email: backendString(json, const ['email'], ''),
       location: backendString(json, const ['location', 'address']),
+      village: backendString(json, const ['village']),
+      district: backendString(json, const ['district']),
+      city: backendString(json, const ['city']),
+      province: backendString(json, const ['province']),
       avatarPath: backendNullableString(json, const ['avatarPath', 'avatar_path']),
     );
   }

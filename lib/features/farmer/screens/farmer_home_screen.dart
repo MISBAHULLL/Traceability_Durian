@@ -1270,18 +1270,19 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayStatus = status.farmerDisplayStatus;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: status.background,
+        color: displayStatus.background,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        status.label,
+        displayStatus.label,
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w700,
-          color: status.color,
+          color: displayStatus.color,
         ),
       ),
     );

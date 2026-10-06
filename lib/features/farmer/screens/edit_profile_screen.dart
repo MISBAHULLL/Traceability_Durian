@@ -31,6 +31,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _villageCtrl;
   late final TextEditingController _districtCtrl;
   late final TextEditingController _cityCtrl;
+  late final TextEditingController _provinceCtrl;
 
   bool _isSubmitting = false;
 
@@ -45,6 +46,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _villageCtrl = TextEditingController(text: p.village);
     _districtCtrl = TextEditingController(text: p.district);
     _cityCtrl = TextEditingController(text: p.city);
+    _provinceCtrl = TextEditingController(text: p.province);
   }
 
   @override
@@ -56,6 +58,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _villageCtrl.dispose();
     _districtCtrl.dispose();
     _cityCtrl.dispose();
+    _provinceCtrl.dispose();
     super.dispose();
   }
 
@@ -82,8 +85,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final name = _nameCtrl.text.trim();
     final phone = _normalizeIndonesianPhone(_phoneCtrl.text);
     final email = _emailCtrl.text.trim();
+    final village = _villageCtrl.text.trim();
+    final district = _districtCtrl.text.trim();
+    final city = _cityCtrl.text.trim();
+    final province = _provinceCtrl.text.trim();
     if (name.isEmpty) {
       _notification.show(context, 'Nama wajib diisi.', isError: true);
+      return;
+    }
+    if ([village, district, city, province].any((value) => value.isEmpty)) {
+      _notification.show(
+        context,
+        'Desa/Kelurahan, kecamatan, kabupaten, dan provinsi wajib diisi.',
+        isError: true,
+      );
       return;
     }
     if (phone.isEmpty) {
@@ -112,13 +127,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     await Future.delayed(const Duration(milliseconds: 400));
     if (!mounted) return;
 
-    _repo.updateProfile(
+    await _repo.updateProfile(
       fullName: name,
       contact: '+62 $phone',
       email: email,
-      village: _villageCtrl.text,
-      district: _districtCtrl.text,
-      city: _cityCtrl.text,
+      village: village,
+      district: district,
+      city: city,
+      province: province,
     );
 
     setState(() => _isSubmitting = false);
@@ -154,6 +170,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                     const SizedBox(height: 16),
                     _FormField(
+                      label: 'Provinsi',
+                      hint: 'Contoh: Jawa Timur',
+                      controller: _provinceCtrl,
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: 16),
+                    _FormField(
                       label: 'Nomor HP',
                       hint: 'Contoh: 8123456789',
                       controller: _phoneCtrl,
@@ -177,7 +200,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const _SectionDivider(label: 'Alamat'),
                     const SizedBox(height: 16),
                     _FormField(
-                      label: 'Desa',
+                      label: 'Desa/Kelurahan',
                       hint: 'Contoh: Pakis',
                       controller: _villageCtrl,
                       textCapitalization: TextCapitalization.words,

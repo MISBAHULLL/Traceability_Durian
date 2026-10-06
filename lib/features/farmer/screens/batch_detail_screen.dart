@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/backend_api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_top_bar.dart';
 import '../../../shared/widgets/batch_photo.dart';
@@ -85,6 +86,76 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
     // Repo listener sudah menangani refresh via _onRepoChanged
   }
 
+  Future<void> _confirmDeleteBatch() async {
+    final batch = _repo.findBatch(widget.batchCode);
+    if (batch == null || batch.status != BatchStatus.created) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Hapus batch panen?',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: Text(
+          'Batch ${batch.code} yang belum diverifikasi akan dihapus. '
+          'Aksi ini tidak dapat dibatalkan.',
+          style: const TextStyle(color: AppColors.subtitle, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _repo.deleteUnverifiedBatch(batch.code);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Batch berhasil dihapus.')));
+    } on BackendApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    } on StateError catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    } on Exception catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menghapus batch: $error'),
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    }
+  }
+
   // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
@@ -109,6 +180,7 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
                       onOpenQr: _openQr,
                       onOpenTrace: _openTrace,
                       onOpenEdit: _openEdit,
+                      onDeleteBatch: _confirmDeleteBatch,
                     ),
             ),
           ],
@@ -186,6 +258,7 @@ class _BatchDetailContent extends StatelessWidget {
     required this.onOpenQr,
     required this.onOpenTrace,
     required this.onOpenEdit,
+    required this.onDeleteBatch,
   });
 
   final HarvestBatch batch;
@@ -193,6 +266,7 @@ class _BatchDetailContent extends StatelessWidget {
   final VoidCallback onOpenQr;
   final VoidCallback onOpenTrace;
   final VoidCallback onOpenEdit;
+  final VoidCallback onDeleteBatch;
 
   @override
   Widget build(BuildContext context) {
@@ -287,6 +361,26 @@ class _BatchDetailContent extends StatelessWidget {
                   ),
                 );
               },
+            ),
+          ],
+          if (batch.status == BatchStatus.created) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onDeleteBatch,
+              icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              label: const Text('HAPUS BATCH'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(50),
+                foregroundColor: const Color(0xFFDC2626),
+                side: const BorderSide(color: Color(0xFFDC2626)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
           ],
         ],
@@ -438,6 +532,15 @@ class _BatchProductSummaryCardState extends State<_BatchProductSummaryCard> {
     return '${_formatDate(date)}, $hour:$minute';
   }
 
+  String get _recipientLabel {
+    if (batch.recipientUserId == null) return 'Belum ditentukan';
+    final name = batch.recipientName?.trim();
+    final recipient = name == null || name.isEmpty
+        ? 'ID ${batch.recipientUserId}'
+        : name;
+    return '$recipient • ${batch.recipientRole?.label ?? 'Penerima'}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final createdAt = batch.createdAt ?? batch.harvestDate;
@@ -461,7 +564,7 @@ class _BatchProductSummaryCardState extends State<_BatchProductSummaryCard> {
               child: InkWell(
                 onTap: () => setState(() => _isExpanded = !_isExpanded),
                 child: SizedBox(
-                  height: 132,
+                  height: 150,
                   child: Row(
                     children: [
                       BatchPhoto(
@@ -531,6 +634,17 @@ class _BatchProductSummaryCardState extends State<_BatchProductSummaryCard> {
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.subtitle,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Tujuan: $_recipientLabel',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -622,6 +736,17 @@ class _ExpandedBatchInformation extends StatelessWidget {
   Widget build(BuildContext context) {
     final rows = <Widget>[
       _BatchDetailRow(label: 'Kode Batch', value: batch.code),
+      _BatchDetailRow(
+        label: 'Dikirim Kepada',
+        value: batch.recipientUserId == null
+            ? 'Belum ditentukan'
+            : [
+                if (batch.recipientName?.isNotEmpty ?? false)
+                  batch.recipientName!,
+                batch.recipientRole?.label ?? 'Penerima',
+                'ID ${batch.recipientUserId}',
+              ].join(' • '),
+      ),
       _BatchDetailRow(
         label: 'Tanggal Panen',
         value: formatDate(batch.harvestDate),

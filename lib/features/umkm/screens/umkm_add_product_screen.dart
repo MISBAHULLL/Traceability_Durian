@@ -351,12 +351,23 @@ class _UmkmAddProductScreenState extends State<UmkmAddProductScreen> {
     );
 
     await Future.delayed(const Duration(milliseconds: 500));
-    _repo.addProduct(product, productionRecord: productionRecord);
+    final savedProduct = await _repo.addProduct(
+      product,
+      productionRecord: productionRecord,
+    );
     if (!mounted) return;
+
+    if (savedProduct == null) {
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Produk gagal disimpan ke server.')),
+      );
+      return;
+    }
 
     setState(() {
       _isSaving = false;
-      _createdProduct = product;
+      _createdProduct = savedProduct;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(

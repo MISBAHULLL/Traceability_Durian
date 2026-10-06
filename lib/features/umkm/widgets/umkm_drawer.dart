@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/screens/sales_inbox_screen.dart';
 import '../../auth/screens/home_screen.dart';
 import '../data/umkm_repository.dart';
 import '../models/umkm_profile.dart';
@@ -62,6 +63,11 @@ class UmkmDrawer extends StatelessWidget {
                   icon: Icons.shopping_bag_outlined,
                   label: 'Beli Stok',
                   onTap: () => _go(context, const UmkmAddPurchaseScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.move_to_inbox_outlined,
+                  label: 'Penjualan Masuk',
+                  onTap: () => _go(context, const SalesInboxScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.receipt_long_outlined,

@@ -138,7 +138,7 @@ class _ConsumerCreateTransactionScreenState
     setState(() => _isSubmitting = true);
     final repo = ConsumerRepository.instance;
     final isTransferBank = _paymentMethod == 'Transfer Bank';
-    final transaction = repo.addTransaction(
+    final transaction = await repo.addTransaction(
       widget.product,
       quantity: _quantity,
       buyerAddress: _addressController.text.trim(),
@@ -151,6 +151,13 @@ class _ConsumerCreateTransactionScreenState
           : null,
       note: 'Transaksi dibuat dari detail produk.',
     );
+    if (transaction == null) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        _showMessage('Transaksi gagal disimpan ke server.', isError: true);
+      }
+      return;
+    }
     try {
       await ConsumerRoutes.push(
         context,

@@ -91,7 +91,7 @@ class _ConsumerShipmentReceiveScreenState
 
     setState(() => _isSaving = true);
     await Future.delayed(const Duration(milliseconds: 350));
-    final receipt = _repo.receiveCollectorShipment(
+    final receipt = await _repo.receiveCollectorShipment(
       code: shipment.code,
       receivedWeightKg: weight,
       receivedFruitCount: fruit,

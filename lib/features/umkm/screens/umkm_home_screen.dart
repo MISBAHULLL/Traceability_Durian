@@ -14,11 +14,8 @@ import '../widgets/umkm_drawer.dart';
 import '../../trace/screens/public_trace_screen.dart';
 import 'umkm_add_product_screen.dart';
 import 'umkm_add_purchase_screen.dart';
-import 'umkm_audit_trail_screen.dart';
 import 'umkm_data_screen.dart';
-import 'umkm_material_movement_screen.dart';
 import 'umkm_order_detail_screen.dart';
-import 'umkm_order_list_screen.dart';
 import 'umkm_product_detail_screen.dart';
 import 'umkm_profile_screen.dart';
 
@@ -95,20 +92,6 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
     );
   }
 
-  Future<void> _openMaterialMovements() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const UmkmMaterialMovementScreen()),
-    );
-  }
-
-  Future<void> _openAuditTrail() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const UmkmAuditTrailScreen()),
-    );
-  }
-
   Future<void> _openProfile() async {
     await Navigator.push(
       context,
@@ -161,7 +144,9 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
           return name.toLowerCase().contains(_query);
         })
         .toList();
-    final orders = _repo.orders;
+    final orders = _repo.orders
+        .where((order) => order.status != UmkmOrderStatus.selesai)
+        .toList();
     final materialStocks = _repo.materialStockLedger;
     final purchases = _repo.stockOrders
         .where((order) => order.status == UmkmStockOrderStatus.selesai)
@@ -207,16 +192,6 @@ class _UmkmHomeScreenState extends State<UmkmHomeScreen>
                                 _DashboardActions(
                                   onAddProduct: _openAddProduct,
                                   onAddPurchase: _openAddPurchase,
-                                  onViewAuditTrail: _openAuditTrail,
-                                  onViewMaterialMovements:
-                                      _openMaterialMovements,
-                                  onViewOrders: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const UmkmOrderListScreen(),
-                                    ),
-                                  ),
                                 ),
                                 const SizedBox(height: 22),
                                 _SectionHeader(
@@ -445,16 +420,10 @@ class _DashboardActions extends StatelessWidget {
   const _DashboardActions({
     required this.onAddProduct,
     required this.onAddPurchase,
-    required this.onViewAuditTrail,
-    required this.onViewMaterialMovements,
-    required this.onViewOrders,
   });
 
   final VoidCallback onAddProduct;
   final VoidCallback onAddPurchase;
-  final VoidCallback onViewAuditTrail;
-  final VoidCallback onViewMaterialMovements;
-  final VoidCallback onViewOrders;
 
   @override
   Widget build(BuildContext context) {
@@ -472,27 +441,6 @@ class _DashboardActions extends StatelessWidget {
           title: 'Beli Stok',
           subtitle: 'Rekam pemasukan durian dengan cepat',
           onTap: onAddPurchase,
-        ),
-        const SizedBox(height: 12),
-        _ActionTile(
-          icon: Icons.fact_check_outlined,
-          title: 'Audit Trail',
-          subtitle: 'Filter semua aksi UMKM yang tercatat',
-          onTap: onViewAuditTrail,
-        ),
-        const SizedBox(height: 12),
-        _ActionTile(
-          icon: Icons.manage_history_rounded,
-          title: 'Riwayat Mutasi',
-          subtitle: 'Lihat stok masuk dan bahan baku terpakai',
-          onTap: onViewMaterialMovements,
-        ),
-        const SizedBox(height: 12),
-        _ActionTile(
-          icon: Icons.receipt_long_rounded,
-          title: 'Lihat Pesanan',
-          subtitle: 'Buka daftar pesanan masuk UMKM',
-          onTap: onViewOrders,
         ),
       ],
     );
@@ -516,7 +464,7 @@ class _MaterialStockPanel extends StatelessWidget {
           border: Border.all(color: const Color(0xFFFDE68A)),
         ),
         child: const Text(
-          'Belum ada stok bahan baku traceable. Setelah UMKM menerima DRN, PGL, atau stok distributor, saldonya akan tampil di sini.',
+          'Belum ada stok bahan baku',
           style: TextStyle(
             fontSize: 12,
             height: 1.45,

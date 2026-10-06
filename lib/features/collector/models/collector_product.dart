@@ -164,6 +164,7 @@ class CollectorProfile {
     this.village = '',
     this.district = '',
     this.city = '',
+    this.province = '',
     this.address = '',
     this.avatarPath,
   });
@@ -186,6 +187,7 @@ class CollectorProfile {
   final String village;
   final String district;
   final String city;
+  final String province;
   final String address;
 
   /// Path/URI foto profil (opsional). Null berarti pakai avatar inisial.
@@ -202,6 +204,7 @@ class CollectorProfile {
     String? village,
     String? district,
     String? city,
+    String? province,
     String? address,
     String? avatarPath,
   }) {
@@ -216,6 +219,7 @@ class CollectorProfile {
       village: village ?? this.village,
       district: district ?? this.district,
       city: city ?? this.city,
+      province: province ?? this.province,
       address: address ?? this.address,
       avatarPath: avatarPath ?? this.avatarPath,
     );
@@ -233,6 +237,7 @@ class CollectorProfile {
     'village': village,
     'district': district,
     'city': city,
+    'province': province,
     'address': address,
     'avatarPath': avatarPath,
   };
@@ -250,6 +255,7 @@ class CollectorProfile {
         village: backendString(json, const ['village']),
         district: backendString(json, const ['district']),
         city: backendString(json, const ['city']),
+        province: backendString(json, const ['province']),
         address: backendString(json, const ['address']),
         avatarPath: backendNullableString(json, const ['avatarPath', 'avatar_path']),
       );

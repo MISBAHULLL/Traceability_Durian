@@ -1,9 +1,6 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 
 import '../../../core/network/backend_api_client.dart';
-import '../../../core/storage/local_storage_service.dart';
 import '../../farmer/data/farmer_repository.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../../traceability/data/traceability_repository.dart';
@@ -17,6 +14,7 @@ import '../models/collector_shipment_batch.dart';
 import '../models/collector_stock_summary.dart';
 import '../models/collector_warehouse.dart';
 import '../models/collector_warehouse_transfer.dart';
+import '../models/shipment_recipient.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CollectorRepository
@@ -38,7 +36,6 @@ class CollectorRepository extends ChangeNotifier {
   CollectorRepository._seed() {
     _loadFromLocal();
     _farmerRepo.addListener(_onFarmerRepoChanged);
-    unawaited(refreshFromBackend());
   }
 
   // [FE - State Management] Loader ini me-restore profil pengepul dari
@@ -65,6 +62,25 @@ class CollectorRepository extends ChangeNotifier {
   }
 
   Future<void> refreshFromBackend() async {
+    // Gudang harus tetap dimuat walaupun endpoint dashboard lain gagal.
+    // Sebelumnya satu kegagalan (mis. daftar penerima) membatalkan seluruh
+    // refresh sehingga UI menampilkan 0 gudang meski data ada di database.
+    try {
+      final response = await BackendApiClient.instance.get(
+        '/collector/warehouses',
+      );
+      if (response.data is List) {
+        _warehouses = (response.data as List)
+            .whereType<Map>()
+            .map(
+              (item) =>
+                  CollectorWarehouse.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .toList();
+        notifyListeners();
+      }
+    } catch (_) {}
+
     try {
       final profileResponse = await BackendApiClient.instance.get(
         '/collector/profile',
@@ -75,16 +91,33 @@ class CollectorRepository extends ChangeNotifier {
       final shipmentsResponse = await BackendApiClient.instance.get(
         '/collector/shipment-batches',
       );
+      final batchesResponse = await BackendApiClient.instance.get(
+        '/collector/batches',
+      );
+      final warehousesResponse = await BackendApiClient.instance.get(
+        '/collector/warehouses',
+      );
+      final recipientsResponse = await BackendApiClient.instance.get(
+        '/collector/shipment-recipients',
+      );
 
       if (profileResponse.data is Map) {
         final data = Map<String, dynamic>.from(profileResponse.data as Map);
-        final user = Map<String, dynamic>.from(data['user'] as Map? ?? const {});
+        final user = Map<String, dynamic>.from(
+          data['user'] as Map? ?? const {},
+        );
         final profile = Map<String, dynamic>.from(
           data['profile'] as Map? ?? const {},
         );
         _profile = CollectorProfile.fromJson({
-          'collectorId': user['id']?.toString() ?? profile['user_id']?.toString() ?? _profile.collectorId,
-          'fullName': profile['business_name'] ?? user['full_name'] ?? '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim(),
+          'collectorId':
+              user['id']?.toString() ??
+              profile['user_id']?.toString() ??
+              _profile.collectorId,
+          'fullName':
+              profile['business_name'] ??
+              user['full_name'] ??
+              '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim(),
           'roleLabel': 'Pengepul Durian',
           'businessName': profile['business_name'] ?? '',
           'contact': profile['contact'] ?? user['phone'] ?? '',
@@ -92,6 +125,8 @@ class CollectorRepository extends ChangeNotifier {
           'location': profile['address'] ?? '',
           'district': profile['district'] ?? '',
           'city': profile['city'] ?? '',
+          'village': profile['village'] ?? '',
+          'province': profile['province'] ?? '',
           'address': profile['address'] ?? '',
           'avatarPath': profile['avatar_path'],
         });
@@ -113,6 +148,45 @@ class CollectorRepository extends ChangeNotifier {
             )
             .toList();
         _shipmentCounter = _shipmentBatches.length;
+      }
+      if (batchesResponse.data is List) {
+        final parsedBatches = <HarvestBatch>[];
+        for (final item in batchesResponse.data as List) {
+          if (item is! Map) continue;
+          try {
+            parsedBatches.add(
+              HarvestBatch.fromJson(Map<String, dynamic>.from(item)),
+            );
+          } catch (error) {
+            if (kDebugMode) {
+              debugPrint('[COLLECTOR] batch tidak dapat diparse: $error');
+            }
+          }
+        }
+        _backendBatches = parsedBatches;
+        // Render stok segera setelah respons batch siap. Sinkronisasi lineage
+        // legacy di bawah tidak boleh menahan pembaruan kartu stok.
+        notifyListeners();
+      }
+
+      if (warehousesResponse.data is List) {
+        _warehouses = (warehousesResponse.data as List)
+            .whereType<Map>()
+            .map(
+              (item) =>
+                  CollectorWarehouse.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .toList();
+      }
+      if (recipientsResponse.data is List) {
+        _shipmentRecipients = (recipientsResponse.data as List)
+            .whereType<Map>()
+            .map(
+              (item) =>
+                  ShipmentRecipient.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .where((item) => item.userId.isNotEmpty)
+            .toList();
       }
 
       _products = _farmerRepo.batches.map((batch) {
@@ -230,6 +304,7 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - State Management] Migrasi ini memperbaiki PGL demo lama agar hanya
   // memakai source Montong yang sudah diverifikasi dan jumlahnya rekonsiliasi.
+  // ignore: unused_element
   bool _migratePrimarySeedShipment() {
     if (_currentCollectorId != _kSeedCollectorId) return false;
 
@@ -284,6 +359,7 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - State Management] Migrasi ini menambahkan manifest siap-scan untuk
   // testing distributor tanpa menghapus shipment lokal yang sudah dibuat user.
+  // ignore: unused_element
   bool _ensureDistributorSimulationShipments() {
     final existingCodes = _shipmentBatches.map((item) => item.code).toSet();
     final simulations = _buildDistributorSimulationShipments();
@@ -303,6 +379,7 @@ class CollectorRepository extends ChangeNotifier {
 
   static const String _kSeedCollectorId = 'collector-001';
 
+  // ignore: unused_field
   static const CollectorProfile _kSeedProfile = CollectorProfile(
     collectorId: _kSeedCollectorId,
     fullName: 'Risqi Firdaus Setiawan',
@@ -320,6 +397,7 @@ class CollectorRepository extends ChangeNotifier {
   // [FE - State Management] Seed produk mengikuti prototype: Durian Montong
   // dan Durian Bawor dengan deskripsi lengkap. Field deskriptif berasal dari
   // data panen petani (warisan, read-only bagi pengepul).
+  // ignore: unused_element
   static List<CollectorProduct> _buildSeedProducts() => [
     CollectorProduct(
       code: 'DRN-2026-000128',
@@ -390,6 +468,8 @@ class CollectorRepository extends ChangeNotifier {
   List<CollectorReceipt> _collectorReceipts = <CollectorReceipt>[];
   late List<CollectorWarehouse> _warehouses;
   late List<CollectorWarehouseTransfer> _warehouseTransfers;
+  List<ShipmentRecipient> _shipmentRecipients = <ShipmentRecipient>[];
+  List<HarvestBatch> _backendBatches = <HarvestBatch>[];
   CollectorStockOverview? _backendStockOverview;
   late int _shipmentCounter;
   late int _purchaseTransactionCounter;
@@ -410,9 +490,21 @@ class CollectorRepository extends ChangeNotifier {
   // [FE - State Management] Produk segar dibentuk dari antrean batch petani,
   // sedangkan produk olahan/bibit masih memakai seed prototype sementara.
   List<CollectorProduct> get products {
-    final freshProducts = _farmerRepo.batchesForCollectorVerification
-        .map(_productFromHarvestBatch)
-        .toList();
+    final sourceBatches = _backendBatches.isNotEmpty
+        ? _backendBatches.where(
+            (batch) =>
+                batch.status == BatchStatus.created &&
+                _farmerRepo.canReceiveBatch(
+                  batch: batch,
+                  role: BatchReceiverRole.collector,
+                  userId: _currentCollectorId,
+                ),
+          )
+        : _farmerRepo.batchesForReceiverVerification(
+            role: BatchReceiverRole.collector,
+            userId: _currentCollectorId,
+          );
+    final freshProducts = sourceBatches.map(_productFromHarvestBatch).toList();
     final prototypeProducts = _products
         .where((p) => p.category != ProductCategory.durianSegar)
         .toList();
@@ -428,9 +520,40 @@ class CollectorRepository extends ChangeNotifier {
     }
   }
 
-  // [FE - State Management] Stok pengepul dibentuk dari batch petani yang
-  // sudah diverifikasi pengepul dan siap masuk flow distribusi berikutnya.
-  List<HarvestBatch> get stockBatches => _farmerRepo.batchesForCollectorStock;
+  /// Lookup batch dari respons `/collector/batches` untuk kebutuhan detail dan
+  /// trace lintas-role tanpa mengakses endpoint petani pada sesi pengepul.
+  HarvestBatch? findBackendBatch(String code) {
+    try {
+      return _backendBatches.firstWhere(
+        (batch) =>
+            batch.code == code &&
+            (batch.status != BatchStatus.created ||
+                _farmerRepo.canReceiveBatch(
+                  batch: batch,
+                  role: BatchReceiverRole.collector,
+                  userId: _currentCollectorId,
+                )),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // [FE - State Management] `/collector/batches` adalah sumber data otoritatif
+  // untuk sesi pengepul. Jangan gunakan fallback FarmerRepository di sini:
+  // endpoint petani memang tidak dapat diakses oleh role pengepul (403).
+  List<HarvestBatch> get stockBatches {
+    final items =
+        _backendBatches
+            .where((batch) => batch.status == BatchStatus.verifiedByCollector)
+            .toList()
+          ..sort((a, b) {
+            final aDate = a.verifiedAt ?? a.createdAt ?? a.harvestDate;
+            final bDate = b.verifiedAt ?? b.createdAt ?? b.harvestDate;
+            return bDate.compareTo(aDate);
+          });
+    return List.unmodifiable(items);
+  }
 
   List<CollectorWarehouse> get warehouses {
     final items = List<CollectorWarehouse>.from(_warehouses);
@@ -472,87 +595,117 @@ class CollectorRepository extends ChangeNotifier {
     return List.unmodifiable(items);
   }
 
-  CollectorWarehouse createWarehouse({
+  Future<CollectorWarehouse?> createWarehouse({
     required String name,
     required String location,
     String? note,
     bool setAsDefault = false,
-  }) {
-    final warehouse = CollectorWarehouse(
-      id: _generateWarehouseId(),
-      name: name.trim(),
-      location: location.trim(),
-      note: note?.trim().isEmpty == true ? null : note?.trim(),
-      isDefault: setAsDefault || _warehouses.isEmpty,
-      createdAt: DateTime.now(),
-    );
-    if (warehouse.isDefault) {
-      _warehouses = _warehouses
-          .map((item) => item.copyWith(isDefault: false))
-          .toList();
+  }) async {
+    try {
+      final response = await BackendApiClient.instance.post(
+        '/collector/warehouses',
+        body: {
+          'name': name.trim(),
+          'location': location.trim(),
+          'note': note?.trim().isEmpty == true ? null : note?.trim(),
+          'is_default': setAsDefault,
+        },
+      );
+      if (response.data is! Map) return null;
+      final warehouse = CollectorWarehouse.fromJson(
+        Map<String, dynamic>.from(response.data as Map),
+      );
+      _warehouses = [
+        ..._warehouses.where((item) => item.id != warehouse.id),
+        warehouse,
+      ];
+      _warehouses.sort(
+        (a, b) => (b.isDefault ? 1 : 0).compareTo(a.isDefault ? 1 : 0),
+      );
+      notifyListeners();
+      return warehouse;
+    } catch (_) {
+      return null;
     }
-    _warehouses.add(warehouse);
-    _saveToLocal();
-    notifyListeners();
-    return warehouse;
   }
 
-  bool updateWarehouse(
+  List<ShipmentRecipient> shipmentRecipientsFor(
+    ShipmentDestinationType destinationType,
+  ) => List.unmodifiable(
+    _shipmentRecipients.where(
+      (item) => item.destinationType == destinationType,
+    ),
+  );
+
+  Future<bool> updateWarehouse(
     String id, {
     required String name,
     required String location,
     String? note,
     bool setAsDefault = false,
-  }) {
+  }) async {
     final index = _warehouses.indexWhere((warehouse) => warehouse.id == id);
     if (index == -1) return false;
-
-    if (setAsDefault) {
-      _warehouses = _warehouses
-          .map((item) => item.copyWith(isDefault: false))
-          .toList();
-    }
-    final existing = _warehouses[index];
-    final updated = CollectorWarehouse(
-      id: existing.id,
-      name: name.trim(),
-      location: location.trim(),
-      note: note?.trim().isEmpty == true ? null : note?.trim(),
-      isDefault: setAsDefault ? true : existing.isDefault,
-      createdAt: existing.createdAt,
-    );
-    _warehouses[index] = updated;
-    _recordManualAuditEvent(
-      CollectorAuditEvent(
-        id: 'AUD-WH-UPDATE--',
-        type: CollectorAuditEventType.warehouse,
-        action: 'Gudang diperbarui',
-        actorName: _collectorActorName,
-        actorRole: 'Pengepul',
-        objectCode: updated.id,
-        description: ' diperbarui.',
-        occurredAt: DateTime.now(),
-        locationLabel: updated.location,
-        statusLabel: updated.isDefault ? 'Default' : 'Aktif',
-        metadata: {
-          'Nama lama': existing.name,
-          'Nama baru': updated.name,
-          'Lokasi lama': existing.location,
-          'Lokasi baru': updated.location,
+    try {
+      final response = await BackendApiClient.instance.put(
+        '/collector/warehouses/$id',
+        body: {
+          'name': name.trim(),
+          'location': location.trim(),
+          'note': note?.trim().isEmpty == true ? null : note?.trim(),
+          'is_default': setAsDefault,
         },
-      ),
-    );
-    _saveToLocal();
-    notifyListeners();
-    return true;
+      );
+      if (response.data is! Map) return false;
+      final updated = CollectorWarehouse.fromJson(
+        Map<String, dynamic>.from(response.data as Map),
+      );
+      final existing = _warehouses[index];
+      if (updated.isDefault) {
+        _warehouses = _warehouses
+            .map((item) => item.copyWith(isDefault: false))
+            .toList();
+      }
+      _warehouses[index] = updated;
+      _recordManualAuditEvent(
+        CollectorAuditEvent(
+          id: 'AUD-WH-UPDATE--',
+          type: CollectorAuditEventType.warehouse,
+          action: 'Gudang diperbarui',
+          actorName: _collectorActorName,
+          actorRole: 'Pengepul',
+          objectCode: updated.id,
+          description: ' diperbarui.',
+          occurredAt: DateTime.now(),
+          locationLabel: updated.location,
+          statusLabel: updated.isDefault ? 'Default' : 'Aktif',
+          metadata: {
+            'Nama lama': existing.name,
+            'Nama baru': updated.name,
+            'Lokasi lama': existing.location,
+            'Lokasi baru': updated.location,
+          },
+        ),
+      );
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
-  bool deleteWarehouse(String id) {
+  Future<bool> deleteWarehouse(String id) async {
     final index = _warehouses.indexWhere((warehouse) => warehouse.id == id);
     if (index == -1) return false;
 
     final isUsed = stockBatches.any((batch) => batch.warehouseId == id);
     if (isUsed || _warehouses.length <= 1) return false;
+
+    try {
+      await BackendApiClient.instance.delete('/collector/warehouses/$id');
+    } catch (_) {
+      return false;
+    }
 
     final removed = _warehouses.removeAt(index);
     _recordManualAuditEvent(
@@ -577,7 +730,6 @@ class CollectorRepository extends ChangeNotifier {
     if (removed.isDefault && _warehouses.isNotEmpty) {
       _warehouses[0] = _warehouses[0].copyWith(isDefault: true);
     }
-    _saveToLocal();
     notifyListeners();
     return true;
   }
@@ -877,14 +1029,14 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - Event Handler] Mutasi ini membuat batch pengiriman agregat dari
   // beberapa batch petani terverifikasi tanpa menyentuh blockchain/backend.
-  CollectorShipmentBatch? createShipmentBatch({
+  Future<CollectorShipmentBatch?> createShipmentBatch({
     required List<String> sourceBatchCodes,
     required ShipmentDestinationType destinationType,
     String? destinationUserId,
     String? destinationName,
     String? destinationLocation,
     String? warehouseNote,
-  }) {
+  }) async {
     final cleanCodes = sourceBatchCodes.toSet().toList();
     if (cleanCodes.isEmpty) return null;
     final cleanDestinationUserId = destinationUserId?.trim();
@@ -909,8 +1061,40 @@ class CollectorRepository extends ChangeNotifier {
     if (selectedBatches.length != cleanCodes.length) return null;
 
     final overview = _overviewForBatches(selectedBatches);
+    String shipmentCode = _generateShipmentCode();
+
+    try {
+      final response = await BackendApiClient.instance.post(
+        '/collector/shipment-batches',
+        body: {
+          'source_batch_codes': cleanCodes,
+          'destination_type': destinationType.name,
+          'destination_user_id': cleanDestinationUserId,
+          'destination_name': cleanDestinationName,
+          'destination_location': cleanDestinationLocation,
+          'warehouse_note': warehouseNote?.trim().isEmpty == true
+              ? null
+              : warehouseNote?.trim(),
+        },
+      );
+      final data = response.data;
+      if (data is Map) {
+        final raw = Map<String, dynamic>.from(data);
+        final code =
+            raw['code'] as String? ??
+            (raw['shipment'] is Map
+                ? (raw['shipment'] as Map)['code'] as String?
+                : null);
+        if (code != null && code.isNotEmpty) shipmentCode = code;
+      }
+    } catch (_) {
+      // Shipment adalah data operasional; jangan membuat data lokal yang
+      // akan hilang saat aplikasi ditutup apabila backend gagal menyimpan.
+      return null;
+    }
+
     final shipment = CollectorShipmentBatch(
-      code: _generateShipmentCode(),
+      code: shipmentCode,
       collectorId: _currentCollectorId,
       sourceBatchCodes: cleanCodes,
       totalWeightKg: overview.totalWeightKg,
@@ -968,7 +1152,7 @@ class CollectorRepository extends ChangeNotifier {
     return shipment;
   }
 
-  CollectorIncomingReceipt? receiveIncomingCollectorShipment({
+  Future<CollectorIncomingReceipt?> receiveIncomingCollectorShipment({
     required String code,
     required double receivedWeightKg,
     required int receivedFruitCount,
@@ -976,7 +1160,7 @@ class CollectorRepository extends ChangeNotifier {
     required String destinationWarehouseId,
     String? discrepancyNote,
     String? qualityNote,
-  }) {
+  }) async {
     final cleanCode = code.trim().toUpperCase();
     final warehouse = findWarehouse(destinationWarehouseId);
     final shipment = findIncomingCollectorShipment(cleanCode);
@@ -1000,7 +1184,7 @@ class CollectorRepository extends ChangeNotifier {
     }
 
     final cleanQualityNote = qualityNote?.trim();
-    final completed = completeShipment(
+    final completed = await completeShipment(
       cleanCode,
       warehouseNote: cleanQualityNote?.isNotEmpty == true
           ? cleanQualityNote
@@ -1063,7 +1247,7 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - Event Handler] Mutasi ini dipanggil dari flow scan role penerima
   // saat QR PGL pertama kali dibaca pada handover fisik.
-  bool markShipmentSent(String code) {
+  Future<bool> markShipmentSent(String code) async {
     final index = _shipmentBatches.indexWhere(
       (shipment) => shipment.code == code,
     );
@@ -1072,24 +1256,27 @@ class CollectorRepository extends ChangeNotifier {
     final existing = _shipmentBatches[index];
     if (existing.status != CollectorShipmentStatus.readyToShip) return false;
 
+    try {
+      await BackendApiClient.instance.patch(
+        '/collector/shipment-batches/$code/send',
+      );
+    } catch (_) {
+      return false;
+    }
     _shipmentBatches[index] = existing.copyWith(
       status: CollectorShipmentStatus.sent,
       sentAt: DateTime.now(),
     );
-    // [FE - State Management] Saat distributor mengambil shipment, source
-    // batch petani ikut naik status ke IN_DISTRIBUTION sebagai kontrak FE
-    // sementara sebelum mutasi ini dipindahkan ke backend/smart contract.
     _farmerRepo.markBatchesInDistribution(
       sourceBatchCodes: existing.sourceBatchCodes,
     );
-    _saveToLocal();
     notifyListeners();
     return true;
   }
 
   // [FE - Event Handler] Mutasi final ini hanya dipakai flow validasi penerima
   // setelah T2 menyimpan hasil timbang, kondisi, lokasi, dan catatan.
-  bool completeShipment(String code, {String? warehouseNote}) {
+  Future<bool> completeShipment(String code, {String? warehouseNote}) async {
     final index = _shipmentBatches.indexWhere(
       (shipment) => shipment.code == code,
     );
@@ -1098,13 +1285,22 @@ class CollectorRepository extends ChangeNotifier {
     final existing = _shipmentBatches[index];
     if (existing.status != CollectorShipmentStatus.sent) return false;
 
+    try {
+      await BackendApiClient.instance.patch(
+        '/collector/shipment-batches/$code/complete',
+        body: warehouseNote?.trim().isNotEmpty == true
+            ? {'warehouse_note': warehouseNote!.trim()}
+            : null,
+      );
+    } catch (_) {
+      return false;
+    }
+
     _shipmentBatches[index] = existing.copyWith(
       status: CollectorShipmentStatus.completed,
       completedAt: DateTime.now(),
       warehouseNote: warehouseNote,
     );
-    // [FE - State Management] Distributor mempertahankan status distribusi,
-    // sedangkan konfirmasi tujuan UMKM menutup handover sebagai penerimaan.
     _farmerRepo.markBatchesInDistribution(
       sourceBatchCodes: existing.sourceBatchCodes,
     );
@@ -1644,10 +1840,24 @@ class CollectorRepository extends ChangeNotifier {
     return List.unmodifiable(result);
   }
 
-  // [FE - State Management] Riwayat pengepul menggabungkan batch yang sudah
-  // diverifikasi dan ditolak untuk kebutuhan audit FE sementara.
-  List<HarvestBatch> get historyBatches =>
-      _farmerRepo.batchesForCollectorHistory;
+  // [FE - State Management] Riwayat memakai respons pengepul yang sama agar
+  // tidak tercampur fallback state milik petani pada sesi pengepul.
+  List<HarvestBatch> get historyBatches {
+    final items =
+        _backendBatches
+            .where(
+              (batch) => batch.verifiedAt != null || batch.rejectedAt != null,
+            )
+            .toList()
+          ..sort((a, b) {
+            final aDate =
+                a.verifiedAt ?? a.rejectedAt ?? a.createdAt ?? a.harvestDate;
+            final bDate =
+                b.verifiedAt ?? b.rejectedAt ?? b.createdAt ?? b.harvestDate;
+            return bDate.compareTo(aDate);
+          });
+    return List.unmodifiable(items);
+  }
 
   // [UTIL - Helper Function] Mapper ini mengubah HarvestBatch milik petani
   // menjadi CollectorProduct read-only untuk UI pengepul.
@@ -1671,7 +1881,7 @@ class CollectorRepository extends ChangeNotifier {
       fleshDescription: '$maturityText$shelfText',
       location: batch.farmName,
       harvestDate: batch.harvestDate,
-      treeOwner: 'Petani Durian',
+      treeOwner: _farmerRepo.profile.fullName,
       grade: batch.grade,
       fruitCount: batch.fruitCount,
       maturityLevel: batch.maturityLevel,
@@ -1688,7 +1898,7 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - Event Handler] Submit verifikasi pengepul meneruskan aksi ke
   // FarmerRepository karena status batch adalah state utama rantai pasok.
-  bool verifyFreshBatch({
+  Future<bool> verifyFreshBatch({
     required String code,
     required double receivedQuantity,
     required int receivedFruitCount,
@@ -1697,11 +1907,67 @@ class CollectorRepository extends ChangeNotifier {
     String? verificationPhotoPath,
     String? qualityNotes,
     String? transactionId,
-  }) {
-    final sourceBatch = _farmerRepo.findPublicBatch(code);
+  }) async {
+    final sourceBatch = findBackendBatch(code) ?? _farmerRepo.findPublicBatch(code);
     if (sourceBatch == null) return false;
+    if (!_farmerRepo.canReceiveBatch(
+      batch: sourceBatch,
+      role: BatchReceiverRole.collector,
+      userId: _currentCollectorId,
+    )) {
+      return false;
+    }
 
-    final ok = _farmerRepo.verifyBatchByCollector(
+    final cleanBreakdown = gradeBreakdown.where((e) => e.hasValue).toList();
+
+    final response = await BackendApiClient.instance.post(
+      '/collector/batches/${Uri.encodeComponent(code)}/verify',
+      body: {
+        'received_quantity_kg': receivedQuantity,
+        'received_fruit_count': receivedFruitCount,
+        'quality_notes': qualityNotes,
+        'warehouse_id': warehouseId,
+        'verified_by': _profile.businessName.isEmpty
+            ? _profile.fullName
+            : _profile.businessName,
+        'grade_breakdown': cleanBreakdown
+            .map(
+              (e) => {
+                'grade': e.grade,
+                'weight_kg': e.weightKg,
+                'fruit_count': e.fruitCount,
+              },
+            )
+            .toList(),
+      },
+    );
+
+    final responseData = response.data;
+    final nestedBatch = responseData is Map ? responseData['batch'] : null;
+    final updatedBatch = nestedBatch is Map
+        ? HarvestBatch.fromJson({
+            ...sourceBatch.toJson(),
+            ...Map<String, dynamic>.from(nestedBatch),
+          })
+        : sourceBatch.copyWith(
+            status: BatchStatus.verifiedByCollector,
+            receivedQuantity: receivedQuantity,
+            receivedFruitCount: receivedFruitCount,
+            gradeBreakdown: cleanBreakdown,
+            warehouseId: warehouseId,
+            qualityNotes: qualityNotes,
+            verifiedBy: _profile.fullName,
+            verifiedByRole: BatchReceiverRole.collector,
+            verifiedAt: DateTime.now(),
+          );
+    final backendBatchIndex = _backendBatches.indexWhere(
+      (batch) => batch.code == sourceBatch.code,
+    );
+    if (backendBatchIndex >= 0) {
+      _backendBatches[backendBatchIndex] = updatedBatch;
+    }
+
+    _farmerRepo.verifyBatchByCollector(
       code: code,
       receivedQuantity: receivedQuantity,
       receivedFruitCount: receivedFruitCount,
@@ -1710,8 +1976,8 @@ class CollectorRepository extends ChangeNotifier {
       verificationPhotoPath: verificationPhotoPath,
       qualityNotes: qualityNotes,
       verifiedBy: _profile.fullName,
+      receiverUserId: _currentCollectorId,
     );
-    if (!ok) return false;
 
     final actorName = _profile.businessName.isEmpty
         ? _profile.fullName
@@ -1767,7 +2033,7 @@ class CollectorRepository extends ChangeNotifier {
         transactionId: transactionId?.trim().isEmpty == true
             ? null
             : transactionId?.trim(),
-        gradeBreakdown: gradeBreakdown.where((item) => item.hasValue).toList(),
+        gradeBreakdown: cleanBreakdown,
       ),
     );
 
@@ -1802,13 +2068,27 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - Event Handler] Submit penolakan pengepul meneruskan alasan reject
   // ke FarmerRepository sebagai state utama rantai pasok.
-  bool rejectFreshBatch({
+  Future<bool> rejectFreshBatch({
     required String code,
     required String reason,
     String? transactionId,
-  }) {
+  }) async {
     final sourceBatch = _farmerRepo.findPublicBatch(code);
     if (sourceBatch == null) return false;
+
+    try {
+      await BackendApiClient.instance.post(
+        '/collector/batches/$code/reject',
+        body: {
+          'reason': reason,
+          'rejected_by': _profile.businessName.isEmpty
+              ? _profile.fullName
+              : _profile.businessName,
+        },
+      );
+    } catch (_) {
+      // Lanjut update lokal bila BE gagal
+    }
 
     final ok = _farmerRepo.rejectBatchByCollector(
       code: code,
@@ -1882,6 +2162,10 @@ class CollectorRepository extends ChangeNotifier {
     String phone = '',
     String email = '',
     String roleLabel = 'Pengepul Durian',
+    String village = '',
+    String district = '',
+    String city = '',
+    String province = '',
   }) {
     final id = 'collector-${DateTime.now().millisecondsSinceEpoch}';
     final fullName = '$firstName $lastName'.trim();
@@ -1889,8 +2173,17 @@ class CollectorRepository extends ChangeNotifier {
       collectorId: id,
       fullName: fullName.isEmpty ? 'Pengepul' : fullName,
       roleLabel: roleLabel,
+      businessName: fullName,
       contact: phone.isEmpty ? '' : '+62 $phone',
       email: email.trim(),
+      location: [village, district, city, province]
+          .map((part) => part.trim())
+          .where((part) => part.isNotEmpty)
+          .join(', '),
+      village: village.trim(),
+      district: district.trim(),
+      city: city.trim(),
+      province: province.trim(),
     );
 
     _currentCollectorId = id;
@@ -1902,7 +2195,7 @@ class CollectorRepository extends ChangeNotifier {
 
   // [FE - State Management] updateProfile memperbarui identitas dan lokasi
   // operasional pengepul yang dipakai di Beranda, Profil, dan aksi verifikasi.
-  CollectorProfile updateProfile({
+  Future<CollectorProfile> updateProfile({
     required String fullName,
     required String contact,
     required String email,
@@ -1910,11 +2203,14 @@ class CollectorRepository extends ChangeNotifier {
     required String village,
     required String district,
     required String city,
+    required String province,
     required String address,
-  }) {
+  }) async {
     final locationParts = <String>[
-      if (village.trim().isNotEmpty) 'Desa ${village.trim()}',
+      if (village.trim().isNotEmpty) village.trim(),
+      if (district.trim().isNotEmpty) district.trim(),
       if (city.trim().isNotEmpty) city.trim(),
+      if (province.trim().isNotEmpty) province.trim(),
     ];
     final location = locationParts.join(', ');
 
@@ -1926,11 +2222,31 @@ class CollectorRepository extends ChangeNotifier {
       village: village.trim(),
       district: district.trim(),
       city: city.trim(),
+      province: province.trim(),
       address: address.trim(),
       location: location,
     );
     _saveToLocal();
     notifyListeners();
+    try {
+      await BackendApiClient.instance.put(
+        '/collector/profile',
+        body: {
+          'full_name': _profile.fullName,
+          'business_name': _profile.businessName,
+          'contact': _profile.contact,
+          'email': _profile.email,
+          'village': _profile.village,
+          'district': _profile.district,
+          'city': _profile.city,
+          'province': _profile.province,
+          'address': _profile.address,
+          'location': _profile.location,
+        },
+      );
+    } on BackendApiException {
+      // Local state remains available when the backend is temporarily offline.
+    }
     return _profile;
   }
 
@@ -1951,6 +2267,7 @@ class CollectorRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ignore: unused_element
   static List<CollectorWarehouse> _buildSeedWarehouses() {
     return [
       CollectorWarehouse(
@@ -1971,6 +2288,7 @@ class CollectorRepository extends ChangeNotifier {
     ];
   }
 
+  // ignore: unused_element
   static List<CollectorShipmentBatch> _buildSeedShipmentBatches() {
     final now = DateTime.now();
     return [

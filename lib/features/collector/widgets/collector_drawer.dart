@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/screens/sales_inbox_screen.dart';
 import '../../auth/screens/home_screen.dart';
 import '../collector_routes.dart';
 import '../data/collector_repository.dart';
@@ -64,6 +65,11 @@ class CollectorDrawer extends StatelessWidget {
                   icon: Icons.local_shipping_outlined,
                   label: 'Batch Pengiriman',
                   onTap: () => _go(context, const CollectorShipmentsScreen()),
+                ),
+                _DrawerItem(
+                  icon: Icons.move_to_inbox_outlined,
+                  label: 'Penjualan Masuk',
+                  onTap: () => _go(context, const SalesInboxScreen()),
                 ),
                 _DrawerItem(
                   icon: Icons.history_rounded,

@@ -21,7 +21,10 @@ class _EditConsumerProfileScreenState extends State<EditConsumerProfileScreen> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _emailCtrl;
-  late final TextEditingController _locationCtrl;
+  late final TextEditingController _villageCtrl;
+  late final TextEditingController _districtCtrl;
+  late final TextEditingController _cityCtrl;
+  late final TextEditingController _provinceCtrl;
   bool _isSubmitting = false;
 
   @override
@@ -31,7 +34,10 @@ class _EditConsumerProfileScreenState extends State<EditConsumerProfileScreen> {
     _nameCtrl = TextEditingController(text: profile.fullName);
     _phoneCtrl = TextEditingController(text: _phoneFieldValue(profile.contact));
     _emailCtrl = TextEditingController(text: profile.email);
-    _locationCtrl = TextEditingController(text: profile.location);
+    _villageCtrl = TextEditingController(text: profile.village);
+    _districtCtrl = TextEditingController(text: profile.district);
+    _cityCtrl = TextEditingController(text: profile.city);
+    _provinceCtrl = TextEditingController(text: profile.province);
   }
 
   @override
@@ -40,7 +46,10 @@ class _EditConsumerProfileScreenState extends State<EditConsumerProfileScreen> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
-    _locationCtrl.dispose();
+    _villageCtrl.dispose();
+    _districtCtrl.dispose();
+    _cityCtrl.dispose();
+    _provinceCtrl.dispose();
     super.dispose();
   }
 
@@ -55,6 +64,10 @@ class _EditConsumerProfileScreenState extends State<EditConsumerProfileScreen> {
     final name = _nameCtrl.text.trim();
     final phone = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
     final email = _emailCtrl.text.trim();
+    final village = _villageCtrl.text.trim();
+    final district = _districtCtrl.text.trim();
+    final city = _cityCtrl.text.trim();
+    final province = _provinceCtrl.text.trim();
     if (name.isEmpty || phone.length < 9 || phone.length > 13) {
       _notification.show(
         context,
@@ -67,15 +80,23 @@ class _EditConsumerProfileScreenState extends State<EditConsumerProfileScreen> {
       _notification.show(context, 'Format email tidak valid.', isError: true);
       return;
     }
+    if ([village, district, city, province].any((value) => value.isEmpty)) {
+      _notification.show(context, 'Kelurahan, kecamatan, kabupaten, dan provinsi wajib diisi.', isError: true);
+      return;
+    }
 
     setState(() => _isSubmitting = true);
     await Future.delayed(const Duration(milliseconds: 350));
     if (!mounted) return;
-    _repo.updateProfile(
+    await _repo.updateProfile(
       fullName: name,
       contact: '+62 $phone',
       email: email,
-      location: _locationCtrl.text,
+      location: [village, district, city, province].join(', '),
+      village: village,
+      district: district,
+      city: city,
+      province: province,
     );
     setState(() => _isSubmitting = false);
     _notification.show(context, 'Profil konsumen berhasil diperbarui.');
@@ -115,11 +136,13 @@ class _EditConsumerProfileScreenState extends State<EditConsumerProfileScreen> {
                       keyboardType: TextInputType.emailAddress,
                     ),
                     const SizedBox(height: 16),
-                    _Field(
-                      label: 'Domisili',
-                      controller: _locationCtrl,
-                      maxLines: 2,
-                    ),
+                    _Field(label: 'Kelurahan', controller: _villageCtrl),
+                    const SizedBox(height: 16),
+                    _Field(label: 'Kecamatan', controller: _districtCtrl),
+                    const SizedBox(height: 16),
+                    _Field(label: 'Kabupaten/Kota', controller: _cityCtrl),
+                    const SizedBox(height: 16),
+                    _Field(label: 'Provinsi', controller: _provinceCtrl),
                     const SizedBox(height: 32),
                     PrimaryPillButton(
                       label: 'SIMPAN PROFIL',

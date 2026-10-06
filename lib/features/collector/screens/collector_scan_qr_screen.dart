@@ -166,18 +166,20 @@ class _CollectorScanQrScreenState extends State<CollectorScanQrScreen> {
       return;
     }
 
-    if (shipment.status == CollectorShipmentStatus.readyToShip &&
-        !_repo.markShipmentSent(shipment.code)) {
-      _notification.show(
-        context,
-        'PGL gagal ditandai sebagai discan/diambil.',
-        isError: true,
-      );
-      if (_isCameraMode) {
-        if (mounted) setState(() => _isHandlingScan = false);
-        await _scannerController.start();
+    if (shipment.status == CollectorShipmentStatus.readyToShip) {
+      final markedSent = await _repo.markShipmentSent(shipment.code);
+      if (!markedSent) {
+        _notification.show(
+          context,
+          'PGL gagal ditandai sebagai discan/diambil.',
+          isError: true,
+        );
+        if (_isCameraMode) {
+          if (mounted) setState(() => _isHandlingScan = false);
+          await _scannerController.start();
+        }
+        return;
       }
-      return;
     }
 
     final completed = await CollectorRoutes.push<bool>(

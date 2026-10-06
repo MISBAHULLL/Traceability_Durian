@@ -135,6 +135,8 @@ class _OwnershipHistoryItem {
     switch (status) {
       case BatchStatus.verifiedByCollector:
         return 'Diterima oleh Pengepul';
+      case BatchStatus.receivedByDistributor:
+        return 'Diterima oleh Distributor';
       case BatchStatus.inDistribution:
         return 'Masuk Pengiriman';
       case BatchStatus.receivedByUmkm:
@@ -156,6 +158,8 @@ class _OwnershipHistoryItem {
       case BatchStatus.verifiedByCollector:
       case BatchStatus.rejected:
         return 'Petani';
+      case BatchStatus.receivedByDistributor:
+        return 'Petani';
       case BatchStatus.inDistribution:
         return batch.verifiedBy ?? 'Pengepul';
       case BatchStatus.receivedByUmkm:
@@ -172,6 +176,8 @@ class _OwnershipHistoryItem {
   String get toLabel {
     switch (status) {
       case BatchStatus.verifiedByCollector:
+        return batch.verifiedBy ?? event.actorLabel;
+      case BatchStatus.receivedByDistributor:
         return batch.verifiedBy ?? event.actorLabel;
       case BatchStatus.inDistribution:
         return 'Distributor/UMKM';
@@ -193,6 +199,8 @@ class _OwnershipHistoryItem {
     switch (status) {
       case BatchStatus.verifiedByCollector:
         return 'Disetujui - kepemilikan berpindah ke pengepul';
+      case BatchStatus.receivedByDistributor:
+        return 'Dikonfirmasi oleh distributor';
       case BatchStatus.rejected:
         return 'Ditolak - kepemilikan tetap di petani';
       case BatchStatus.inDistribution:

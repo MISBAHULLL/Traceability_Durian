@@ -637,6 +637,16 @@ class _TraceStep {
           status: event.status,
           icon: _receiverIcon(event),
         );
+      case BatchStatus.receivedByDistributor:
+        return _TraceStep(
+          roleLabel: 'Distributor',
+          actionLabel: 'Diterima',
+          title: 'Batch diterima Distributor',
+          description: '${event.actorLabel} mengonfirmasi penerimaan batch.',
+          timestamp: event.timestamp,
+          status: event.status,
+          icon: Icons.local_shipping_rounded,
+        );
       case BatchStatus.inDistribution:
         return _TraceStep(
           roleLabel: 'Pengiriman',

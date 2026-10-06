@@ -13,6 +13,18 @@ class ShipmentRecipient {
   final String name;
   final String address;
   final ShipmentDestinationType destinationType;
+
+  factory ShipmentRecipient.fromJson(Map<String, dynamic> json) {
+    return ShipmentRecipient(
+      userId: json['userId']?.toString() ?? '',
+      name: json['name'] as String? ?? '',
+      address: json['address'] as String? ?? '',
+      destinationType: ShipmentDestinationType.values.firstWhere(
+        (item) => item.name == json['destinationType'],
+        orElse: () => ShipmentDestinationType.distributor,
+      ),
+    );
+  }
 }
 
 /// Data sementara FE untuk mensimulasikan akun yang sudah terdaftar.

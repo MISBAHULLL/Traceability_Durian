@@ -84,12 +84,20 @@ class _CreateShipmentBatchScreenState extends State<CreateShipmentBatchScreen> {
       );
       return;
     }
+    if (recipient.address.trim().isEmpty) {
+      _notification.show(
+        context,
+        'Alamat akun penerima belum terdaftar. Lengkapi profil penerima terlebih dahulu.',
+        isError: true,
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
 
-    final shipment = _repo.createShipmentBatch(
+    final shipment = await _repo.createShipmentBatch(
       sourceBatchCodes: _selectedCodes.toList(),
       destinationType: destinationType,
       destinationUserId: recipient.userId,
@@ -251,7 +259,7 @@ class _DestinationDetailPanel extends StatelessWidget {
   Future<void> _selectRecipient(BuildContext context) async {
     final type = destinationType;
     if (type == null) return;
-    final recipients = ShipmentRecipientDirectory.forDestination(type);
+    final recipients = CollectorRepository.instance.shipmentRecipientsFor(type);
     final result = await showModalBottomSheet<ShipmentRecipient>(
       context: context,
       backgroundColor: AppColors.white,

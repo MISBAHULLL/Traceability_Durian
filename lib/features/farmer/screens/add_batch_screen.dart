@@ -12,6 +12,8 @@ import '../data/farmer_repository.dart';
 import '../farmer_routes.dart';
 import '../models/farm.dart';
 import '../models/master_data.dart';
+import '../models/batch_recipient.dart';
+import '../models/harvest_batch.dart';
 import 'batch_qr_screen.dart';
 import 'create_farm_screen.dart';
 
@@ -72,6 +74,10 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
   DateTime? _harvestDate;
   String? _photoPath;
   bool _isSubmitting = false;
+  bool _isLoadingRecipients = false;
+  String? _recipientLoadError;
+  List<BatchRecipient> _recipients = const [];
+  BatchRecipient? _selectedRecipient;
 
   @override
   void initState() {
@@ -79,10 +85,48 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
     // Prefill field bila dalam mode ubah (sebelum memasang listener).
     if (widget.isEditMode) {
       _prefillFromExistingBatch();
+    } else {
+      _loadBatchRecipients();
     }
+
     // Dengarkan perubahan repo agar dropdown kebun ter-refresh bila
     // pengguna baru saja membuat kebun dari CreateFarmScreen.
     _repo.addListener(_onRepoChanged);
+  }
+
+  Future<void> _loadBatchRecipients() async {
+    setState(() {
+      _isLoadingRecipients = true;
+      _recipientLoadError = null;
+    });
+    try {
+      final recipients = await _repo.loadBatchRecipients();
+      if (!mounted) return;
+      setState(() {
+        _recipients = recipients;
+        _isLoadingRecipients = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingRecipients = false;
+        _recipientLoadError = error.toString();
+      });
+    }
+  }
+
+  Future<void> _openRecipientPicker() async {
+    final recipient = await showModalBottomSheet<BatchRecipient>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _RecipientPickerSheet(recipients: _recipients),
+    );
+    if (!mounted || recipient == null) return;
+    setState(() => _selectedRecipient = recipient);
   }
 
   // [FE - State Management] Mengisi field form dari batch yang akan diubah,
@@ -257,6 +301,15 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
   // validasi → addBatch → buka QR. Pada mode ubah: validasi → updateBatch
   // (guard DRAFT di repository) → pop kembali ke Detail.
   Future<void> _submit() async {
+    if (!widget.isEditMode && _selectedRecipient == null) {
+      _notification.show(
+        context,
+        'Pilih akun tujuan batch terlebih dahulu.',
+        isError: true,
+      );
+      return;
+    }
+
     // Validasi semua field
     final error = FarmerValidator.validateAddBatch(
       farm: _selectedFarm,
@@ -294,37 +347,47 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
 
   // [FE - Event Handler] Menyimpan batch baru lalu membuka layar QR.
   Future<void> _saveNew() async {
-    final batch = _repo.addBatch(
-      farm: _selectedFarm!,
-      variety: _variety!,
-      fertilizer: _fertilizer ?? '',
-      harvestMethod: _harvestMethod ?? '',
-      grade: _grade!,
-      quantity: double.parse(_quantityController.text.trim()),
-      unit: 'kg',
-      fruitCount: int.parse(_fruitCountController.text.trim()),
-      harvestDate: _harvestDate!,
-      maturityLevel: _maturityLevel!,
-      shelfLifeEstimate: _shelfLifeEstimate!,
-      storageSuggestion: _storageSuggestionController.text.trim(),
-      notes: _notesController.text.trim(),
-      photoPath: _photoPath,
-    );
+    try {
+      final batch = await _repo.addBatch(
+        farm: _selectedFarm!,
+        variety: _variety!,
+        fertilizer: _fertilizer ?? '',
+        harvestMethod: _harvestMethod ?? '',
+        grade: _grade!,
+        quantity: double.parse(_quantityController.text.trim()),
+        unit: 'kg',
+        fruitCount: int.parse(_fruitCountController.text.trim()),
+        harvestDate: _harvestDate!,
+        maturityLevel: _maturityLevel!,
+        shelfLifeEstimate: _shelfLifeEstimate!,
+        storageSuggestion: _storageSuggestionController.text.trim(),
+        notes: _notesController.text.trim(),
+        photoPath: _photoPath,
+        recipient: _selectedRecipient!,
+      );
 
-    setState(() => _isSubmitting = false);
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
 
-    // Banner sukses (Req 2.8)
-    _notification.show(
-      context,
-      'Batch panen berhasil dicatat dengan kode ${batch.code}.',
-      isError: false,
-    );
+      // Banner sukses (Req 2.8)
+      _notification.show(
+        context,
+        'Batch panen berhasil dicatat dengan kode ${batch.code}.',
+        isError: false,
+      );
 
-    // Buka QR screen — back dari sini kembali ke Beranda (Req 4.6)
-    if (mounted) {
+      // Buka QR screen — back dari sini kembali ke Beranda (Req 4.6)
       await FarmerRoutes.push(
         context,
         BatchQrScreen(batchCode: batch.code, openedAfterCreate: true),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      _notification.show(
+        context,
+        'Batch gagal disimpan: $error',
+        isError: true,
       );
     }
   }
@@ -332,7 +395,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
   // [FE - Event Handler] Menyimpan perubahan batch DRAFT. Repository menolak
   // (no-op) bila status bukan DRAFT — kasus itu ditangani sebagai error.
   Future<void> _saveEdit() async {
-    final ok = _repo.updateBatch(
+    final ok = await _repo.updateBatch(
       widget.editBatchCode!,
       farm: _selectedFarm,
       variety: _variety,
@@ -350,6 +413,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
       photoPath: _photoPath,
     );
 
+    if (!mounted) return;
     setState(() => _isSubmitting = false);
 
     if (!ok) {
@@ -370,7 +434,8 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
 
     // Beri jeda agar banner sukses sempat terlihat sebelum kembali ke Detail.
     await Future.delayed(const Duration(milliseconds: 800));
-    if (mounted) Navigator.maybePop(context);
+    if (!mounted) return;
+    Navigator.maybePop(context);
   }
 
   // ── Navigasi ke buat kebun ─────────────────────────────────────────────────
@@ -408,7 +473,7 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                   children: [
                     // ── 0. Foto Durian ─────────────────────────────────────
                     // [FE - Component Rendering] Foto durian menjadi bukti
-                    // visual awal batch sebelum data dikirim ke pengepul.
+                    // visual awal batch sebelum data dikirim ke penerima.
                     _PhotoPickerField(
                       photoPath: _photoPath,
                       onPick: _pickPhoto,
@@ -440,6 +505,27 @@ class _AddBatchScreenState extends State<AddBatchScreen> {
                       onChanged: (v) => setState(() => _variety = v),
                     ),
                     const SizedBox(height: 16),
+
+                    if (!widget.isEditMode) ...[
+                      if (_isLoadingRecipients)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: LinearProgressIndicator(),
+                        )
+                      else if (_recipientLoadError != null)
+                        _RecipientLoadError(
+                          message: _recipientLoadError!,
+                          onRetry: _loadBatchRecipients,
+                        )
+                      else if (_recipients.isEmpty)
+                        const _NoRecipientsAvailable()
+                      else
+                        _RecipientDropdownField(
+                          value: _selectedRecipient,
+                          onTap: _openRecipientPicker,
+                        ),
+                      const SizedBox(height: 16),
+                    ],
 
                     // [FE - Component Rendering] Bagian ini menyusun input
                     // utama batch agar data panen siap dipakai role berikutnya.
@@ -602,6 +688,248 @@ class _FarmEmptyState extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RecipientLoadError extends StatelessWidget {
+  const _RecipientLoadError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Akun tujuan gagal dimuat: $message',
+          style: const TextStyle(color: Colors.red, fontSize: 12),
+        ),
+        TextButton(onPressed: onRetry, child: const Text('Coba lagi')),
+      ],
+    );
+  }
+}
+
+class _NoRecipientsAvailable extends StatelessWidget {
+  const _NoRecipientsAvailable();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: const Text(
+        'Belum ada akun pengepul, UMKM, atau distributor yang aktif.',
+        style: TextStyle(fontSize: 13, color: AppColors.subtitle),
+      ),
+    );
+  }
+}
+
+class _RecipientDropdownField extends StatelessWidget {
+  const _RecipientDropdownField({required this.value, required this.onTap});
+
+  final BatchRecipient? value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Pilih Akun Tujuan (wajib)',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.subtitle,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Material(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(minHeight: 52),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      value == null
+                          ? 'Pilih nama akun tujuan'
+                          : '${value!.fullName} • ID ${value!.accountId}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: value == null
+                            ? AppColors.placeholder
+                            : AppColors.black,
+                        fontWeight: value == null
+                            ? FontWeight.normal
+                            : FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: AppColors.placeholder,
+                    size: 22,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecipientPickerSheet extends StatefulWidget {
+  const _RecipientPickerSheet({required this.recipients});
+
+  final List<BatchRecipient> recipients;
+
+  @override
+  State<_RecipientPickerSheet> createState() => _RecipientPickerSheetState();
+}
+
+class _RecipientPickerSheetState extends State<_RecipientPickerSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  List<BatchRecipient> get _results {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return widget.recipients;
+    return widget.recipients.where((recipient) {
+      return recipient.fullName.toLowerCase().contains(query) ||
+          recipient.accountId.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FractionallySizedBox(
+      heightFactor: 0.82,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            16 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD1D5DB),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Pilih Akun Tujuan',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _searchController,
+                autofocus: true,
+                onChanged: (value) => setState(() => _query = value),
+                decoration: InputDecoration(
+                  hintText: 'Cari nama atau ID akun',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Hapus pencarian',
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _query = '');
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: _results.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Akun tidak ditemukan. Cari dengan nama atau ID.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.placeholder),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: _results.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final recipient = _results[index];
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                            ),
+                            title: Text(
+                              recipient.fullName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'ID ${recipient.accountId} • ${recipient.role.label}',
+                            ),
+                            trailing: const Icon(
+                              Icons.chevron_right_rounded,
+                              color: AppColors.placeholder,
+                            ),
+                            onTap: () => Navigator.of(context).pop(recipient),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

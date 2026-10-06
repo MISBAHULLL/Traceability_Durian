@@ -70,7 +70,7 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     if (mounted) setState(() => _routeLoading = true);
 
     final cleanCode = _extractTraceCode(widget.batchCode);
-    final batch = _repo.findPublicBatch(cleanCode);
+    final batch = _findPublicBatch(cleanCode);
     if (batch == null) {
       final traceBatch = _traceRepo.findBatch(cleanCode);
       if (traceBatch != null) {
@@ -129,7 +129,7 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
         title: 'Petani',
         actorLabel: createdEvent?.actorLabel ?? 'Petani',
         locationName: batch.farmName,
-        address: _publicFarmAddress(farm),
+        address: _publicFarmAddress(farm, fallbackFarmName: batch.farmName),
         timestamp:
             createdEvent?.timestamp ?? batch.createdAt ?? batch.harvestDate,
         description: 'Batch dibuat dan QR trace diterbitkan.',
@@ -255,6 +255,10 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
       if (event.title == title) return event;
     }
     return null;
+  }
+
+  HarvestBatch? _findPublicBatch(String code) {
+    return _repo.findPublicBatch(code) ?? _collectorRepo.findBackendBatch(code);
   }
 
   String _extractTraceCode(String raw) {
@@ -440,7 +444,10 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
             title: 'Petani',
             actorLabel: createdEvent?.actorLabel ?? 'Petani',
             locationName: farmerBatch.farmName,
-            address: _publicFarmAddress(farm),
+            address: _publicFarmAddress(
+              farm,
+              fallbackFarmName: farmerBatch.farmName,
+            ),
             timestamp:
                 createdEvent?.timestamp ??
                 farmerBatch.createdAt ??
@@ -584,8 +591,11 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
     };
   }
 
-  String _publicFarmAddress(Farm? farm) {
-    if (farm == null) return 'Wilayah kebun belum ditemukan';
+  String _publicFarmAddress(Farm? farm, {String? fallbackFarmName}) {
+    if (farm == null) {
+      final farmName = fallbackFarmName?.trim() ?? '';
+      return farmName.isEmpty ? 'Wilayah kebun belum dilengkapi' : farmName;
+    }
     final parts = [
       farm.village,
       farm.district,
@@ -669,7 +679,7 @@ class _PublicTraceScreenState extends State<PublicTraceScreen> {
   @override
   Widget build(BuildContext context) {
     final cleanCode = _extractTraceCode(widget.batchCode);
-    final batch = _repo.findPublicBatch(cleanCode);
+    final batch = _findPublicBatch(cleanCode);
     final traceBatch = batch == null ? _traceRepo.findBatch(cleanCode) : null;
 
     return Scaffold(
@@ -1642,14 +1652,11 @@ class _TraceRouteMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mapped = _mappedStops;
-    final route = mapped.map((stop) => stop.point!).toList();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Peta Perjalanan',
+          'Tahapan Perjalanan',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w800,
@@ -1657,70 +1664,6 @@ class _TraceRouteMap extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        Container(
-          height: 220,
-          decoration: BoxDecoration(
-            color: const Color(0xFFEFF6EE),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFD1E8CC)),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: OsmMapPreview(
-                  center: _center,
-                  initialZoom: _zoom,
-                  markers: [
-                    for (var i = 0; i < mapped.length; i++)
-                      OsmMapMarker(
-                        point: mapped[i].point!,
-                        label: '${stops.indexOf(mapped[i]) + 1}',
-                        color: i == 0
-                            ? AppColors.primaryContainer
-                            : const Color(0xFFE85D32),
-                      ),
-                  ],
-                  route: route,
-                ),
-              ),
-              if (loading)
-                const Positioned.fill(
-                  child: ColoredBox(
-                    color: Color(0x55FFFFFF),
-                    child: Center(
-                      child: SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.primaryContainer,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              Positioned(
-                right: 6,
-                bottom: 5,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.88),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                    child: Text(
-                      '(c) OpenStreetMap',
-                      style: TextStyle(fontSize: 9, color: AppColors.subtitle),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
         if (stops.isEmpty && !loading)
           const Text(
             'Tracking perjalanan belum tersedia.',

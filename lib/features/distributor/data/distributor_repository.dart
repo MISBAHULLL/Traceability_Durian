@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import '../../../core/network/backend_api_client.dart';
-import '../../../core/storage/local_storage_service.dart';
 import '../../collector/data/collector_repository.dart';
 import '../../collector/models/collector_shipment_batch.dart';
 import '../../farmer/data/farmer_repository.dart';
+import '../../farmer/models/batch_recipient.dart';
 import '../../farmer/models/harvest_batch.dart';
 import '../../traceability/data/traceability_repository.dart';
 import '../../traceability/models/traceability_models.dart';
@@ -30,20 +30,6 @@ class DistributorRepository extends ChangeNotifier {
   static final DistributorRepository instance = DistributorRepository._();
 
   static const String _kSeedDistributorId = 'distributor-001';
-  static final DistributorProfile _kSeedProfile = const DistributorProfile(
-    distributorId: _kSeedDistributorId,
-    fullName: 'Andi Wijaya',
-    roleLabel: 'Distributor Durian',
-    businessName: 'PT. Trans Logistik Durian',
-    contact: '081234567890',
-    email: 'andi.wijaya@translogistik.com',
-    location: 'Surabaya Hub, Jawa Timur',
-    village: 'Genteng',
-    district: 'Genteng',
-    city: 'Surabaya',
-    address: 'Jl. Pemuda No. 15, Surabaya',
-  );
-
   late DistributorProfile _profile;
   late List<DistributorReceipt> _receipts;
   late List<DistributorRejectionReceipt> _rejectionReceipts;
@@ -52,6 +38,11 @@ class DistributorRepository extends ChangeNotifier {
   late List<DistributorWarehouseTransfer> _warehouseTransfers;
   late List<DistributorHorizontalSale> _horizontalSales;
   late List<DistributorAuditEvent> _auditEvents;
+  List<CollectorShipmentBatch> _backendShipments = <CollectorShipmentBatch>[];
+  List<HarvestBatch> _incomingFarmerBatches = <HarvestBatch>[];
+  List<HarvestBatch> _saleInventoryBatches = <HarvestBatch>[];
+  List<BatchRecipient> _saleRecipients = <BatchRecipient>[];
+  bool _incomingFarmerBatchesLoaded = false;
   late int _acquisitionTransactionCounter;
   late int _warehouseCounter;
   late int _warehouseTransferCounter;
@@ -61,6 +52,7 @@ class DistributorRepository extends ChangeNotifier {
   String _currentDistributorId = _kSeedDistributorId;
 
   DistributorProfile get profile => _profile;
+  String get currentDistributorId => _currentDistributorId;
 
   void _onCollectorRepoChanged() {
     notifyListeners();
@@ -87,6 +79,11 @@ class DistributorRepository extends ChangeNotifier {
     _warehouseTransfers = <DistributorWarehouseTransfer>[];
     _horizontalSales = <DistributorHorizontalSale>[];
     _auditEvents = <DistributorAuditEvent>[];
+    _backendShipments = <CollectorShipmentBatch>[];
+    _incomingFarmerBatches = <HarvestBatch>[];
+    _saleInventoryBatches = <HarvestBatch>[];
+    _saleRecipients = <BatchRecipient>[];
+    _incomingFarmerBatchesLoaded = false;
     _acquisitionTransactionCounter = 0;
     _warehouseCounter = 0;
     _warehouseTransferCounter = 0;
@@ -104,15 +101,32 @@ class DistributorRepository extends ChangeNotifier {
       final profileResponse = await BackendApiClient.instance.get(
         '/distributor/profile',
       );
+      final shipmentsResponse = await BackendApiClient.instance.get(
+        '/distributor/shipments',
+      );
+      final warehousesResponse = await BackendApiClient.instance.get(
+        '/distributor/warehouses',
+      );
+      final batchesResponse = await BackendApiClient.instance.get(
+        '/distributor/batches',
+      );
       if (profileResponse.data is Map) {
         final data = Map<String, dynamic>.from(profileResponse.data as Map);
-        final user = Map<String, dynamic>.from(data['user'] as Map? ?? const {});
+        final user = Map<String, dynamic>.from(
+          data['user'] as Map? ?? const {},
+        );
         final profile = Map<String, dynamic>.from(
           data['profile'] as Map? ?? const {},
         );
         _profile = DistributorProfile.fromJson({
-          'distributorId': user['id']?.toString() ?? profile['user_id']?.toString() ?? _profile.distributorId,
-          'fullName': profile['business_name'] ?? user['full_name'] ?? '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim(),
+          'distributorId':
+              user['id']?.toString() ??
+              profile['user_id']?.toString() ??
+              _profile.distributorId,
+          'fullName':
+              profile['business_name'] ??
+              user['full_name'] ??
+              '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim(),
           'roleLabel': 'Distributor Durian',
           'businessName': profile['business_name'] ?? '',
           'contact': profile['contact'] ?? user['phone'] ?? '',
@@ -121,9 +135,84 @@ class DistributorRepository extends ChangeNotifier {
           'village': profile['village'] ?? '',
           'district': profile['district'] ?? '',
           'city': profile['city'] ?? '',
+          'province': profile['province'] ?? '',
           'address': profile['address'] ?? '',
           'avatarPath': profile['avatar_path'],
         });
+      }
+
+      if (shipmentsResponse.data is List) {
+        _backendShipments = (shipmentsResponse.data as List)
+            .whereType<Map>()
+            .map(
+              (item) => CollectorShipmentBatch.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList();
+      }
+      if (warehousesResponse.data is List) {
+        _warehouses = (warehousesResponse.data as List)
+            .whereType<Map>()
+            .map(
+              (item) => DistributorWarehouse.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList();
+      }
+      if (batchesResponse.data is List) {
+        _incomingFarmerBatches = (batchesResponse.data as List)
+            .whereType<Map>()
+            .map(
+              (item) => HarvestBatch.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList();
+        _incomingFarmerBatchesLoaded = true;
+      }
+
+      try {
+        final responses = await Future.wait([
+          BackendApiClient.instance.get('/distributor/inventory-batches'),
+          BackendApiClient.instance.get('/distributor/sale-recipients'),
+          BackendApiClient.instance.get('/distributor/sales'),
+        ]);
+        if (responses[0].data is List) {
+          _saleInventoryBatches = (responses[0].data as List)
+              .whereType<Map>()
+              .map(
+                (item) => HarvestBatch.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList();
+        }
+        if (responses[1].data is List) {
+          _saleRecipients = (responses[1].data as List)
+              .whereType<Map>()
+              .map(
+                (item) => BatchRecipient.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList();
+        }
+        if (responses[2].data is List) {
+          _horizontalSales = (responses[2].data as List)
+              .whereType<Map>()
+              .map(
+                (item) => DistributorHorizontalSale.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList();
+        }
+      } on BackendApiException catch (error) {
+        if (kDebugMode) {
+          debugPrint('[DISTRIBUTOR] sales refresh failed: ${error.message}');
+        }
       }
 
       final receipts = <DistributorReceipt>[];
@@ -166,14 +255,28 @@ class DistributorRepository extends ChangeNotifier {
     required String lastName,
     required String phone,
     required String email,
-  }) {
+    String village = '',
+    String district = '',
+    String city = '',
+    String province = '',
+  }) async {
+    final addressParts = [
+      village,
+      district,
+      city,
+      province,
+    ].map((part) => part.trim()).where((part) => part.isNotEmpty).toList();
     _profile = DistributorProfile(
       distributorId: 'dist-reg-${DateTime.now().millisecondsSinceEpoch}',
       fullName: '$firstName $lastName'.trim(),
       roleLabel: 'Distributor Durian',
       contact: phone,
       email: email,
-      location: 'Hub Baru, Indonesia',
+      location: addressParts.join(', '),
+      village: village.trim(),
+      district: district.trim(),
+      city: city.trim(),
+      province: province.trim(),
     );
     _recordAudit(
       type: DistributorAuditEventType.profile,
@@ -186,7 +289,7 @@ class DistributorRepository extends ChangeNotifier {
   }
 
   /// Memperbarui informasi profil distributor.
-  DistributorProfile updateProfile({
+  Future<DistributorProfile> updateProfile({
     required String fullName,
     required String businessName,
     required String contact,
@@ -194,9 +297,15 @@ class DistributorRepository extends ChangeNotifier {
     required String village,
     required String district,
     required String city,
+    required String province,
     required String address,
-  }) {
-    final location = city.isNotEmpty ? '$city, Indonesia' : '';
+  }) async {
+    final location = [
+      village.trim(),
+      district.trim(),
+      city.trim(),
+      province.trim(),
+    ].where((value) => value.isNotEmpty).join(', ');
     _profile = _profile.copyWith(
       fullName: fullName.trim(),
       businessName: businessName.trim(),
@@ -205,6 +314,7 @@ class DistributorRepository extends ChangeNotifier {
       village: village.trim(),
       district: district.trim(),
       city: city.trim(),
+      province: province.trim(),
       address: address.trim(),
       location: location,
     );
@@ -220,6 +330,25 @@ class DistributorRepository extends ChangeNotifier {
     );
     _saveToLocal();
     notifyListeners();
+    try {
+      await BackendApiClient.instance.put(
+        '/distributor/profile',
+        body: {
+          'full_name': _profile.fullName,
+          'business_name': _profile.businessName,
+          'contact': _profile.contact,
+          'email': _profile.email,
+          'village': _profile.village,
+          'district': _profile.district,
+          'city': _profile.city,
+          'province': _profile.province,
+          'address': _profile.address,
+          'location': _profile.location,
+        },
+      );
+    } on BackendApiException {
+      // Local state remains available when the backend is temporarily offline.
+    }
     return _profile;
   }
 
@@ -327,12 +456,52 @@ class DistributorRepository extends ChangeNotifier {
     ),
   ];
 
+  List<BatchRecipient> get saleRecipients =>
+      List.unmodifiable(_saleRecipients);
+
+  List<HarvestBatch> get saleInventoryBatches =>
+      List.unmodifiable(_saleInventoryBatches);
+
   List<DistributorHorizontalSale> get horizontalSales {
     final items = _horizontalSales
         .where((sale) => sale.sellerDistributorId == _currentDistributorId)
         .toList();
     items.sort((a, b) => b.initiatedAt.compareTo(a.initiatedAt));
     return List.unmodifiable(items);
+  }
+
+  Future<DistributorHorizontalSale> createHorizontalSale({
+    required String batchCode,
+    required BatchRecipient recipient,
+    String? qualityNote,
+  }) async {
+    final response = await BackendApiClient.instance.post(
+      '/distributor/sales',
+      body: {
+        'batch_code': batchCode,
+        'recipient_user_id': recipient.userId,
+        'recipient_role': switch (recipient.role) {
+          BatchReceiverRole.collector => 'pengepul',
+          BatchReceiverRole.distributor => 'distributor',
+          BatchReceiverRole.umkm => 'umkm',
+        },
+        if (qualityNote?.trim().isNotEmpty == true)
+          'quality_note': qualityNote!.trim(),
+      },
+    );
+    final json = response.data;
+    if (json is! Map) {
+      throw const FormatException('Respons penjualan distributor tidak valid.');
+    }
+
+    final sale = DistributorHorizontalSale.fromJson(
+      Map<String, dynamic>.from(json),
+    );
+    _horizontalSales.removeWhere((item) => item.id == sale.id);
+    _horizontalSales.insert(0, sale);
+    _saleInventoryBatches.removeWhere((item) => item.code == batchCode);
+    notifyListeners();
+    return sale;
   }
 
   List<DistributorHorizontalSale> get allHorizontalSales {
@@ -379,81 +548,98 @@ class DistributorRepository extends ChangeNotifier {
     }
   }
 
-  DistributorWarehouse createWarehouse({
+  Future<DistributorWarehouse?> createWarehouse({
     required String name,
     required String location,
     String? note,
     bool setAsDefault = false,
-  }) {
-    final warehouse = DistributorWarehouse(
-      id: _generateWarehouseId(),
-      name: name.trim(),
-      location: location.trim(),
-      note: note?.trim().isEmpty == true ? null : note?.trim(),
-      isDefault: setAsDefault || _warehouses.isEmpty,
-      createdAt: DateTime.now(),
-    );
-    if (warehouse.isDefault) {
-      _warehouses = _warehouses
-          .map((item) => item.copyWith(isDefault: false))
-          .toList();
+  }) async {
+    try {
+      final response = await BackendApiClient.instance.post(
+        '/distributor/warehouses',
+        body: {
+          'name': name.trim(),
+          'location': location.trim(),
+          'note': note?.trim().isEmpty == true ? null : note?.trim(),
+          'is_default': setAsDefault,
+        },
+      );
+      if (response.data is! Map) return null;
+      final warehouse = DistributorWarehouse.fromJson(
+        Map<String, dynamic>.from(response.data as Map),
+      );
+      if (warehouse.isDefault) {
+        _warehouses = _warehouses
+            .map((item) => item.copyWith(isDefault: false))
+            .toList();
+      }
+      _warehouses.add(warehouse);
+      _recordAudit(
+        type: DistributorAuditEventType.warehouse,
+        action: 'Tambah gudang',
+        objectCode: warehouse.id,
+        description: 'Gudang ${warehouse.name} ditambahkan.',
+        metadata: {
+          'Lokasi': warehouse.location,
+          'Default': warehouse.isDefault ? 'Ya' : 'Tidak',
+        },
+      );
+      notifyListeners();
+      return warehouse;
+    } catch (_) {
+      return null;
     }
-    _warehouses.add(warehouse);
-    _recordAudit(
-      type: DistributorAuditEventType.warehouse,
-      action: 'Tambah gudang',
-      objectCode: warehouse.id,
-      description: 'Gudang ${warehouse.name} ditambahkan.',
-      metadata: {
-        'Lokasi': warehouse.location,
-        'Default': warehouse.isDefault ? 'Ya' : 'Tidak',
-      },
-    );
-    _saveToLocal();
-    notifyListeners();
-    return warehouse;
   }
 
-  bool updateWarehouse(
+  Future<bool> updateWarehouse(
     String id, {
     required String name,
     required String location,
     String? note,
     bool setAsDefault = false,
-  }) {
+  }) async {
     final index = _warehouses.indexWhere((warehouse) => warehouse.id == id);
     if (index == -1) return false;
+    try {
+      final response = await BackendApiClient.instance.put(
+        '/distributor/warehouses/$id',
+        body: {
+          'name': name.trim(),
+          'location': location.trim(),
+          'note': note?.trim().isEmpty == true ? null : note?.trim(),
+          'is_default': setAsDefault,
+        },
+      );
+      if (response.data is! Map) return false;
+      final updated = DistributorWarehouse.fromJson(
+        Map<String, dynamic>.from(response.data as Map),
+      );
 
-    if (setAsDefault) {
-      _warehouses = _warehouses
-          .map((item) => item.copyWith(isDefault: false))
-          .toList();
+      if (setAsDefault) {
+        _warehouses = _warehouses
+            .map((item) => item.copyWith(isDefault: false))
+            .toList();
+      }
+      final existing = _warehouses[index];
+      _warehouses[index] = updated;
+      _recordAudit(
+        type: DistributorAuditEventType.warehouse,
+        action: 'Ubah gudang',
+        objectCode: existing.id,
+        description: 'Gudang ${_warehouses[index].name} diperbarui.',
+        metadata: {
+          'Lokasi': _warehouses[index].location,
+          'Default': _warehouses[index].isDefault ? 'Ya' : 'Tidak',
+        },
+      );
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
     }
-    final existing = _warehouses[index];
-    _warehouses[index] = DistributorWarehouse(
-      id: existing.id,
-      name: name.trim(),
-      location: location.trim(),
-      note: note?.trim().isEmpty == true ? null : note?.trim(),
-      isDefault: setAsDefault ? true : existing.isDefault,
-      createdAt: existing.createdAt,
-    );
-    _recordAudit(
-      type: DistributorAuditEventType.warehouse,
-      action: 'Ubah gudang',
-      objectCode: existing.id,
-      description: 'Gudang ${_warehouses[index].name} diperbarui.',
-      metadata: {
-        'Lokasi': _warehouses[index].location,
-        'Default': _warehouses[index].isDefault ? 'Ya' : 'Tidak',
-      },
-    );
-    _saveToLocal();
-    notifyListeners();
-    return true;
   }
 
-  bool deleteWarehouse(String id) {
+  Future<bool> deleteWarehouse(String id) async {
     final index = _warehouses.indexWhere((warehouse) => warehouse.id == id);
     if (index == -1 || _warehouses.length <= 1) return false;
 
@@ -462,6 +648,11 @@ class DistributorRepository extends ChangeNotifier {
           transfer.fromWarehouseId == id || transfer.toWarehouseId == id,
     );
     if (isUsed) return false;
+    try {
+      await BackendApiClient.instance.delete('/distributor/warehouses/$id');
+    } catch (_) {
+      return false;
+    }
 
     final removed = _warehouses.removeAt(index);
     if (removed.isDefault && _warehouses.isNotEmpty) {
@@ -474,7 +665,6 @@ class DistributorRepository extends ChangeNotifier {
       description: 'Gudang ${removed.name} dihapus.',
       metadata: {'Lokasi': removed.location},
     );
-    _saveToLocal();
     notifyListeners();
     return true;
   }
@@ -884,11 +1074,33 @@ class DistributorRepository extends ChangeNotifier {
 
   // [FE - State Management] Batch DRN yang masih CREATED menjadi kandidat
   // pembelian langsung distributor dari petani, mengikuti pintu T1 pengepul.
-  List<HarvestBatch> get availableFarmerAcquisitionBatches =>
-      FarmerRepository.instance.batchesForCollectorVerification;
+  List<HarvestBatch> get availableFarmerAcquisitionBatches {
+    if (_incomingFarmerBatchesLoaded) {
+      return List.unmodifiable(
+        _incomingFarmerBatches.where(
+          (batch) => batch.status == BatchStatus.created,
+        ),
+      );
+    }
+    return FarmerRepository.instance.batchesForReceiverVerification(
+      role: BatchReceiverRole.distributor,
+      userId: _currentDistributorId,
+    );
+  }
 
   HarvestBatch? findFarmerAcquisitionBatch(String code) {
-    return FarmerRepository.instance.findPublicBatch(code);
+    final cleanCode = code.trim().toUpperCase();
+    if (_incomingFarmerBatchesLoaded) {
+      for (final batch in _incomingFarmerBatches) {
+        if (batch.code.toUpperCase() == cleanCode) return batch;
+      }
+      return null;
+    }
+    return FarmerRepository.instance.findBatchForReceiver(
+      code: cleanCode,
+      role: BatchReceiverRole.distributor,
+      userId: _currentDistributorId,
+    );
   }
 
   // [FE - State Management] Manifest PGL siap diambil menjadi kandidat
@@ -994,7 +1206,7 @@ class DistributorRepository extends ChangeNotifier {
   DistributorAcquisitionTransaction? initiateFarmerAcquisition(
     String batchCode,
   ) {
-    final batch = FarmerRepository.instance.findPublicBatch(batchCode);
+    final batch = findFarmerAcquisitionBatch(batchCode);
     if (batch == null || batch.status != BatchStatus.created) return null;
 
     final existing = _pendingAcquisitionFor(
@@ -1070,14 +1282,8 @@ class DistributorRepository extends ChangeNotifier {
 
   // [FE - State Management] Distributor hanya membaca manifest yang tujuan
   // penerimanya distributor; pengiriman langsung UMKM tetap terisolasi.
-  List<CollectorShipmentBatch> get allShipments => CollectorRepository
-      .instance
-      .allShipmentBatches
-      .where(
-        (shipment) =>
-            shipment.destinationType == ShipmentDestinationType.distributor,
-      )
-      .toList();
+  List<CollectorShipmentBatch> get allShipments =>
+      List.unmodifiable(_backendShipments);
 
   // [FE - State Management] Lookup ini menjadi jembatan detail distributor
   // dari kode shipment PGL ke data agregat pengepul yang sedang dipilih.
@@ -1189,9 +1395,9 @@ class DistributorRepository extends ChangeNotifier {
         ..sort((a, b) => b.packagedAt.compareTo(a.packagedAt));
 
   /// Menandai shipment batch sebagai "Sent" (Handover pengiriman diambil).
-  bool takeShipment(String code) {
+  Future<bool> takeShipment(String code) async {
     try {
-      final success = CollectorRepository.instance.markShipmentSent(code);
+      final success = await CollectorRepository.instance.markShipmentSent(code);
       if (success) {
         _recordAudit(
           type: DistributorAuditEventType.scan,
@@ -1214,7 +1420,7 @@ class DistributorRepository extends ChangeNotifier {
 
   // [FE - Event Handler] T2 pembelian dari pengepul memakai flow receipt
   // pengiriman yang sudah ada agar manifest PGL tetap menjadi sumber benar.
-  DistributorReceipt? completeCollectorAcquisition({
+  Future<DistributorReceipt?> completeCollectorAcquisition({
     required String transactionId,
     required double receivedWeightKg,
     required int receivedFruitCount,
@@ -1222,7 +1428,7 @@ class DistributorRepository extends ChangeNotifier {
     required String destinationLocation,
     String? discrepancyNote,
     String? qualityNote,
-  }) {
+  }) async {
     final transaction = findAcquisitionTransaction(transactionId);
     if (transaction == null ||
         transaction.status != DistributorAcquisitionStatus.initiated ||
@@ -1237,11 +1443,11 @@ class DistributorRepository extends ChangeNotifier {
     }
 
     if (shipment.status == CollectorShipmentStatus.readyToShip &&
-        !takeShipment(shipment.code)) {
+        !await takeShipment(shipment.code)) {
       return null;
     }
 
-    final receipt = receiveShipment(
+    final receipt = await receiveShipment(
       code: shipment.code,
       receivedWeightKg: receivedWeightKg,
       receivedFruitCount: receivedFruitCount,
@@ -1288,14 +1494,14 @@ class DistributorRepository extends ChangeNotifier {
 
   // [FE - Event Handler] T2 pembelian langsung dari petani mengikuti pola
   // verifikasi pengepul: timbang aktual, grade breakdown, dan catatan fisik.
-  bool completeFarmerAcquisition({
+  Future<bool> completeFarmerAcquisition({
     required String transactionId,
     required double receivedWeightKg,
     required int receivedFruitCount,
     required List<BatchGradeBreakdown> gradeBreakdown,
     required String destinationLocation,
     String? qualityNote,
-  }) {
+  }) async {
     final cleanDestination = destinationLocation.trim();
     final transaction = findAcquisitionTransaction(transactionId);
     if (transaction == null ||
@@ -1307,7 +1513,7 @@ class DistributorRepository extends ChangeNotifier {
       return false;
     }
 
-    final batch = FarmerRepository.instance.findPublicBatch(
+    final batch = findFarmerAcquisitionBatch(
       transaction.itemCode,
     );
     if (batch == null || batch.status != BatchStatus.created) return false;
@@ -1330,7 +1536,41 @@ class DistributorRepository extends ChangeNotifier {
       return false;
     }
 
-    final ok = FarmerRepository.instance.verifyBatchByReceiver(
+    final response = await BackendApiClient.instance.post(
+      '/distributor/batches/${Uri.encodeComponent(batch.code)}/receive',
+      body: {
+        'received_quantity_kg': receivedWeightKg,
+        'received_fruit_count': receivedFruitCount,
+        'quality_notes': qualityNote,
+      },
+    );
+    final responseData = response.data;
+    final nestedBatch = responseData is Map ? responseData['batch'] : null;
+    final receivedBatch = nestedBatch is Map
+        ? HarvestBatch.fromJson({
+            ...batch.toJson(),
+            ...Map<String, dynamic>.from(nestedBatch),
+          })
+        : batch.copyWith(
+            status: BatchStatus.receivedByDistributor,
+            receivedQuantity: receivedWeightKg,
+            receivedFruitCount: receivedFruitCount,
+            qualityNotes: qualityNote,
+            verifiedBy: _profile.fullName,
+            verifiedByRole: BatchReceiverRole.distributor,
+            verifiedAt: DateTime.now(),
+          );
+    final batchIndex = _incomingFarmerBatches.indexWhere(
+      (item) => item.code == batch.code,
+    );
+    if (batchIndex >= 0) {
+      _incomingFarmerBatches[batchIndex] = receivedBatch;
+    } else {
+      _incomingFarmerBatches.insert(0, receivedBatch);
+    }
+    _incomingFarmerBatchesLoaded = true;
+
+    FarmerRepository.instance.verifyBatchByReceiver(
       code: batch.code,
       receiverRole: BatchReceiverRole.distributor,
       receivedQuantity: receivedWeightKg,
@@ -1341,8 +1581,8 @@ class DistributorRepository extends ChangeNotifier {
       receiverName: _profile.businessName.trim().isEmpty
           ? _profile.fullName
           : _profile.businessName,
+      receiverUserId: _currentDistributorId,
     );
-    if (!ok) return false;
 
     _closeAcquisitionTransaction(
       transactionId: transaction.id,
@@ -1516,7 +1756,7 @@ class DistributorRepository extends ChangeNotifier {
 
   // [FE - Event Handler] Mutasi penerimaan menyimpan hasil inspeksi aktual
   // lalu menyelesaikan handover manifest dari pengepul secara konsisten.
-  DistributorReceipt? receiveShipment({
+  Future<DistributorReceipt?> receiveShipment({
     required String code,
     required double receivedWeightKg,
     required int receivedFruitCount,
@@ -1524,7 +1764,7 @@ class DistributorRepository extends ChangeNotifier {
     required String destinationLocation,
     String? discrepancyNote,
     String? qualityNote,
-  }) {
+  }) async {
     final cleanDestination = destinationLocation.trim();
     final shipment = findShipment(code);
     if (shipment == null ||
@@ -1547,13 +1787,21 @@ class DistributorRepository extends ChangeNotifier {
     }
 
     final cleanQualityNote = qualityNote?.trim();
-    final completed = CollectorRepository.instance.completeShipment(
-      code,
-      warehouseNote: cleanQualityNote?.isNotEmpty == true
-          ? cleanQualityNote
-          : 'Diterima dan diverifikasi oleh distributor.',
-    );
-    if (!completed) return null;
+    try {
+      await BackendApiClient.instance.post(
+        '/distributor/shipments/$code/receipt',
+        body: {
+          'received_weight_kg': receivedWeightKg,
+          'received_fruit_count': receivedFruitCount,
+          'condition': _backendReceiptCondition(condition),
+          'destination_location': cleanDestination,
+          'discrepancy_note': cleanDiscrepancyNote,
+          'quality_note': cleanQualityNote,
+        },
+      );
+    } on BackendApiException {
+      return null;
+    }
 
     final receipt = DistributorReceipt(
       shipmentCode: code,
@@ -1571,6 +1819,15 @@ class DistributorRepository extends ChangeNotifier {
       qualityNote: cleanQualityNote?.isEmpty == true ? null : cleanQualityNote,
     );
     _receipts.add(receipt);
+    final shipmentIndex = _backendShipments.indexWhere(
+      (item) => item.code == shipment.code,
+    );
+    if (shipmentIndex != -1) {
+      _backendShipments[shipmentIndex] = shipment.copyWith(
+        status: CollectorShipmentStatus.completed,
+        completedAt: receipt.receivedAt,
+      );
+    }
     TraceabilityRepository.instance.recordReceiptVariance(
       batchCode: shipment.code,
       actorId: _currentDistributorId,
@@ -1614,6 +1871,14 @@ class DistributorRepository extends ChangeNotifier {
     _saveToLocal();
     notifyListeners();
     return receipt;
+  }
+
+  String _backendReceiptCondition(DistributorReceiptCondition condition) {
+    return switch (condition) {
+      DistributorReceiptCondition.good => 'good',
+      DistributorReceiptCondition.minorDamage => 'minorDamage',
+      DistributorReceiptCondition.damaged => 'damaged',
+    };
   }
 
   DistributorAcquisitionTransaction? _pendingAcquisitionFor({
@@ -1690,185 +1955,6 @@ class DistributorRepository extends ChangeNotifier {
     final year = DateTime.now().year;
     final seq = _horizontalSaleCounter.toString().padLeft(6, '0');
     return 'JDL-DST-$year-$seq';
-  }
-
-  static List<DistributorWarehouse> _buildSeedWarehouses() {
-    return [
-      DistributorWarehouse(
-        id: 'WH-DST-distributor-001-0001',
-        name: 'Gudang Hub Surabaya',
-        location: 'Jl. Pemuda No. 15, Surabaya',
-        note: 'Gudang penerimaan utama dari pengepul Jawa Timur.',
-        isDefault: true,
-        createdAt: DateTime(2026, 1, 3),
-      ),
-      DistributorWarehouse(
-        id: 'WH-DST-distributor-001-0002',
-        name: 'Gudang Transit Sidoarjo',
-        location: 'Kawasan Pergudangan Sidoarjo',
-        note: 'Dipakai untuk pemecahan muatan lintas kota.',
-        createdAt: DateTime(2026, 1, 8),
-      ),
-    ];
-  }
-
-  List<DistributorAuditEvent> _buildSeedAuditEvents() {
-    final events = <DistributorAuditEvent>[];
-    var counter = 0;
-
-    DistributorAuditEvent event({
-      required DistributorAuditEventType type,
-      required String action,
-      required String objectCode,
-      required String description,
-      required DateTime occurredAt,
-      Map<String, String> metadata = const {},
-    }) {
-      counter++;
-      return DistributorAuditEvent(
-        id: 'AUD-DST-${counter.toString().padLeft(6, '0')}',
-        distributorId: _currentDistributorId,
-        actorId: _profile.distributorId,
-        actorName: _profile.fullName,
-        actorRole: _profile.roleLabel,
-        type: type,
-        action: action,
-        objectCode: objectCode,
-        description: description,
-        occurredAt: occurredAt,
-        metadata: metadata,
-      );
-    }
-
-    for (final warehouse in _warehouses) {
-      events.add(
-        event(
-          type: DistributorAuditEventType.warehouse,
-          action: 'Seed gudang',
-          objectCode: warehouse.id,
-          description: 'Gudang ${warehouse.name} tersedia di data awal.',
-          occurredAt: warehouse.createdAt ?? DateTime(2026, 1, 1),
-          metadata: {'Lokasi': warehouse.location},
-        ),
-      );
-    }
-
-    for (final transfer in _warehouseTransfers) {
-      events.add(
-        event(
-          type: DistributorAuditEventType.transfer,
-          action: 'Transfer gudang',
-          objectCode: transfer.id,
-          description:
-              'Transfer internal ${transfer.itemCode} dari ${warehouseLabel(transfer.fromWarehouseId)} ke ${warehouseLabel(transfer.toWarehouseId)}.',
-          occurredAt: transfer.transferredAt,
-          metadata: {
-            'Gudang asal': warehouseLabel(transfer.fromWarehouseId),
-            'Gudang tujuan': warehouseLabel(transfer.toWarehouseId),
-            'Berat': '${transfer.weightKg} kg',
-            'Jumlah': '${transfer.fruitCount} butir',
-            if (transfer.note?.isNotEmpty == true) 'Catatan': transfer.note!,
-          },
-        ),
-      );
-    }
-
-    for (final transaction in _acquisitionTransactions) {
-      events.add(
-        event(
-          type: transaction.status == DistributorAcquisitionStatus.rejected
-              ? DistributorAuditEventType.rejection
-              : transaction.status == DistributorAcquisitionStatus.initiated
-              ? DistributorAuditEventType.scan
-              : DistributorAuditEventType.acquisition,
-          action: transaction.status == DistributorAcquisitionStatus.initiated
-              ? 'Mulai akuisisi ${transaction.source.label}'
-              : transaction.status == DistributorAcquisitionStatus.rejected
-              ? 'Tolak akuisisi'
-              : 'Akuisisi ${transaction.status.label}',
-          objectCode: transaction.itemCode,
-          description:
-              '${transaction.source.label} ${transaction.itemCode} tercatat sebagai ${transaction.status.label}.',
-          occurredAt: transaction.closedAt ?? transaction.initiatedAt,
-          metadata: {
-            'Transaksi': transaction.id,
-            'Sumber': transaction.source.label,
-            'Supplier': transaction.supplierLabel,
-            'Berat dikirim': '${transaction.expectedWeightKg} kg',
-            'Jumlah dikirim': '${transaction.expectedFruitCount} butir',
-            if (transaction.destinationLocation?.isNotEmpty == true)
-              'Tujuan': transaction.destinationLocation!,
-            ...transaction.note?.isNotEmpty == true
-                ? {
-                    transaction.status == DistributorAcquisitionStatus.rejected
-                            ? 'Alasan'
-                            : 'Catatan':
-                        transaction.note!,
-                  }
-                : <String, String>{},
-          },
-        ),
-      );
-    }
-
-    for (final sale in _horizontalSales) {
-      events.add(
-        event(
-          type: sale.status == DistributorHorizontalSaleStatus.rejected
-              ? DistributorAuditEventType.rejection
-              : DistributorAuditEventType.sale,
-          action: sale.status == DistributorHorizontalSaleStatus.initiated
-              ? 'T1 jual distributor'
-              : sale.status == DistributorHorizontalSaleStatus.rejected
-              ? 'Tolak jual distributor'
-              : 'Jual distributor ${sale.status.label}',
-          objectCode: sale.id,
-          description:
-              '${sale.itemCode} dari ${sale.sourceWarehouseName} ke ${sale.buyerName}.',
-          occurredAt: sale.verifiedAt ?? sale.initiatedAt,
-          metadata: {
-            'Pembeli': sale.buyerName,
-            'Gudang asal': sale.sourceWarehouseName,
-            'Tujuan': sale.destinationLocation,
-            'Berat dikirim': '${sale.expectedWeightKg} kg',
-            'Jumlah dikirim': '${sale.expectedFruitCount} butir',
-            if (sale.receivedWeightKg != null)
-              'Berat diterima': '${sale.receivedWeightKg} kg',
-            if (sale.receivedFruitCount != null)
-              'Jumlah diterima': '${sale.receivedFruitCount} butir',
-            if (sale.condition != null) 'Kondisi': sale.condition!.label,
-            if (sale.rejectionNote?.isNotEmpty == true)
-              'Alasan': sale.rejectionNote!,
-          },
-        ),
-      );
-    }
-
-    for (final receipt in _receipts) {
-      events.add(
-        event(
-          type: DistributorAuditEventType.receipt,
-          action: 'Buat receipt',
-          objectCode: receipt.shipmentCode,
-          description:
-              'Receipt ${receipt.shipmentCode} dibuat di ${receipt.destinationLocation}.',
-          occurredAt: receipt.receivedAt,
-          metadata: {
-            'Tujuan': receipt.destinationLocation,
-            'Kondisi': receipt.condition.label,
-            'Berat dikirim': '${receipt.expectedWeightKg} kg',
-            'Berat diterima': '${receipt.receivedWeightKg} kg',
-            'Selisih berat': '${receipt.weightDifferenceKg} kg',
-            'Jumlah dikirim': '${receipt.expectedFruitCount} butir',
-            'Jumlah diterima': '${receipt.receivedFruitCount} butir',
-            'Selisih jumlah': '${receipt.fruitDifference} butir',
-          },
-        ),
-      );
-    }
-
-    events.sort((a, b) => a.occurredAt.compareTo(b.occurredAt));
-    return events;
   }
 
   String _generateAcquisitionTransactionId() {

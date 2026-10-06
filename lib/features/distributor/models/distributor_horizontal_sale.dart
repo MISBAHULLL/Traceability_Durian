@@ -1,4 +1,5 @@
 import '../../../core/network/backend_api_client.dart';
+import '../../farmer/models/harvest_batch.dart';
 import 'distributor_receipt.dart';
 
 enum DistributorHorizontalSaleStatus { initiated, verified, rejected }
@@ -45,6 +46,7 @@ class DistributorHorizontalSale {
     required this.expectedFruitCount,
     required this.initiatedAt,
     required this.status,
+    this.recipientRole,
     this.verifiedAt,
     this.receivedWeightKg,
     this.receivedFruitCount,
@@ -67,6 +69,7 @@ class DistributorHorizontalSale {
   final int expectedFruitCount;
   final DateTime initiatedAt;
   final DistributorHorizontalSaleStatus status;
+  final BatchReceiverRole? recipientRole;
   final DateTime? verifiedAt;
   final double? receivedWeightKg;
   final int? receivedFruitCount;
@@ -112,6 +115,7 @@ class DistributorHorizontalSale {
       expectedFruitCount: expectedFruitCount,
       initiatedAt: initiatedAt,
       status: status ?? this.status,
+      recipientRole: recipientRole,
       verifiedAt: verifiedAt ?? this.verifiedAt,
       receivedWeightKg: receivedWeightKg ?? this.receivedWeightKg,
       receivedFruitCount: receivedFruitCount ?? this.receivedFruitCount,
@@ -136,6 +140,7 @@ class DistributorHorizontalSale {
     'expectedFruitCount': expectedFruitCount,
     'initiatedAt': initiatedAt.toIso8601String(),
     'status': status.name,
+    'buyerRole': recipientRole?.name,
     'verifiedAt': verifiedAt?.toIso8601String(),
     'receivedWeightKg': receivedWeightKg,
     'receivedFruitCount': receivedFruitCount,
@@ -147,24 +152,54 @@ class DistributorHorizontalSale {
 
   factory DistributorHorizontalSale.fromJson(Map<String, dynamic> json) {
     return DistributorHorizontalSale(
-      id: backendString(json, const ['id']),
-      sellerDistributorId: backendString(json, const ['sellerDistributorId'], ''),
-      sellerName: backendString(json, const ['sellerName'], ''),
-      buyerDistributorId: backendString(json, const ['buyerDistributorId'], ''),
-      buyerName: backendString(json, const ['buyerName'], ''),
-      sourceWarehouseId: backendString(json, const ['sourceWarehouseId'], ''),
-      sourceWarehouseName: backendString(json, const ['sourceWarehouseName'], ''),
-      destinationLocation: backendString(json, const ['destinationLocation'], ''),
-      itemCode: backendString(json, const ['itemCode'], ''),
-      expectedWeightKg: backendDouble(json, const ['expectedWeightKg']),
-      expectedFruitCount: backendInt(json, const ['expectedFruitCount']),
+      id: backendString(json, const ['id', 'code']),
+      sellerDistributorId: backendString(
+        json,
+        const ['sellerDistributorId', 'seller_user_id'],
+        '',
+      ),
+      sellerName: backendString(json, const ['sellerName', 'seller_name'], ''),
+      buyerDistributorId: backendString(
+        json,
+        const ['buyerDistributorId', 'buyer_distributor_id'],
+        '',
+      ),
+      buyerName: backendString(json, const ['buyerName', 'buyer_name'], ''),
+      recipientRole: batchReceiverRoleFromJson(
+        json['buyerRole'] ?? json['buyer_role'],
+      ),
+      sourceWarehouseId: backendString(
+        json,
+        const ['sourceWarehouseId', 'source_warehouse_id'],
+        '',
+      ),
+      sourceWarehouseName: backendString(
+        json,
+        const ['sourceWarehouseName', 'source_warehouse_name'],
+        '',
+      ),
+      destinationLocation: backendString(
+        json,
+        const ['destinationLocation', 'destination_location'],
+        '',
+      ),
+      itemCode: backendString(json, const ['itemCode', 'item_code'], ''),
+      expectedWeightKg: backendDouble(
+        json,
+        const ['expectedWeightKg', 'expected_weight_kg'],
+      ),
+      expectedFruitCount: backendInt(
+        json,
+        const ['expectedFruitCount', 'expected_fruit_count'],
+      ),
       initiatedAt:
-          backendDateTime(json, const ['initiatedAt']) ?? DateTime.now(),
+          backendDateTime(json, const ['initiatedAt', 'initiated_at']) ??
+          DateTime.now(),
       status: DistributorHorizontalSaleStatus.values.firstWhere(
         (status) => status.name == backendString(json, const ['status']),
         orElse: () => DistributorHorizontalSaleStatus.initiated,
       ),
-      verifiedAt: backendDateTime(json, const ['verifiedAt']),
+      verifiedAt: backendDateTime(json, const ['verifiedAt', 'verified_at']),
       receivedWeightKg: backendDouble(json, const ['receivedWeightKg', 'received_weight_kg']),
       receivedFruitCount: backendInt(json, const ['receivedFruitCount', 'received_fruit_count']),
       condition: backendNullableString(json, const ['condition']) == null
@@ -173,9 +208,18 @@ class DistributorHorizontalSale {
               (condition) => condition.name == backendString(json, const ['condition']),
               orElse: () => DistributorReceiptCondition.good,
             ),
-      discrepancyNote: backendNullableString(json, const ['discrepancyNote']),
-      qualityNote: backendNullableString(json, const ['qualityNote']),
-      rejectionNote: backendNullableString(json, const ['rejectionNote']),
+      discrepancyNote: backendNullableString(
+        json,
+        const ['discrepancyNote', 'discrepancy_note'],
+      ),
+      qualityNote: backendNullableString(
+        json,
+        const ['qualityNote', 'quality_note'],
+      ),
+      rejectionNote: backendNullableString(
+        json,
+        const ['rejectionNote', 'rejection_note'],
+      ),
     );
   }
 }
